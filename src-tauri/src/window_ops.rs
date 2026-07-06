@@ -60,6 +60,7 @@ pub fn build_window(app: &tauri::AppHandle, label: &str, url: WebviewUrl) -> Res
     Ok(win)
 }
 
+#[allow(dead_code)]
 pub fn build_window_with_data_dir(
     app: &tauri::AppHandle, label: &str, url: WebviewUrl, data_dir: std::path::PathBuf,
 ) -> Result<tauri::WebviewWindow, String> {
@@ -105,7 +106,7 @@ pub async fn open_folder_in_new_window(
         }
     });
 
-    let win = build_window(app, &label, WebviewUrl::App("index.html".into()))?;
+    let _win = build_window(app, &label, WebviewUrl::App("index.html".into()))?;
     Ok(())
 }
 

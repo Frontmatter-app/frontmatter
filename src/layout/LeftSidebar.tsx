@@ -1,12 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useWorkspace, FileNode } from '../workspace/WorkspaceProvider';
+import { useWorkspace } from '../workspace/WorkspaceProvider';
+import type { FileNode } from '../workspace/workspaceTypes';
 import { cn } from '../lib/utils';
 import { registry } from '../yjs/DocumentRegistry';
 import * as Y from 'yjs';
 import { useOutline } from '../hooks/useOutline';
-import { useAuth } from '../auth/AuthProvider';
-import { usePlan } from '../billing/PlanProvider';
-import { useTeamPermissions } from '../auth/teamPermissions';
+import { useSidebarContext } from './SidebarContext';
 import { injectCloudOnlyDocs, buildCloudWorkspaceTree } from './leftSidebar/cloudNodes';
 import { useFileOperations } from './leftSidebar/useFileOperations';
 import { SidebarHeader } from './leftSidebar/SidebarHeader';
@@ -23,17 +22,14 @@ export function LeftSidebar({ className, style }: { className?: string; style?: 
     directoryTree, openWorkspace,
   } = useWorkspace();
 
-  const { user } = useAuth();
-  const { activeContext } = usePlan();
-  const teamPerms = useTeamPermissions();
-  const isTeamContext = activeContext.type === 'team';
+  const { user, isTeamContext, teamName, teamPerms } = useSidebarContext();
 
   const workspaceLabel = useMemo(() => {
-    if (isTeamContext) return activeContext.teamName || 'Team Workspace';
+    if (isTeamContext) return teamName || 'Team Workspace';
     if (!workspacePath) return 'Open Folder';
     const parts = workspacePath.replace(/\\/g, '/').split('/').filter(Boolean);
     return parts[parts.length - 1] || workspacePath;
-  }, [isTeamContext, activeContext.teamName, workspacePath]);
+  }, [isTeamContext, teamName, workspacePath]);
 
   const [showOverview, setShowOverview] = useState(!currentDocumentId);
   const [ydoc, setYdoc] = useState<Y.Doc | null>(null);

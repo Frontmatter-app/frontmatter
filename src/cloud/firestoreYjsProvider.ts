@@ -10,37 +10,21 @@ import {
   doc,
   setDoc,
   deleteDoc,
-  getDoc,
 } from 'firebase/firestore';
-import { db, auth } from '../auth/AuthProvider';
+import { db, auth } from '../auth/firebase';
+import { ensureUserDocumentExists } from '../auth/authStorage';
+import { ensureCloudDocumentExists, CLOUD_DOCUMENTS_COL } from './firestoreSync';
+import { uint8ToBase64, base64ToUint8 } from '../lib/base64';
+import { getCollabColors } from '../lib/colors';
 
 export interface PresenceData {
-  uid: string;          // real Firebase uid (from awareness state.user.uid)
-  clientId: number;     // Yjs clientID (ephemeral per-tab)
+  uid: string;
+  clientId: number;
   displayName: string;
   email: string | null;
   photoURL: string | null;
   cursor: { anchor: any; head: any } | null;
   color: string;
-}
-
-/** Encode a Uint8Array to a base64 string without using Node's Buffer. */
-function uint8ToBase64(bytes: Uint8Array): string {
-  let binary = '';
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
-
-/** Decode a base64 string back to a Uint8Array without using Node's Buffer. */
-function base64ToUint8(b64: string): Uint8Array {
-  const binary = atob(b64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
 }
 
 export class FirestoreYjsProvider {
@@ -60,15 +44,12 @@ export class FirestoreYjsProvider {
      this.doc = ydoc;
      this.awareness = new awarenessProtocol.Awareness(ydoc);
      this.teamId = teamId || null;
-     this.updatesCol = collection(db, 'cloud_documents', docId, 'updates');
-     this.presenceCol = collection(db, 'cloud_documents', docId, 'presence');
+      this.updatesCol = collection(db, CLOUD_DOCUMENTS_COL, docId, 'updates');
+      this.presenceCol = collection(db, CLOUD_DOCUMENTS_COL, docId, 'presence');
 
-     // Initialize awareness immediately (doesn't require Firestore access)
-     const colors = [
-       '#FF5733', '#33FF57', '#3357FF', '#FF33A1', '#A133FF',
-       '#33FFF0', '#F3FF33', '#FF8F33', '#8FFF33', '#FF3333'
-     ];
-     const userColor = colors[Math.floor(Math.random() * colors.length)];
+      // Initialize awareness immediately (doesn't require Firestore access)
+      const collabColors = getCollabColors();
+      const userColor = collabColors[Math.floor(Math.random() * collabColors.length)];
 
      this.awareness.setLocalStateField('user', {
        uid: auth.currentUser?.uid || null,
@@ -82,38 +63,21 @@ export class FirestoreYjsProvider {
      this.ensureDocumentAndSync();
    }
 
-  private async ensureDocumentAndSync(): Promise<void> {
-      try {
-        const docRef = doc(db, 'cloud_documents', this.docId);
-        const snap = await getDoc(docRef);
+   private async ensureDocumentAndSync(): Promise<void> {
+       try {
+         if (auth.currentUser) {
+           ensureUserDocumentExists(auth.currentUser);
+           if (this.teamId) {
+             await ensureCloudDocumentExists(this.docId, auth.currentUser.uid, this.teamId);
+           }
+         }
+       } catch (e) {
+         console.error('[YjsProvider] ensureDocumentAndSync failed:', e);
+       }
 
-        // Update user profile updatedAt to record last active timestamp
-        if (auth.currentUser) {
-          const userRef = doc(db, 'users', auth.currentUser.uid);
-          setDoc(userRef, { updatedAt: serverTimestamp() }, { merge: true }).catch(() => {});
-        }
-
-        if (!snap.exists() && auth.currentUser && this.teamId) {
-          await setDoc(docRef, {
-            id: this.docId,
-            ownerId: auth.currentUser.uid,
-            teamId: this.teamId,
-            title: '',
-            content: '',
-            stage: 'write',
-            focusMode: false,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          });
-        }
-      } catch (e) {
-        console.error('[YjsProvider] ensureDocumentAndSync failed:', e);
-      }
-
-      // Attach listeners - rules will validate permissions
-      this.initUpdatesSync();
-      this.initPresenceSync();
-  }
+       this.initUpdatesSync();
+       this.initPresenceSync();
+   }
 
 // Sync Yjs doc updates
    private initUpdatesSync() {
@@ -235,7 +199,7 @@ export class FirestoreYjsProvider {
             email: state.user.email || null,
             photoURL: state.user.photo || null,
             cursor: state.cursor ?? null,
-            color: state.user.color || '#FF5733'
+            color: state.user.color || getCollabColors()[0]
           });
         }
       });

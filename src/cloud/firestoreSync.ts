@@ -10,8 +10,11 @@ import {
   serverTimestamp,
   Timestamp,
 } from 'firebase/firestore';
-import { db } from '../auth/AuthProvider';
+import { db } from '../auth/firebase';
 import { CloudFolderMeta, DocumentMeta } from '../types';
+
+export const CLOUD_DOCUMENTS_COL = 'cloud_documents';
+export const CLOUD_FOLDERS_COL = 'cloud_folders';
 
 export interface CloudDocumentData {
   id: string;
@@ -44,6 +47,7 @@ export function mapFirestoreDoc(data: any): DocumentMeta {
     stage: data.stage || 'draft',
     focus_mode: data.focusMode || false,
     cloud_path: data.path || '',
+    cloud_id: data.id,
     is_cloud: true,
     created_at: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
     updated_at: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate().toISOString() : new Date().toISOString(),
@@ -61,45 +65,53 @@ export function mapFirestoreFolder(data: any): CloudFolderMeta {
   };
 }
 
+export async function ensureCloudDocumentExists(docId: string, uid: string, teamId?: string | null): Promise<void> {
+  const docRef = doc(db, CLOUD_DOCUMENTS_COL, docId);
+  const currentDoc = await getDoc(docRef);
+  if (!currentDoc.exists()) {
+    await setDoc(docRef, {
+      id: docId,
+      ownerId: uid,
+      teamId: teamId || null,
+      title: '',
+      content: '',
+      stage: 'write',
+      focusMode: false,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  }
+}
+
 // Push local doc changes to Firestore (sync, not move — local copy stays)
- export async function pushCloudDocument(
-   docMeta: DocumentMeta,
-   uid: string,
-   teamId?: string | null,
-   cloudPath?: string,
- ): Promise<void> {
-   try {
-     const docRef = doc(db, 'cloud_documents', docMeta.id);
-     const updateData: any = {
-       title: docMeta.title,
-       content: docMeta.content,
-       stage: docMeta.stage,
-       focusMode: docMeta.focus_mode,
-       updatedAt: serverTimestamp(),
-     };
-     const resolvedPath = cloudPath ?? docMeta.cloud_path;
-     if (resolvedPath !== undefined) {
-       updateData.path = resolvedPath;
-     }
-
-     // Only set teamId/ownerId on create, not on update
-     const currentDoc = await getDoc(docRef);
-     if (!currentDoc.exists()) {
-       updateData.ownerId = uid;
-       updateData.teamId = teamId || null;
-       updateData.createdAt = serverTimestamp();
-     }
-
-     await setDoc(docRef, updateData, { merge: true });
-   } catch (error: any) {
-     // Silently ignore permission-denied errors - document may be created by FirestoreYjsProvider first
-     // or user may not have write access (acceptable for optimistic sync scenarios)
-     if (error?.code !== 'permission-denied') {
-       console.error('Failed to push document to cloud:', error);
-       throw error;
-     }
-   }
- }
+export async function pushCloudDocument(
+  docMeta: DocumentMeta,
+  uid: string,
+  teamId?: string | null,
+  cloudPath?: string,
+): Promise<void> {
+  try {
+    await ensureCloudDocumentExists(docMeta.id, uid, teamId);
+    const docRef = doc(db, CLOUD_DOCUMENTS_COL, docMeta.id);
+    const updateData: any = {
+      title: docMeta.title,
+      content: docMeta.content,
+      stage: docMeta.stage,
+      focusMode: docMeta.focus_mode,
+      updatedAt: serverTimestamp(),
+    };
+    const resolvedPath = cloudPath ?? docMeta.cloud_path;
+    if (resolvedPath !== undefined) {
+      updateData.path = resolvedPath;
+    }
+    await setDoc(docRef, updateData, { merge: true });
+  } catch (error: any) {
+    if (error?.code !== 'permission-denied') {
+      console.error('Failed to push document to cloud:', error);
+      throw error;
+    }
+  }
+}
 
 export async function createCloudFolder(
   path: string,
@@ -110,7 +122,7 @@ export async function createCloudFolder(
   if (!normalizedPath) return;
 
   const folderId = `${teamId || uid}:${encodeURIComponent(normalizedPath)}`;
-  const docRef = doc(db, 'cloud_folders', folderId);
+  const docRef = doc(db, CLOUD_FOLDERS_COL, folderId);
   await setDoc(docRef, {
     id: folderId,
     ownerId: uid,
@@ -124,7 +136,7 @@ export async function createCloudFolder(
 // Hard-delete a cloud document (removes from Firestore entirely)
 export async function deleteCloudDocument(docId: string): Promise<void> {
   try {
-    const docRef = doc(db, 'cloud_documents', docId);
+    const docRef = doc(db, CLOUD_DOCUMENTS_COL, docId);
     await deleteDoc(docRef);
   } catch (error) {
     console.error('Failed to delete document from cloud:', error);
@@ -142,7 +154,7 @@ export function subscribeToCloudDocuments(
   } = {},
   onUpdate: (docs: DocumentMeta[]) => void
 ): () => void {
-  const collRef = collection(db, 'cloud_documents');
+  const collRef = collection(db, CLOUD_DOCUMENTS_COL);
   const docsMap = new Map<string, DocumentMeta>();
   const unsubs: Array<() => void> = [];
 
@@ -152,7 +164,7 @@ export function subscribeToCloudDocuments(
         if (change.type === 'removed') {
           docsMap.delete(change.doc.id);
         } else {
-          docsMap.set(change.doc.id, mapFirestoreDoc(change.doc.data()));
+          docsMap.set(change.doc.id, mapFirestoreDoc({ ...change.doc.data(), id: change.doc.id }));
         }
       });
       onUpdate(Array.from(docsMap.values()));
@@ -201,7 +213,7 @@ export function subscribeToCloudFolders(
   teamId: string | null,
   onUpdate: (folders: CloudFolderMeta[]) => void
 ): () => void {
-  const collRef = collection(db, 'cloud_folders');
+  const collRef = collection(db, CLOUD_FOLDERS_COL);
   const q = teamId
     ? query(collRef, where('teamId', '==', teamId))
     : query(collRef, where('ownerId', '==', uid), where('teamId', '==', null));
@@ -217,10 +229,10 @@ export function subscribeToCloudFolders(
 // Fetch a single cloud document's latest data
 export async function fetchCloudDocument(docId: string): Promise<DocumentMeta | null> {
   try {
-    const docRef = doc(db, 'cloud_documents', docId);
+    const docRef = doc(db, CLOUD_DOCUMENTS_COL, docId);
     const snap = await getDoc(docRef);
     if (snap.exists()) {
-      return mapFirestoreDoc(snap.data());
+      return mapFirestoreDoc({ ...snap.data(), id: snap.id });
     }
     return null;
   } catch (error) {

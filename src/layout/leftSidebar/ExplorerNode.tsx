@@ -6,7 +6,7 @@ import {
   Folder,
   FolderOpen,
 } from 'lucide-react';
-import type { FileNode } from '../../workspace/WorkspaceProvider';
+import type { FileNode } from '../../workspace/workspaceTypes';
 import { cn } from '../../lib/utils';
 import { cloudDocIdFromPath, isCloudOnlyNode, isCloudVirtualDir } from './cloudNodes';
 import { getFileIcon } from './fileIcons';

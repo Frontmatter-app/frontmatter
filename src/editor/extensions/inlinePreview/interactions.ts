@@ -1,7 +1,7 @@
 import { EditorView } from '@codemirror/view';
 import { normalizeMarkdownUrl } from './markdown';
-import { getAssetUrl } from './widgets';
 import { useExcalidrawStore } from '../../../excalidraw/excalidrawStore';
+import { resolveImageUrl } from '../../../images/imageService';
 import * as Y from 'yjs';
 
 function isSafePreviewUrl(rawUrl: string) {
@@ -11,7 +11,7 @@ function isSafePreviewUrl(rawUrl: string) {
 async function openPreviewUrl(rawUrl: string) {
   if (!isSafePreviewUrl(rawUrl)) return;
 
-  const resolvedUrl = getAssetUrl(normalizeMarkdownUrl(rawUrl));
+  const resolvedUrl = resolveImageUrl(normalizeMarkdownUrl(rawUrl));
   try {
     const { invoke } = await import('@tauri-apps/api/core');
     await invoke('open_browser_url', { url: resolvedUrl });
@@ -22,13 +22,13 @@ async function openPreviewUrl(rawUrl: string) {
 
 async function downloadImage(imageUrl: string, imageAlt: string) {
   try {
-    const resolvedUrl = getAssetUrl(normalizeMarkdownUrl(imageUrl));
+    const resolvedUrl = resolveImageUrl(normalizeMarkdownUrl(imageUrl));
     const response = await fetch(resolvedUrl);
     const blob = await response.blob();
     const blobUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = blobUrl;
-    
+
     let filename = 'download';
     if (imageUrl) {
       const cleanUrl = imageUrl.split(/[?#]/)[0];

@@ -6,8 +6,6 @@ export interface User {
   created_at: string;
   last_seen_at: string;
   is_anonymous: boolean;
-  role?: string;
-  restricted_paths?: string[];
   plan?: 'free' | 'author' | 'team' | 'enterprise';
   planStatus?: 'active' | 'past_due' | 'canceled' | null;
   teamId?: string | null;

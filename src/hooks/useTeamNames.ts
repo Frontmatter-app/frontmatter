@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { db } from '../auth/AuthProvider';
+import { db } from '../auth/firebase';
 
 export interface TeamItem {
   id: string;

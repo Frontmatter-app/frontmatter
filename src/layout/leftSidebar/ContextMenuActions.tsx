@@ -1,7 +1,8 @@
 import React from 'react';
 import { SidebarContextMenu } from '../../components/SidebarContextMenu';
 import { FilePermissionsModal } from '../../components/FilePermissionsModal';
-import { showPromptDialog, showAlertDialog } from '../../lib/tauriDialog';
+import { showPromptDialog } from '../../lib/tauriDialog';
+import { guardTeamPermission } from '../../auth/permissionGuards';
 import { isCloudOnlyNode, isCloudVirtualDir, cloudDocIdFromPath, CLOUD_DIR_PREFIX } from './cloudNodes';
 
 interface ContextMenuState {
@@ -62,10 +63,7 @@ export function ContextMenuActions({
         onClose={onClose}
         onCreateFile={async () => {
           if (contextMenu) {
-            if (isTeamContext && !teamPerms.createFiles) {
-              await showAlertDialog('Permission Denied', 'You do not have permission to create files in this team workspace.');
-              return;
-            }
+            if (!(await guardTeamPermission(isTeamContext, teamPerms.createFiles, 'create files'))) return;
             const name = await showPromptDialog('New File', 'Enter file name (e.g. notes.md):');
             if (name?.trim()) {
               if (isCloudVirtualDir(contextMenu.node.path)) {
@@ -79,10 +77,7 @@ export function ContextMenuActions({
         onCreateFolder={
           contextMenu
             ? async () => {
-                if (isTeamContext && !teamPerms.createFolders) {
-                  await showAlertDialog('Permission Denied', 'You do not have permission to create folders in this team workspace.');
-                  return;
-                }
+                if (!(await guardTeamPermission(isTeamContext, teamPerms.createFolders, 'create folders'))) return;
                 const name = await showPromptDialog('New Folder', 'Enter folder name:');
                 if (name?.trim()) onCreateFolder(contextMenu.node.path, name.trim());
               }

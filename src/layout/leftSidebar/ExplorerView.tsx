@@ -1,6 +1,6 @@
 import React from 'react';
 import { ExplorerNode } from './ExplorerNode';
-import type { FileNode } from '../../workspace/WorkspaceProvider';
+import type { FileNode } from '../../workspace/workspaceTypes';
 import { isCloudVirtualDir } from './cloudNodes';
 
 interface ExplorerViewProps {

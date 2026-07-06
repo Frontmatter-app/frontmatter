@@ -5,7 +5,7 @@ import { usePlan } from '../billing/PlanProvider';
 import { registry } from '../yjs/DocumentRegistry';
 import { PresenceData } from '../cloud/firestoreYjsProvider';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../auth/AuthProvider';
+import { db } from '../auth/firebase';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

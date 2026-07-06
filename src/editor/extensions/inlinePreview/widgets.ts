@@ -1,6 +1,7 @@
 import { EditorView, WidgetType } from '@codemirror/view';
 import katex from 'katex';
 import { markdown, type MarkdownReferences } from './markdown';
+import { resolveImageUrl } from '../../../images/imageService';
 
 let mermaidId = 0;
 let mermaidModulePromise: Promise<typeof import('mermaid').default> | null = null;
@@ -18,16 +19,6 @@ async function getMermaid() {
     });
   }
   return mermaidModulePromise;
-}
-
-export function getAssetUrl(path: string): string {
-  if (!path) return '';
-  if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) {
-    return path;
-  }
-
-  const cleanPath = path.replace('file://', '');
-  return `https://asset.localhost${cleanPath.startsWith('/') ? '' : '/'}${cleanPath}`;
 }
 
 function attachImageLifecycleHandlers(img: HTMLImageElement, view: EditorView) {
@@ -74,7 +65,7 @@ export class ImageWidget extends WidgetType {
     if (this.inline) {
       const img = document.createElement('img');
       img.className = 'cm-inline-preview-image';
-      img.src = getAssetUrl(this.url);
+      img.src = resolveImageUrl(this.url);
       img.alt = this.alt;
       img.dataset.inlinePreviewImage = 'true';
       img.dataset.imageUrl = this.url;
@@ -93,7 +84,7 @@ export class ImageWidget extends WidgetType {
 
     const img = document.createElement('img');
     img.className = 'cm-block-image-preview-media';
-    img.src = getAssetUrl(this.url);
+    img.src = resolveImageUrl(this.url);
     img.alt = this.alt;
     img.dataset.inlinePreviewImage = 'true';
     img.dataset.imageUrl = this.url;

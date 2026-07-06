@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 import { useAuth } from '../auth/AuthProvider';
-import { db } from '../auth/AuthProvider';
+import { db } from '../auth/firebase';
 import { createCheckoutSession, createPortalSession } from './creemService';
 import { create } from 'zustand';
 import type { TeamGroupsMap } from '../auth/teamPermissions';

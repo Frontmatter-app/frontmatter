@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { doc, getDoc, updateDoc, deleteField } from 'firebase/firestore';
-import { db } from '../auth/AuthProvider';
+import { db } from '../auth/firebase';
 import { usePlan } from '../billing/PlanProvider';
 import { Shield, X, Eye, Edit3, RotateCcw } from 'lucide-react';
 import type { TeamGroupsMap, FilePermissions } from '../auth/teamPermissions';
-import { showConfirmDialog } from '../lib/tauriDialog';
+
 
 interface FilePermissionsModalProps {
   docId: string;
@@ -134,21 +134,6 @@ export function FilePermissionsModal({ docId, docTitle, isOpen, onClose }: FileP
     }
   };
 
-  const handleReset = async () => {
-    const confirmed = await showConfirmDialog('Reset Permissions', 'Remove all permission restrictions from this file?');
-    if (!confirmed) return;
-    setSaving(true);
-    try {
-      await updateDoc(doc(db, 'cloud_documents', docId), { filePermissions: deleteField() });
-      setPerms({ visibleTo: [], writableBy: [], revisableBy: [] });
-      onClose();
-    } catch (e: any) {
-      setError(e.message || 'Failed to reset');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   if (!isOpen) return null;
 
   return (
@@ -211,7 +196,7 @@ export function FilePermissionsModal({ docId, docTitle, isOpen, onClose }: FileP
 
               <GroupCheckboxList
                 label="Can Revise"
-                icon={<RotateCcw className="w-3.5 h-3.5" />}
+                icon={<Shield className="w-3.5 h-3.5" />}
                 description="Which groups can use Revise mode on this file."
                 groups={groups}
                 selected={perms.revisableBy}
@@ -227,13 +212,6 @@ export function FilePermissionsModal({ docId, docTitle, isOpen, onClose }: FileP
 
         {/* Footer */}
         <div className="flex items-center gap-2 px-6 py-4 border-t border-white/8">
-          <button
-            onClick={handleReset}
-            disabled={saving}
-            className="flex items-center gap-1.5 text-xs text-[var(--editor-text-color)] opacity-50 hover:opacity-80 transition cursor-pointer disabled:opacity-30"
-          >
-            <RotateCcw className="w-3.5 h-3.5" /> Reset All
-          </button>
           <div className="flex-1" />
           <button
             onClick={onClose}

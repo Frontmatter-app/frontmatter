@@ -1,4 +1,4 @@
-import { db } from '../../auth/AuthProvider';
+import { db } from '../../auth/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { invoke, isWebPreview } from '../../filesystem/tauriCommands';
 

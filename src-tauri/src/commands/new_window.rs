@@ -27,7 +27,7 @@ pub async fn open_file_in_new_window_command(
     );
     crate::watcher::start_workspace_watcher(app.clone(), workspace_path_buf);
 
-    let win = crate::window_ops::build_window(&app, &label, WebviewUrl::App("index.html".into()))?;
+    let _win = crate::window_ops::build_window(&app, &label, WebviewUrl::App("index.html".into()))?;
     Ok(())
 }
 
@@ -54,10 +54,10 @@ pub async fn open_account_window(
     let url = format!("index.html?{}", params.join("&"));
 
     #[cfg(target_os = "macos")]
-    let win = crate::window_ops::build_window(&app, &label, WebviewUrl::App(url.into()))?;
+    let _win = crate::window_ops::build_window(&app, &label, WebviewUrl::App(url.into()))?;
 
     #[cfg(not(target_os = "macos"))]
-    let win = {
+    let _win = {
         let home = dirs::home_dir().ok_or("Could not determine home directory")?;
         let data_dir = home.join("MarkType").join(".data").join(&account_uid);
         crate::window_ops::build_window_with_data_dir(&app, &label, WebviewUrl::App(url.into()), data_dir)?

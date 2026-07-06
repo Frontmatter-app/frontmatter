@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { usePlan } from '../billing/PlanProvider';
 import { useAuth } from '../auth/AuthProvider';
 import { doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
-import { db } from '../auth/AuthProvider';
+import { db } from '../auth/firebase';
 import { markdown } from '../editor/extensions/inlinePreview/markdown';
 import { ShieldAlert, FileText, Check } from 'lucide-react';
 import { showAlertDialog } from '../lib/tauriDialog';

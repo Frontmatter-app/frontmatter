@@ -1,11 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { showNativePrompt } from '../components/PromptDialog';
-
-// Check if running inside Tauri
-const isTauri = typeof window !== 'undefined' && (
-  typeof (window as any).__TAURI_INTERNALS__ !== 'undefined' ||
-  typeof (window as any).__TAURI__ !== 'undefined'
-);
+import { isTauri } from './env';
 
 /**
  * Shows a premium native confirmation dialog.

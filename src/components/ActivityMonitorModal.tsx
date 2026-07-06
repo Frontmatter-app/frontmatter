@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth, db } from '../auth/AuthProvider';
+import { useAuth } from '../auth/AuthProvider';
+import { db } from '../auth/firebase';
 import { usePlan } from '../billing/PlanProvider';
 import { doc, getDoc } from 'firebase/firestore';
 import { RecentActivityDashboard } from '../settings/metrics/RecentActivityDashboard';

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import { usePlan } from '../billing/PlanProvider';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
-import { db } from '../auth/AuthProvider';
+import { db } from '../auth/firebase';
 import { markdown } from '../editor/extensions/inlinePreview/markdown';
 import { Mail, Check, LogOut, ShieldAlert, Users, Compass } from 'lucide-react';
 import { getAuth } from 'firebase/auth';

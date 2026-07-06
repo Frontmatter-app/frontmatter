@@ -1,4 +1,4 @@
-import type { FileNode } from '../../workspace/WorkspaceProvider';
+import type { FileNode } from '../../workspace/workspaceTypes';
 import type { CloudFolderMeta, DocumentMeta } from '../../types';
 
 export const CLOUD_FILE_PREFIX = '__cloud__:';
