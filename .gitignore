@@ -1,0 +1,15 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+dist-tmp/
+modal_backend/__pycache__/
+src-tauri/target/
+src-tauri/gen/
+src-tauri/node_modules/
+src-tauri/.tauri/

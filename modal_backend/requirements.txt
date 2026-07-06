@@ -1,0 +1,4 @@
+firebase-admin==6.5.0
+pycrdt==0.10.1
+requests==2.31.0
+fastapi[standard]==0.111.0

@@ -1,0 +1,574 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Merriweather:ital,wght@0,300;0,400;0,700;1,400&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-serif: "Merriweather", "Georgia", serif;
+}
+
+/* 0. Empty state logo bounce animation */
+@keyframes empty-state-bounce {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-10px); }
+}
+@keyframes empty-state-shadow {
+  0%, 100% { transform: scaleX(1); opacity: 0.25; }
+  50%       { transform: scaleX(0.5); opacity: 0.08; }
+}
+
+/* 1. Global Focus Mode styles (fixes scoping bug) */
+.focus-mode-active .cm-inactive-line {
+  opacity: 0.22 !important;
+  filter: blur(0.4px);
+  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), filter 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.focus-mode-active .cm-focus-line {
+  opacity: 1 !important;
+  filter: none !important;
+  transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), filter 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 1b. Focus Mode — dim both sidebars when active */
+body[data-focus-mode="true"] [data-sidebar="left"],
+body[data-focus-mode="true"] [data-sidebar="right"] {
+  opacity: 0.08;
+  pointer-events: none;
+  transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body:not([data-focus-mode="true"]) [data-sidebar="left"],
+body:not([data-focus-mode="true"]) [data-sidebar="right"] {
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 2. Global Borderless & Single-Color blends */
+.flex-1.flex.overflow-hidden.w-full > *,
+aside,
+main,
+nav,
+.border-r,
+.border-l,
+.border-t,
+.border-b {
+  border-color: transparent !important;
+  border-width: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Keep matched note cards visible and beautiful using editor theme note bg */
+.bg-amber-50\/50 {
+  background-color: var(--editor-note-bg) !important;
+  border: 1px solid rgba(150, 150, 150, 0.15) !important;
+}
+
+/* 3. Fix CodeMirror click selection / caret calculation on wrapped words */
+.cm-editor, 
+.cm-content, 
+.cm-line {
+  word-break: normal !important;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+}
+
+/* 3b. Keep CodeMirror's widget-buffer elements zero-height but NOT display:none.
+        display:none breaks block widget rendering because CM6 can't measure widget
+        heights when the buffer is completely removed from layout. Use height:0
+        + overflow:hidden instead — invisible but still in the layout tree. */
+.cm-widgetBuffer {
+  height: 0 !important;
+  min-height: 0 !important;
+  line-height: 0 !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* 3c. Keep inline preview widgets safely within the editor column */
+.inline-image-preview-container,
+.inline-table-preview {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.cm-block-preview {
+  cursor: text;
+  user-select: none;
+  pointer-events: auto;
+  animation: blockPreviewFadeIn 0.15s ease-out;
+}
+
+@keyframes blockPreviewFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.cm-block-preview [data-inline-preview-image] {
+  pointer-events: auto;
+}
+
+.cm-inline-preview-image {
+  display: inline-block;
+  max-height: 120px;
+  max-width: 200px;
+  border-radius: 4px;
+  vertical-align: middle;
+  margin: 0 4px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--border-color, #E2E8F0);
+  cursor: text;
+  user-select: none;
+  pointer-events: auto;
+}
+
+.cm-block-image-preview {
+  padding: 16px 0;
+}
+
+.cm-block-image-preview-media {
+  max-width: 100%;
+  max-height: 340px;
+  border-radius: 8px;
+  display: block;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--border-color, #E2E8F0);
+}
+
+.cm-block-image-preview-caption {
+  font-size: 0.8em;
+  color: var(--text-muted, #718096);
+  margin-top: 8px;
+  text-align: left;
+}
+
+.cm-inline-preview-image-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px dashed var(--border-color, #CBD5E1);
+  background: var(--editor-inline-code-bg, #F1F5F9);
+  color: var(--text-muted, #94A3B8);
+  font-size: 0.8em;
+  font-family: inherit;
+  user-select: none;
+  pointer-events: none;
+}
+
+.cm-table-preview-wrap {
+  overflow-x: auto;
+  padding: 18px 0;
+}
+
+.cm-table-preview {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.9em;
+  font-family: inherit;
+}
+
+.cm-table-preview thead tr {
+  border-bottom: 2px solid #CBD5E1;
+  background-color: rgba(241, 245, 249, 0.6);
+}
+
+.cm-table-preview tbody tr {
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.cm-table-preview th,
+.cm-table-preview td {
+  padding: 10px 14px;
+  border: 1px solid #E2E8F0;
+}
+
+.cm-table-preview th {
+  font-weight: 600;
+  color: var(--text-color, #1E293B);
+}
+
+.cm-table-preview td {
+  color: var(--text-color, #334155);
+}
+
+.cm-task-preview-checkbox {
+  margin: 0 4px 0 0;
+  vertical-align: middle;
+  cursor: pointer;
+  pointer-events: auto;
+  accent-color: var(--editor-link-color, #3B82F6);
+}
+
+/* 3d. iOS-style context menu entrance animation */
+@keyframes contextMenuIn {
+  from {
+    opacity: 0;
+    transform: scale(0.88) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+
+/* 4. Hidden scrollbars — scroll still works, bar is invisible */
+* {
+  scrollbar-width: none; /* Firefox */
+}
+
+::-webkit-scrollbar {
+  display: none; /* Chrome / Safari / Tauri WebKit */
+}
+
+/* 5. Dynamic Lucide Icon customization based on Icon Settings */
+.icon-style-clean svg {
+  stroke-width: 1.8px !important;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.icon-style-minimal svg {
+  stroke-width: 1.1px !important;
+  transform: scale(0.9);
+  opacity: 0.8;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.icon-style-bold svg {
+  stroke-width: 2.8px !important;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+
+/* 6a. Fenced code block classes
+   - .cm-fenced-code-fence : the opening/closing ``` lines — monospace, dimmed, visible
+   - .cm-fenced-code-line  : the code content lines — monospace, background, left accent
+   Using class-based styling (not inline style=) so syntaxHighlighting token colors
+   from @codemirror/language can layer on top without being overridden. */
+.cm-fenced-code-fence {
+  font-family: var(--font-mono), monospace !important;
+  font-size: 0.82em !important;
+  background-color: var(--editor-fenced-code-bg, rgba(241, 245, 249, 0.6)) !important;
+  color: var(--text-muted, #94A3B8) !important;
+  opacity: 0.7 !important;
+  padding-left: 16px !important;
+  border-left: 3px solid var(--editor-fenced-code-border, #CBD5E1) !important;
+}
+
+.cm-fenced-code-line {
+  font-family: var(--font-mono), monospace !important;
+  font-size: 0.93em !important;
+  background-color: var(--editor-fenced-code-bg, rgba(241, 245, 249, 0.6)) !important;
+  border-left: 3px solid var(--editor-fenced-code-border, #CBD5E1) !important;
+  padding-left: 16px !important;
+}
+
+.cm-math-preview-inline {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  vertical-align: baseline;
+  color: var(--editor-text-color, inherit);
+}
+
+.cm-math-preview-inline .katex {
+  font-size: 1em;
+}
+
+.cm-math-preview-block {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 10px 0;
+  padding: 16px 18px;
+  background-color: var(--editor-fenced-code-bg, rgba(241, 245, 249, 0.6));
+  border-left: 3px solid var(--editor-fenced-code-border, #CBD5E1);
+  border-radius: 6px;
+  color: var(--editor-text-color, inherit);
+}
+
+.cm-math-preview-block .katex-display {
+  margin: 0;
+}
+
+.cm-math-preview-error,
+.cm-diagram-preview-error {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.86em;
+  color: #b42318;
+  white-space: pre-wrap;
+}
+
+.cm-diagram-preview {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 12px 0;
+  padding: 16px;
+  background-color: var(--editor-fenced-code-bg, rgba(241, 245, 249, 0.6));
+  border: 1px solid var(--editor-fenced-code-border, #CBD5E1);
+  border-left-width: 3px;
+  border-radius: 6px;
+}
+
+.cm-diagram-preview-body {
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--editor-muted, #64748B);
+}
+
+.cm-diagram-preview-body svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* 6b. Blockquote lines — styled, not hidden */
+.cm-blockquote-line {
+  border-left: 3px solid var(--editor-blockquote-border, #CBD5E1) !important;
+  padding-left: 16px !important;
+  font-style: italic !important;
+  color: var(--editor-blockquote-color, #64748B) !important;
+  opacity: 0.9 !important;
+}
+
+/* 6c. Custom Markdown Block Preview Styles */
+
+/* Opening & Closing tags collapse when not focused */
+.cm-custom-block-tag-open.cm-tag-collapsed,
+.cm-custom-block-tag-close.cm-tag-collapsed {
+  display: none !important;
+}
+
+/* Styled custom block tag lines when visible (small & muted font) */
+.cm-custom-block-tag-open.cm-tag-visible,
+.cm-custom-block-tag-close.cm-tag-visible {
+  font-family: var(--font-mono), monospace !important;
+  font-size: 0.8em !important;
+  color: var(--text-muted, #94A3B8) !important;
+  opacity: 0.65 !important;
+  padding: 4px 12px !important;
+  background-color: rgba(148, 163, 184, 0.04) !important;
+}
+
+/* Block Content base style */
+.cm-custom-block-content {
+  padding-left: 46px !important;
+  padding-right: 20px !important;
+  margin: 0 !important;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+/* Unified top and bottom rounding/padding for content blocks */
+.cm-custom-block-content-first {
+  padding-top: 14px !important;
+  border-top-right-radius: 8px;
+}
+.cm-custom-block-content-last {
+  padding-bottom: 14px !important;
+  border-bottom-right-radius: 8px;
+  margin-bottom: 12px !important; /* space after block */
+}
+
+/* 6a. Theme colors & left borders for block types */
+
+/* NOTE (Blue Theme) */
+.cm-custom-block-content-note {
+  background-color: rgba(59, 130, 246, 0.05) !important;
+  border-left: 4px solid #3b82f6 !important;
+}
+
+/* WARNING / DANGER / CAUTION (Amber/Orange Theme) */
+.cm-custom-block-content-warning,
+.cm-custom-block-content-danger,
+.cm-custom-block-content-caution {
+  background-color: rgba(245, 158, 11, 0.05) !important;
+  border-left: 4px solid #f59e0b !important;
+}
+
+/* INFO / TIP / CHECK (Emerald/Green Theme) */
+.cm-custom-block-content-info,
+.cm-custom-block-content-tip,
+.cm-custom-block-content-check {
+  background-color: rgba(16, 185, 129, 0.05) !important;
+  border-left: 4px solid #10b981 !important;
+}
+
+/* SUMMARY / DETAILS / IMPORTANT (Purple/Violet Theme) */
+.cm-custom-block-content-summary,
+.cm-custom-block-content-details,
+.cm-custom-block-content-important {
+  background-color: rgba(139, 92, 246, 0.05) !important;
+  border-left: 4px solid #8b5cf6 !important;
+}
+
+/* TABS / TAB (Slate/Gray Theme) */
+.cm-custom-block-content-tabs,
+.cm-custom-block-content-tab {
+  background-color: rgba(100, 116, 139, 0.04) !important;
+  border-left: 4px solid #64748b !important;
+}
+
+/* 6b. SVG Icons for first content lines */
+.cm-custom-block-content-first {
+  position: relative;
+}
+
+.cm-custom-block-content-first::before {
+  content: "";
+  position: absolute;
+  left: 18px;
+  top: 17px;
+  width: 18px;
+  height: 18px;
+  background-repeat: no-repeat;
+  background-size: contain;
+  opacity: 0.85;
+}
+
+/* Note Icon (Book Open SVG) */
+.cm-custom-block-content-first-note::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z'/%3E%3Cpath d='M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z'/%3E%3C/svg%3E");
+}
+
+/* Warning / Danger / Caution Icon (Alert Triangle SVG) */
+.cm-custom-block-content-first-warning::before,
+.cm-custom-block-content-first-danger::before,
+.cm-custom-block-content-first-caution::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f59e0b' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z'/%3E%3Cline x1='12' y1='9' x2='12' y2='13'/%3E%3Cline x1='12' y1='17' x2='12.01' y2='17'/%3E%3C/svg%3E");
+}
+
+/* Info / Tip / Check Icon (Info Circle SVG) */
+.cm-custom-block-content-first-info::before,
+.cm-custom-block-content-first-tip::before,
+.cm-custom-block-content-first-check::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2310b981' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='12' y1='16' x2='12' y2='12'/%3E%3Cline x1='12' y1='8' x2='12.01' y2='8'/%3E%3C/svg%3E");
+}
+
+/* Summary / Details / Important Icon (Sparkles SVG) */
+.cm-custom-block-content-first-summary::before,
+.cm-custom-block-content-first-details::before,
+.cm-custom-block-content-first-important::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238b5cf6' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z'/%3E%3C/svg%3E");
+}
+
+/* Tabs / Tab Icon (Layout SVG) */
+.cm-custom-block-content-first-tabs::before,
+.cm-custom-block-content-first-tab::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='2' ry='2'/%3E%3Cline x1='3' y1='9' x2='21' y2='9'/%3E%3Cline x1='9' y1='21' x2='9' y2='9'/%3E%3C/svg%3E");
+}
+
+
+
+/* 6c. Header labels for custom tags */
+.cm-custom-block-content-first::after {
+  content: var(--tag-header-label);
+  display: block;
+  font-family: var(--font-sans), sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+  opacity: 0.75;
+  color: inherit;
+}
+
+.cm-custom-block-content-first-note { --tag-header-label: "Note"; color: #2563EB !important; }
+.cm-custom-block-content-first-warning { --tag-header-label: "Warning"; color: #D97706 !important; }
+.cm-custom-block-content-first-danger { --tag-header-label: "Danger"; color: #DC2626 !important; }
+.cm-custom-block-content-first-caution { --tag-header-label: "Caution"; color: #EA580C !important; }
+.cm-custom-block-content-first-info { --tag-header-label: "Info"; color: #059669 !important; }
+.cm-custom-block-content-first-tip { --tag-header-label: "Tip"; color: #059669 !important; }
+.cm-custom-block-content-first-check { --tag-header-label: "Check"; color: #059669 !important; }
+.cm-custom-block-content-first-summary { --tag-header-label: "Summary"; color: #7C3AED !important; }
+.cm-custom-block-content-first-details { --tag-header-label: "Details"; color: #7C3AED !important; }
+.cm-custom-block-content-first-important { --tag-header-label: "Important"; color: #7C3AED !important; }
+.cm-custom-block-content-first-tabs { --tag-header-label: "Tabs"; color: #475569 !important; }
+.cm-custom-block-content-first-tab { --tag-header-label: "Tab"; color: #475569 !important; }
+
+/* Custom entrance animations for modals */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleUp {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+.animate-scale-up {
+  animation: scaleUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Collaborative cursor style overrides (Google Docs style) */
+.cm-ySelectionCaret {
+  position: relative !important;
+  border-left: 2px solid currentColor !important;
+  border-right: none !important;
+  margin-left: -1px !important;
+  margin-right: -1px !important;
+  box-sizing: border-box !important;
+  display: inline !important;
+  height: 1.2em !important;
+}
+
+.cm-ySelectionCaretDot {
+  display: none !important; /* Hide the default tiny dot */
+}
+
+.cm-ySelectionInfo {
+  position: absolute !important;
+  top: -1.3em !important;
+  left: 0 !important;
+  font-size: 10px !important;
+  font-family: var(--font-sans), system-ui, sans-serif !important;
+  font-weight: 600 !important;
+  line-height: 1.2 !important;
+  user-select: none !important;
+  color: #ffffff !important;
+  padding: 2px 6px !important;
+  border-radius: 4px 4px 4px 0px !important;
+  z-index: 1000 !important;
+  opacity: 1 !important; /* Make it visible by default */
+  white-space: nowrap !important;
+  background-color: inherit !important; /* Inherits the custom user color */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15) !important;
+  pointer-events: none !important;
+  transition: opacity 0.3s ease !important;
+  animation: collab-flag-fade 5s forwards !important;
+}
+
+@keyframes collab-flag-fade {
+  0% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0.4; } /* Keep it slightly visible so you can still spot where they are */
+}
+
+/* When the user moves their mouse over the caret, show the flag fully again */
+.cm-ySelectionCaret:hover > .cm-ySelectionInfo {
+  opacity: 1 !important;
+}
+
+/* Pulsing ring for active presence dot */
+@keyframes presence-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5); }
+  70%  { box-shadow: 0 0 0 4px rgba(34, 197, 94, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+
+/* Remote selection highlight — keep it clearly visible but unobtrusive */
+.cm-ySelection {
+  border-radius: 2px;
+}

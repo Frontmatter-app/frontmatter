@@ -1,0 +1,32 @@
+[package]
+name = "marktype"
+version = "1.0.0"
+description = "A Tauri App"
+authors = ["you"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "devtools"] }
+window-vibrancy = "0.6"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlx = { version = "0.7", features = ["sqlite", "runtime-tokio-rustls", "chrono"] }
+tokio = { version = "1", features = ["full"] }
+chrono = { version = "0.4", features = ["serde"] }
+rfd = "0.14"
+notify = "6.1"
+uuid = { version = "1.8", features = ["v4", "v5", "fast-rng", "macro-diagnostics"] }
+tauri-plugin-fs = "2"
+dirs = "5"
+url = "2"
+rand = "0.8"
+pulldown-cmark = "0.11"
+sha2 = "0.10"
+regex = "1"
+once_cell = "1"
+tracing = "0.1"
+linguist = "0.1.10"
+

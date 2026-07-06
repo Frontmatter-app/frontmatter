@@ -1,0 +1,256 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Helper functions
+    // ──────────────────────────────────────────────────────────────────────────
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Returns true if the authenticated user has an active Author or Team plan
+    function hasActivePlan() {
+      return isSignedIn() &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (
+               (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('planStatus', null) == 'active' ||
+                get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('planStatus', null) == 'completed') &&
+               (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('plan', null) == 'author' || 
+                get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('plan', null) == 'team' || 
+                get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('plan', null) == 'enterprise')
+             );
+    }
+
+    // Returns true if the user is a member or owner of the team
+    function isTeamMember(teamId) {
+      return isSignedIn() &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (
+               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('ownedTeamId', null) == teamId ||
+               (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('teamMemberships', null) != null &&
+                teamId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('teamMemberships', [])) ||
+               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('teamId', null) == teamId ||
+               (exists(/databases/$(database)/documents/teams/$(teamId)) && (
+                 get(/databases/$(database)/documents/teams/$(teamId)).data.get('ownerId', null) == request.auth.uid ||
+                 (get(/databases/$(database)/documents/teams/$(teamId)).data.get('members', null) != null &&
+                  request.auth.uid in get(/databases/$(database)/documents/teams/$(teamId)).data.get('members', []))
+               ))
+             );
+    }
+
+    // Group permission helper functions
+    function getFilePermissionsVisibleTo(data) {
+      return data.get('filePermissions', null) != null && data.get('filePermissions', null).get('visibleTo', null) != null
+        ? data.get('filePermissions', null).get('visibleTo', [])
+        : [];
+    }
+
+    function getFilePermissionsWritableBy(data) {
+      return data.get('filePermissions', null) != null && data.get('filePermissions', null).get('writableBy', null) != null
+        ? data.get('filePermissions', null).get('writableBy', [])
+        : [];
+    }
+
+    // Check if user is in a team group
+    function isUserInGroup(teamId, groupId) {
+      return isSignedIn() &&
+             exists(/databases/$(database)/documents/teams/$(teamId)) &&
+             get(/databases/$(database)/documents/teams/$(teamId)).data.get('groups', null) != null &&
+             get(/databases/$(database)/documents/teams/$(teamId)).data.get('groups', null).get(groupId, null) != null &&
+             request.auth.uid in get(/databases/$(database)/documents/teams/$(teamId)).data.get('groups', null).get(groupId, null).get('members', []);
+    }
+
+    function isUserInGroupList(teamId, groupIds) {
+      return groupIds == null ||
+             groupIds.size() == 0 ||
+             (groupIds.size() > 0 && isUserInGroup(teamId, groupIds[0])) ||
+             (groupIds.size() > 1 && isUserInGroup(teamId, groupIds[1])) ||
+             (groupIds.size() > 2 && isUserInGroup(teamId, groupIds[2])) ||
+             (groupIds.size() > 3 && isUserInGroup(teamId, groupIds[3])) ||
+             (groupIds.size() > 4 && isUserInGroup(teamId, groupIds[4])) ||
+             (groupIds.size() > 5 && isUserInGroup(teamId, groupIds[5])) ||
+             (groupIds.size() > 6 && isUserInGroup(teamId, groupIds[6])) ||
+             (groupIds.size() > 7 && isUserInGroup(teamId, groupIds[7])) ||
+             (groupIds.size() > 8 && isUserInGroup(teamId, groupIds[8])) ||
+             (groupIds.size() > 9 && isUserInGroup(teamId, groupIds[9]));
+    }
+
+    function canReadDocumentData(docData) {
+      let docTeamId = docData.get('teamId', null);
+      let visibleTo = getFilePermissionsVisibleTo(docData);
+      // If visibleTo is null or empty → open to all team members (no restriction set)
+      let openToTeam = visibleTo == null || visibleTo.size() == 0;
+      return isSignedIn() && (
+        // Document owner can always read
+        docData.get('ownerId', null) == request.auth.uid ||
+        // Team members can read when document belongs to their team
+        (docTeamId != null &&
+         isTeamMember(docTeamId) &&
+         (
+           openToTeam ||
+           (exists(/databases/$(database)/documents/teams/$(docTeamId)) &&
+            get(/databases/$(database)/documents/teams/$(docTeamId)).data.get('ownerId', null) == request.auth.uid) ||
+           isUserInGroupList(docTeamId, visibleTo)
+         ))
+      );
+    }
+
+    function canWriteDocumentResource(res, reqRes) {
+      let docData = res.data;
+      let docTeamId = docData.get('teamId', null);
+      let writableBy = getFilePermissionsWritableBy(docData);
+      // If writableBy is null or empty → open to all team members (no restriction set)
+      let openToTeam = writableBy == null || writableBy.size() == 0;
+      // On delete, reqRes is null, so use docTeamId
+      let effectiveTeamId = docTeamId != null ? docTeamId : (reqRes != null ? reqRes.data.get('teamId', null) : null);
+
+      return isSignedIn() && (
+        docData.get('ownerId', null) == request.auth.uid ||
+        (effectiveTeamId != null &&
+         isTeamMember(effectiveTeamId) &&
+         (
+           openToTeam ||
+           (exists(/databases/$(database)/documents/teams/$(effectiveTeamId)) &&
+            get(/databases/$(database)/documents/teams/$(effectiveTeamId)).data.get('ownerId', null) == request.auth.uid) ||
+           isUserInGroupList(effectiveTeamId, writableBy)
+         ))
+      );
+    }
+
+    function canReadDocument(docId) {
+      return exists(/databases/$(database)/documents/cloud_documents/$(docId)) &&
+             canReadDocumentData(get(/databases/$(database)/documents/cloud_documents/$(docId)).data);
+    }
+
+    function canWriteDocument(docId) {
+      return (
+        exists(/databases/$(database)/documents/cloud_documents/$(docId)) &&
+        canWriteDocumentResource(get(/databases/$(database)/documents/cloud_documents/$(docId)), request.resource)
+      ) || (
+        !exists(/databases/$(database)/documents/cloud_documents/$(docId)) &&
+        request.resource != null &&
+        request.resource.data.get('teamId', null) != null &&
+        isTeamMember(request.resource.data.get('teamId', null))
+      );
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // users/{uid}
+    // ──────────────────────────────────────────────────────────────────────────
+    match /users/{uid} {
+      allow read, write: if isOwner(uid);
+
+      // Team owners or members can read other user profiles for displaying members
+      allow read: if isSignedIn();
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // teams/{teamId}
+    // ──────────────────────────────────────────────────────────────────────────
+    match /teams/{teamId} {
+      // Team owner can create a new team document (resource is null on create,
+      // so we must check request.resource.data instead)
+      allow create: if isSignedIn() &&
+                       request.resource.data.get('ownerId', null) == request.auth.uid &&
+                       exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                       (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('plan', null) == 'team' ||
+                        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('plan', null) == 'enterprise');
+
+      // Team owner can update or delete their own team document
+      allow update, delete: if isSignedIn() && resource.data.get('ownerId', null) == request.auth.uid;
+
+      // Team owner and members can read the team document
+      allow read: if isSignedIn() && (
+        resource.data.get('ownerId', null) == request.auth.uid ||
+        isTeamMember(teamId)
+      );
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // invites/{inviteId}  — pending invitations for users not yet registered
+    // ──────────────────────────────────────────────────────────────────────────
+    match /invites/{inviteId} {
+      // Anyone signed in with an active team plan can create invites
+      allow create: if isSignedIn() &&
+                       exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                       get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('plan', null) == 'team' &&
+                       (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('planStatus', null) == 'active' ||
+                        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('planStatus', null) == 'completed');
+      // Allow reading invite info so the landing page can show the details
+      allow read: if true;
+      // Managed by Cloud/Modal backend
+      allow update, delete: if false;
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // agreements/{agreementId}
+    // ──────────────────────────────────────────────────────────────────────────
+    match /agreements/{agreementId} {
+      allow create, update: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow read: if isSignedIn() && (
+        resource == null ||
+        resource.data.uid == request.auth.uid ||
+        (exists(/databases/$(database)/documents/teams/$(resource.data.teamId)) &&
+         get(/databases/$(database)/documents/teams/$(resource.data.teamId)).data.get('ownerId', null) == request.auth.uid)
+      );
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // cloud_documents/{docId}
+    // ──────────────────────────────────────────────────────────────────────────
+    match /cloud_documents/{docId} {
+      // Allow read/write based on group checks
+      allow read: if resource != null && canReadDocumentData(resource.data);
+      allow update, delete: if canWriteDocumentResource(resource, request.resource);
+
+      // New document creation — must be signed in with Author+ plan,
+      // OR belong to a team that the user is a member of
+      allow create: if isSignedIn() && (
+        (hasActivePlan() && request.resource.data.get('ownerId', null) == request.auth.uid) ||
+        (request.resource.data.get('teamId', null) != null && isTeamMember(request.resource.data.get('teamId', null)))
+      );
+
+      // ── Yjs update chunks subcollection ──────────────────────────────────
+      match /updates/{updateId} {
+        allow read: if canReadDocument(docId);
+        allow create: if canWriteDocument(docId);
+        allow delete: if false;
+      }
+
+      // ── Presence subcollection (cursors / awareness) ──────────────────────
+      // Any reader can publish their cursor; write permission is NOT required
+      // to broadcast presence — this keeps cursor sync working for read-only members.
+      match /presence/{clientId} {
+        allow read: if canReadDocument(docId);
+        allow write, delete: if canReadDocument(docId);
+      }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // cloud_folders/{folderId}
+    // ──────────────────────────────────────────────────────────────────────────
+    match /cloud_folders/{folderId} {
+      allow read: if isSignedIn() && (
+        resource.data.get('ownerId', null) == request.auth.uid ||
+        (resource.data.get('teamId', null) != null &&
+         isTeamMember(resource.data.get('teamId', null)))
+      );
+
+      allow create: if isSignedIn() && (
+        (hasActivePlan() && request.resource.data.get('ownerId', null) == request.auth.uid) ||
+        (request.resource.data.get('teamId', null) != null &&
+         isTeamMember(request.resource.data.get('teamId', null)))
+      );
+
+      allow update, delete: if isSignedIn() && (
+        resource.data.get('ownerId', null) == request.auth.uid ||
+        (resource.data.get('teamId', null) != null &&
+         isTeamMember(resource.data.get('teamId', null)))
+      );
+    }
+  }
+}
