@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Excalidraw, MainMenu, CaptureUpdateAction, reconcileElements, getSceneVersion } from '@excalidraw/excalidraw';
+import { Excalidraw, MainMenu, CaptureUpdateAction } from '@excalidraw/excalidraw';
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
-import type { BinaryFileData, BinaryFiles } from '@excalidraw/excalidraw/types';
 import * as Y from 'yjs';
 import * as awarenessProtocol from 'y-protocols/awareness';
 import { registry } from '../yjs/DocumentRegistry';
 import { useExcalidrawStore } from './excalidrawStore';
 import { loadImageIntoScene, exportAndSaveImage, saveSceneState, clearSceneState, getContextFromYdoc } from './excalidrawService';
+import { useExcalidrawSync } from './excalidrawYjsSync';
 import { importToAssets } from '../images/imageService';
 import { usePlanStore } from '../billing/PlanProvider';
 import { auth } from '../auth/firebase';
@@ -17,48 +17,7 @@ const EK = 'excalidraw';
 function SyncBridge({ api, ydoc, awareness, documentId }: {
   api: ExcalidrawImperativeAPI; ydoc: Y.Doc; awareness: awarenessProtocol.Awareness; documentId: string;
 }) {
-  const applying = useRef(false);
-  useEffect(() => {
-    const map = ydoc.getMap(EK);
-    const stored = map.get('elements') as string | undefined;
-    const sf = map.get('files') as string | undefined;
-    if (sf) { try { const f: BinaryFiles = JSON.parse(sf); const e = Object.values(f).filter(Boolean) as BinaryFileData[]; if (e.length > 0) api.addFiles(e); } catch {} }
-    if (stored) { applying.current = true; let e: any[] = []; try { e = JSON.parse(stored); } catch {} (api as any).updateScene({ elements: e, captureUpdate: CaptureUpdateAction.NEVER }); applying.current = false; }
-  }, []);
-  useEffect(() => {
-    const map = ydoc.getMap(EK);
-    const obs = (_ev: Y.YMapEvent<any>, tx?: Y.Transaction) => {
-      if (tx?.origin === ydoc.clientID || applying.current) return;
-      const se = map.get('elements') as string | undefined; if (!se) return;
-      applying.current = true;
-      let re: any[] = []; try { re = JSON.parse(se); } catch { applying.current = false; return; }
-      const sf = map.get('files') as string | undefined;
-      if (sf) { try { const f: BinaryFiles = JSON.parse(sf); const e = Object.values(f).filter(Boolean) as BinaryFileData[]; if (e.length > 0) api.addFiles(e); } catch {} }
-      const le = api.getSceneElementsIncludingDeleted(); const as = api.getAppState();
-      (api as any).updateScene({ elements: reconcileElements(le, re as any, as), captureUpdate: CaptureUpdateAction.NEVER });
-      applying.current = false;
-    };
-    map.observe(obs); return () => map.unobserve(obs);
-  }, [ydoc, api, documentId]);
-  useEffect(() => {
-    const unsub = api.onChange((elements, appState, files) => {
-      if (applying.current) return;
-      const map = ydoc.getMap(EK); const ver = getSceneVersion(elements as any);
-      ydoc.transact(() => { map.set('elements', JSON.stringify(elements)); map.set('appState', JSON.stringify(appState)); map.set('version', ver); if (files && Object.keys(files).length > 0) map.set('files', JSON.stringify(files)); }, ydoc.clientID);
-    }); return () => unsub();
-  }, [ydoc, api, documentId]);
-  useEffect(() => {
-    const handler = () => {
-      const collabs = new Map<string, any>();
-      awareness.getStates().forEach((state: any, cid: number) => {
-        if (cid === ydoc.clientID || !state.user) return;
-        const u = state.user; const sid = String(cid);
-        collabs.set(sid, { id: u.uid || sid, socketId: sid, username: u.name || 'Collaborator', avatarUrl: u.photo || null, color: u.color ? { background: u.color, stroke: u.color } : undefined, pointer: state.pointer ? { x: state.pointer.x, y: state.pointer.y, tool: 'pointer' as const } : undefined, isCurrentUser: false });
-      });
-      (api as any).updateScene({ collaborators: collabs });
-    };
-    awareness.on('change', handler); return () => awareness.off('change', handler);
-  }, [awareness, api, ydoc]);
+  useExcalidrawSync({ ydoc, awareness, excalidrawAPI: api, isCollaborating: true, documentId });
   return null;
 }
 

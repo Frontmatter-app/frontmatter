@@ -13,6 +13,7 @@ import { InviteLandingScreen } from './components/InviteLandingScreen';
 import { PromptDialog } from './components/PromptDialog';
 import { ExcalidrawModal } from './excalidraw/ExcalidrawModal';
 import { useProductivityTracker } from './settings/metrics/useProductivityTracker';
+import { useGlobalShortcuts } from './keyboard/useGlobalShortcuts';
 
 
 function MainApp() {
@@ -22,6 +23,8 @@ function MainApp() {
   
   // Track writing productivity in the background
   useProductivityTracker();
+  // Centralized global keyboard shortcuts
+  useGlobalShortcuts();
 
   useEffect(() => {
     const handleOpen = () => setIsActivityOpen(true);
@@ -32,18 +35,6 @@ function MainApp() {
       window.removeEventListener('open-activity-monitor', handleOpen);
       window.removeEventListener('close-activity-monitor', handleClose);
     };
-  }, []);
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'f') {
-        event.preventDefault();
-        window.dispatchEvent(new CustomEvent('toggle-focus-mode'));
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown, true);
-    return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, []);
 
   if (isInitializing) {

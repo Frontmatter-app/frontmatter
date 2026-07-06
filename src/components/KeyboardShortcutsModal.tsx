@@ -1,63 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 import { X, Keyboard } from 'lucide-react';
+import { getShortcutGroups, isMac, mod } from '../keyboard/shortcuts';
 
-const isMac =
-  typeof navigator !== 'undefined' &&
-  /Mac|iPod|iPhone|iPad/.test(navigator.platform);
-
-const mod = isMac ? '⌘' : 'Ctrl';
-const alt = isMac ? '⌥' : 'Alt';
 const shift = '⇧';
-
-interface Shortcut {
-  keys: string[];
-  description: string;
-}
-
-interface ShortcutGroup {
-  title: string;
-  shortcuts: Shortcut[];
-}
-
-const SHORTCUT_GROUPS: ShortcutGroup[] = [
-  {
-    title: 'Document',
-    shortcuts: [
-      { keys: [mod, 'N'],          description: 'New document' },
-      { keys: [mod, 'S'],          description: 'Save document' },
-      { keys: [mod, shift, 'A'],   description: 'Switch account' },
-      { keys: [mod, ','],          description: 'Open preferences' },
-    ],
-  },
-  {
-    title: 'Editor',
-    shortcuts: [
-      { keys: [mod, 'Z'],          description: 'Undo' },
-      { keys: [mod, shift, 'Z'],   description: 'Redo' },
-      { keys: [mod, 'B'],          description: 'Bold' },
-      { keys: [mod, 'I'],          description: 'Italic' },
-      { keys: [mod, 'K'],          description: 'Insert link' },
-      { keys: [mod, 'F'],          description: 'Find in document' },
-    ],
-  },
-  {
-    title: 'Workflow',
-    shortcuts: [
-      { keys: [mod, shift, 'F'],   description: 'Toggle focus mode' },
-      { keys: [mod, shift, '1'],   description: 'Switch to Write stage' },
-      { keys: [mod, shift, '2'],   description: 'Switch to Revise stage' },
-      { keys: [mod, shift, '3'],   description: 'Switch to Draft stage' },
-    ],
-  },
-  {
-    title: 'Navigation',
-    shortcuts: [
-      { keys: [mod, shift, 'K'],   description: 'Open keyboard shortcuts' },
-      { keys: [alt, '↑'],          description: 'Move to previous section' },
-      { keys: [alt, '↓'],          description: 'Move to next section' },
-    ],
-  },
-];
+const SHORTCUT_GROUPS = getShortcutGroups();
 
 function KeyBadge({ label }: { label: string; key?: React.Key }) {
   return (

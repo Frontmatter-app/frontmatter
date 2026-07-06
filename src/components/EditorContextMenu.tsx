@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Copy, Scissors, Clipboard, MessageSquare, Link, Trash2, ChevronLeft } from 'lucide-react';
 
-type MenuView = 'options' | 'addNote' | 'insertLink';
+type MenuView = 'options' | 'addNote';
 
 interface EditorContextMenuProps {
   position: { x: number; y: number } | null;
@@ -12,7 +12,7 @@ interface EditorContextMenuProps {
   onCut: () => void;
   onPaste: () => void;
   onAddNote?: (note: string) => void;
-  onInsertLink: (url: string) => void;
+  onInsertLink: () => void;
   onDelete: () => void;
 }
 
@@ -30,14 +30,12 @@ export function EditorContextMenu({
   const menuRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<MenuView>('options');
   const [noteText, setNoteText] = useState('');
-  const [linkUrl, setLinkUrl] = useState('');
 
   // Reset sub-view state whenever the menu is dismissed or repositioned
   useEffect(() => {
     if (!position) {
       setView('options');
       setNoteText('');
-      setLinkUrl('');
     }
   }, [position]);
 
@@ -204,91 +202,44 @@ export function EditorContextMenu({
     ) : null
   );
 
-  /* ── Sub-view: Insert Link ── */
-  const renderInsertLink = () => (
-    <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'flex', alignItems: 'center' }}>
-        <button style={backBtn} onClick={() => setView('options')}>
-          <ChevronLeft style={{ width: 14, height: 14 }} />
-          Back
-        </button>
-        <span style={{ marginLeft: 'auto', fontSize: 12.5, fontWeight: 600, color: 'var(--editor-text-color, #111)' }}>
-          Insert Link
-        </span>
-      </div>
-      <input
-        autoFocus
-        type="url"
-        value={linkUrl}
-        onChange={e => setLinkUrl(e.target.value)}
-        placeholder="https://example.com"
-        style={inputStyle}
-        onKeyDown={e => {
-          if (e.key === 'Enter' && linkUrl.trim()) { onInsertLink(linkUrl.trim()); onClose(); }
-          e.stopPropagation();
-        }}
-      />
-      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-        <button style={pill(false)} onClick={onClose}>Cancel</button>
-        <button
-          style={pill(true, !linkUrl.trim())}
-          onClick={() => { if (linkUrl.trim()) { onInsertLink(linkUrl.trim()); onClose(); } }}
-        >
-          Insert
-        </button>
-      </div>
-    </div>
-  );
-
   /* ── Main options view ── */
   const renderOptions = () => (
     <div style={{ padding: '4px 0' }}>
       <button style={baseItem(false, !hasSelection)} onClick={() => { onCopy(); onClose(); }}
         onMouseEnter={e => hasSelection && hover(e, true)} onMouseLeave={e => hover(e, false)}>
-        <Copy style={{ width: 15, height: 15, flexShrink: 0, opacity: 0.75 }} />
-        Copy
+        <Copy style={{ width: 15, height: 15, flexShrink: 0, opacity: 0.75 }} /> Copy
       </button>
       <button style={baseItem(false, !hasSelection)} onClick={() => { onCut(); onClose(); }}
         onMouseEnter={e => hasSelection && hover(e, true)} onMouseLeave={e => hover(e, false)}>
-        <Scissors style={{ width: 15, height: 15, flexShrink: 0, opacity: 0.75 }} />
-        Cut
+        <Scissors style={{ width: 15, height: 15, flexShrink: 0, opacity: 0.75 }} /> Cut
       </button>
       <button style={baseItem()} onClick={() => { onPaste(); onClose(); }}
         onMouseEnter={e => hover(e, true)} onMouseLeave={e => hover(e, false)}>
-        <Clipboard style={{ width: 15, height: 15, flexShrink: 0, opacity: 0.75 }} />
-        Paste
+        <Clipboard style={{ width: 15, height: 15, flexShrink: 0, opacity: 0.75 }} /> Paste
       </button>
-
       <div style={divider} />
-
       {onAddNote && (
         <button style={baseItem(false, !hasSelection)} onClick={() => hasSelection && setView('addNote')}
           onMouseEnter={e => hasSelection && hover(e, true)} onMouseLeave={e => hover(e, false)}>
-          <MessageSquare style={{ width: 15, height: 15, flexShrink: 0, opacity: 0.75 }} />
-          Add a Note
+          <MessageSquare style={{ width: 15, height: 15, flexShrink: 0, opacity: 0.75 }} /> Add a Note
         </button>
       )}
-      <button style={baseItem()} onClick={() => setView('insertLink')}
+      <button style={baseItem()} onClick={() => { onInsertLink(); onClose(); }}
         onMouseEnter={e => hover(e, true)} onMouseLeave={e => hover(e, false)}>
-        <Link style={{ width: 15, height: 15, flexShrink: 0, opacity: 0.75 }} />
-        Insert Link
+        <Link style={{ width: 15, height: 15, flexShrink: 0, opacity: 0.75 }} /> Insert Link
       </button>
-
       <div style={divider} />
-
       <button style={baseItem(true, !hasSelection)} onClick={() => { if (hasSelection) { onDelete(); onClose(); } }}
         onMouseEnter={e => hasSelection && hover(e, true)} onMouseLeave={e => hover(e, false)}>
-        <Trash2 style={{ width: 15, height: 15, flexShrink: 0, opacity: 0.85 }} />
-        Delete
+        <Trash2 style={{ width: 15, height: 15, flexShrink: 0, opacity: 0.85 }} /> Delete
       </button>
     </div>
   );
 
   return createPortal(
     <div ref={menuRef} style={shell}>
-      {view === 'options'    && renderOptions()}
-      {view === 'addNote'    && renderAddNote()}
-      {view === 'insertLink' && renderInsertLink()}
+      {view === 'options' && renderOptions()}
+      {view === 'addNote' && renderAddNote()}
     </div>,
     document.body
   );

@@ -14,6 +14,7 @@ import { useSettingsStore } from "../../settings/settingsStore";
 import { useValeLintStore } from "../../settings/valeLintStore";
 import { registry } from "../../yjs/DocumentRegistry";
 import { setCurrentExcalidrawDocumentId, setImageAnnotationManager, setImageAuthorId, setImageYdoc } from "../../editor/extensions/inlinePreview/interactions";
+import { linkCommand } from "../../editor/formatting/commands";
 import { refreshInlinePreviewEffect } from "../../editor/extensions/inlinePreview/settingsRefresh";
 import { valeLintExtension } from "../../editor/valeLintExtension";
 import { parseDocumentMetrics } from "../../settings/metrics/metricsParser";
@@ -231,13 +232,10 @@ export function useReviseEditor(ydoc: Y.Doc, documentId: string) {
     annManager.addAnnotation(Math.random().toString(36).substring(2, 9), documentId, authorId, st, en, v.state.doc.sliceString(s.from, s.to), noteText);
   }, [annManager, ydoc, documentId, authorId]);
 
-  const handleInsertLink = useCallback((url: string) => {
+  const handleInsertLink = useCallback(() => {
     const v = handleRef.current?.view;
     if (!v) return;
-    const s = saved.current ?? v.state.selection.main;
-    const selText = v.state.doc.sliceString(s.from, s.to);
-    const md = `[${selText || "link text"}](${url})`;
-    v.dispatch({ changes: { from: s.from, to: s.to, insert: md }, selection: { anchor: s.from + md.length } });
+    linkCommand.apply(v);
   }, []);
 
   const setEditorReadOnly = useCallback((ro: boolean) => {

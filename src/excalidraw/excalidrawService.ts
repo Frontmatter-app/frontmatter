@@ -7,6 +7,7 @@ import { resolveImageUrl, importToAssets, saveAnnotatedImage, saveEditingState, 
 import type { ImageContext } from '../images/imageTypes';
 
 const EXCALIDRAW_MAP_KEY = 'excalidraw';
+const FILES_MAP_KEY = 'excalidraw-files';
 
 export async function loadImageIntoScene(
   api: ExcalidrawImperativeAPI,
@@ -134,11 +135,13 @@ export async function clearSceneState(
   context: ImageContext,
 ): Promise<void> {
   const map = ydoc.getMap(EXCALIDRAW_MAP_KEY);
+  const filesMap = ydoc.getMap(FILES_MAP_KEY);
   ydoc.transact(() => {
     map.delete('elements');
     map.delete('appState');
     map.delete('version');
     map.delete('files');
+    filesMap.clear();
   }, ydoc.clientID);
 
   await deleteEditingState(context.documentId, context);

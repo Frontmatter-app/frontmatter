@@ -3,14 +3,16 @@ import { createPortal } from 'react-dom';
 import * as Y from 'yjs';
 import { Lock } from 'lucide-react';
 import { EditorContextMenu } from '../../components/EditorContextMenu';
+import { SelectionToolbar } from '../../components/SelectionToolbar';
+import { linkCommand } from '../../editor/formatting/commands';
 import { useWriteEditor } from './useWriteEditor';
 
 const WIDTH_MAP: Record<string, string> = { narrow: '560px', medium: '720px', wide: '900px', full: '100%' };
 
 export function WriteView({ ydoc, documentId }: { ydoc: Y.Doc; documentId?: string }) {
   const {
-    containerRef, focusMode, isReadOnly, contextMenuPos, hasSelection,
-    settings, setContextMenuPos, setHasSelection, handleRef,
+    containerRef, handleRef, focusMode, isReadOnly, contextMenuPos, hasSelection,
+    settings, setContextMenuPos, setHasSelection, selToolbar, setSelToolbar,
   } = useWriteEditor(ydoc, documentId);
 
   const maxWidth = WIDTH_MAP[settings.editorWidth] || '720px';
@@ -58,9 +60,22 @@ export function WriteView({ ydoc, documentId }: { ydoc: Y.Doc; documentId?: stri
             setContextMenuPos(null);
           }}
           onAddNote={() => setContextMenuPos(null)}
-          onInsertLink={() => setContextMenuPos(null)}
+          onInsertLink={() => {
+            if (handleRef.current) {
+              linkCommand.apply(handleRef.current.view);
+            }
+            setContextMenuPos(null);
+          }}
         />,
         document.body
+      )}
+      {selToolbar && handleRef.current && (
+        <SelectionToolbar
+          view={handleRef.current.view}
+          from={selToolbar.from}
+          to={selToolbar.to}
+          onClose={() => setSelToolbar(null)}
+        />
       )}
     </div>
   );

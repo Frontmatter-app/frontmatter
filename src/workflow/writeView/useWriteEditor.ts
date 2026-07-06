@@ -10,8 +10,9 @@ import { registry } from '../../yjs/DocumentRegistry';
 import { useTeamPermissions } from '../../auth/teamPermissions';
 import { usePlan } from '../../billing/PlanProvider';
 import { referencePickerExtension, setPickerDocumentPath } from '../../editor/extensions/referencePicker';
-import { slashCommandExtension, setSlashCommandDocumentId } from '../../editor/extensions/slashCommand';
 import { refreshInlinePreviewEffect } from '../../editor/extensions/inlinePreview/settingsRefresh';
+import { formattingKeymap } from '../../editor/formatting/keymap';
+import { setCurrentDocId } from '../../keyboard/useGlobalShortcuts';
 import { SuggestionManager } from '../../yjs/suggestions';
 import { suggestionsExtension, setSuggestionsEffect } from '../../editor/suggestionsExtension';
 import { useWorkspace } from '../../workspace/WorkspaceProvider';
@@ -41,6 +42,7 @@ export function useWriteEditor(
   const [awareness, setAwareness] = useState<Awareness | null>(null);
   const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [hasSelection, setHasSelection] = useState(false);
+  const [selToolbar, setSelToolbar] = useState<{ from: number; to: number } | null>(null);
   const { setActiveHeading, setActiveSuggestionId, documents, workspacePath } = useWorkspace();
   const { settings } = useSettingsStore();
   const teamPerms = useTeamPermissions();
@@ -71,7 +73,7 @@ export function useWriteEditor(
     const absPath = documents.find((d: any) => d.id === documentId)?.file_path ?? '';
     const relPath = workspacePath && absPath.startsWith(workspacePath) ? absPath.slice(workspacePath.length).replace(/^\/+/, '') : absPath;
     setPickerDocumentPath(relPath);
-    setSlashCommandDocumentId(documentId);
+    setCurrentDocId(documentId);
   }, [documentId, documents, workspacePath]);
 
   useEffect(() => {
@@ -92,6 +94,9 @@ export function useWriteEditor(
           return startAbs && endAbs && pos >= startAbs.index && pos <= endAbs.index && !sug.resolved;
         });
         setActiveSuggestionId(activeSug ? activeSug.id : null);
+        if (update.selectionSet && update.state.selection.main.empty) {
+          setSelToolbar(null);
+        }
       }
     });
 
@@ -101,7 +106,7 @@ export function useWriteEditor(
       readOnlyCompartmentRef.current.of(EditorState.readOnly.of(false)),
       spellCheckCompartmentRef.current.of(EditorView.contentAttributes.of({ spellcheck: String(settings.spellCheck ?? true) })),
       ...referencePickerExtension,
-      ...slashCommandExtension,
+      formattingKeymap,
     ]);
     handleRef.current = handle;
 
@@ -146,12 +151,22 @@ export function useWriteEditor(
     };
     window.addEventListener('editor-select-range', handleSelectRange);
 
+    const onMouseUp = () => {
+      const view = handle.view;
+      const sel = view.state.selection.main;
+      if (!sel.empty && view.hasFocus) {
+        setSelToolbar({ from: sel.from, to: sel.to });
+      }
+    };
+    containerRef.current.addEventListener('mouseup', onMouseUp);
+
     const onContext = (e: MouseEvent) => {
       e.preventDefault();
       const { from, to } = handle.view.state.selection.main;
       savedSel.current = { from, to };
       setHasSelection(from !== to);
       setContextMenuPos({ x: e.clientX, y: e.clientY });
+      setSelToolbar(null);
     };
     containerRef.current.addEventListener('contextmenu', onContext);
 
@@ -163,7 +178,9 @@ export function useWriteEditor(
       handleRef.current = null;
       setActiveHeading(null);
       setActiveSuggestionId(null);
+      containerRef.current?.removeEventListener('mouseup', onMouseUp);
       containerRef.current?.removeEventListener('contextmenu', onContext);
+      setSelToolbar(null);
     };
   }, [ydoc, awareness, setActiveHeading, setActiveSuggestionId, documentId]);
 
@@ -206,6 +223,6 @@ export function useWriteEditor(
   return {
     containerRef, handleRef, focusMode, isReadOnly, contextMenuPos, hasSelection,
     savedSel, readOnlyCompartmentRef, spellCheckCompartmentRef, setEditorReadOnly,
-    teamPerms, settings, setContextMenuPos, setHasSelection,
+    teamPerms, settings, setContextMenuPos, setHasSelection, selToolbar, setSelToolbar,
   };
 }
