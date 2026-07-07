@@ -5,7 +5,8 @@ import {
   rangesOverlap,
   sortRanges,
 } from './markdownAnalysis';
-import { DiagramWidget, ImageWidget, MathWidget, TableWidget } from './widgets';
+import { ImageWidget, MathWidget, TableWidget } from './widgets';
+import { DiagramWidget } from './diagramWidget';
 import { getSettings } from '../../../settings/settingsStore';
 import { refreshInlinePreviewEffect } from './settingsRefresh';
 

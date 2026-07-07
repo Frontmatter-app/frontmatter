@@ -16,13 +16,13 @@ function KeyBadge({ label }: { label: string; key?: React.Key }) {
         height: '22px',
         padding: '0 5px',
         borderRadius: '6px',
-        border: '1px solid rgba(0,0,0,0.15)',
+        border: '1px solid var(--editor-border, rgba(0,0,0,0.15))',
         background: 'var(--kb-bg, #fff)',
         fontSize: '10px',
         fontWeight: 600,
         lineHeight: 1,
         fontFamily: 'inherit',
-        boxShadow: '0 1px 0 rgba(0,0,0,0.15)',
+        boxShadow: '0 1px 0 var(--editor-border, rgba(0,0,0,0.15))',
         userSelect: 'none',
         color: 'var(--kb-color, #374151)',
       }}
@@ -67,7 +67,7 @@ export function KeyboardShortcutsModal({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: 'rgba(0,0,0,0.45)',
+        backgroundColor: 'color-mix(in srgb, var(--editor-text-color, #000) 45%, transparent)',
         backdropFilter: 'blur(4px)',
       }}
     >
@@ -79,9 +79,9 @@ export function KeyboardShortcutsModal({
           maxWidth: '520px',
           margin: '0 16px',
           borderRadius: '18px',
-          border: '1px solid rgba(0,0,0,0.10)',
+          border: '1px solid var(--editor-border, rgba(0,0,0,0.10))',
           background: 'var(--editor-secondary-bg, #fff)',
-          boxShadow: '0 25px 60px rgba(0,0,0,0.20), 0 8px 24px rgba(0,0,0,0.12)',
+          boxShadow: '0 25px 60px color-mix(in srgb, var(--editor-text-color, #000) 20%, transparent), 0 8px 24px color-mix(in srgb, var(--editor-text-color, #000) 12%, transparent)',
           overflow: 'hidden',
         }}
       >
@@ -91,19 +91,19 @@ export function KeyboardShortcutsModal({
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '20px 20px 16px',
-          borderBottom: '1px solid rgba(0,0,0,0.08)',
+          borderBottom: '1px solid var(--editor-border, rgba(0,0,0,0.08))',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div style={{
               width: '32px',
               height: '32px',
               borderRadius: '10px',
-              background: 'linear-gradient(135deg, rgba(99,102,241,0.18), rgba(168,85,247,0.18))',
+              background: 'linear-gradient(135deg, color-mix(in srgb, var(--editor-caret-color, #6366f1) 18%, transparent), color-mix(in srgb, var(--editor-accent, #a855f7) 18%, transparent))',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
             }}>
-              <Keyboard style={{ width: '16px', height: '16px', color: '#6366f1' }} />
+              <Keyboard style={{ width: '16px', height: '16px', color: 'var(--editor-caret-color, #6366f1)' }} />
             </div>
             <div>
               <h2 style={{
@@ -118,7 +118,7 @@ export function KeyboardShortcutsModal({
               <p style={{
                 margin: '2px 0 0',
                 fontSize: '11px',
-                color: 'rgba(0,0,0,0.35)',
+                color: 'color-mix(in srgb, var(--editor-text-color, #000) 35%, transparent)',
                 lineHeight: 1,
               }}>
                 {isMac ? 'macOS' : 'Windows / Linux'} bindings
@@ -138,10 +138,10 @@ export function KeyboardShortcutsModal({
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
-              color: 'rgba(0,0,0,0.4)',
+              color: 'color-mix(in srgb, var(--editor-text-color, #000) 40%, transparent)',
               transition: 'background 0.15s',
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0,0,0,0.06)')}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'color-mix(in srgb, var(--editor-text-color, #000) 6%, transparent)')}
             onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
           >
             <X style={{ width: '15px', height: '15px' }} />
@@ -165,7 +165,7 @@ export function KeyboardShortcutsModal({
                 fontWeight: 700,
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
-                color: 'rgba(0,0,0,0.30)',
+                color: 'color-mix(in srgb, var(--editor-text-color, #000) 30%, transparent)',
               }}>
                 {group.title}
               </p>
@@ -200,15 +200,15 @@ export function KeyboardShortcutsModal({
         {/* Footer */}
         <div style={{
           padding: '12px 20px',
-          borderTop: '1px solid rgba(0,0,0,0.07)',
+          borderTop: '1px solid var(--editor-border, rgba(0,0,0,0.07))',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
         }}>
-          <span style={{ fontSize: '11px', color: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <span style={{ fontSize: '11px', color: 'color-mix(in srgb, var(--editor-text-color, #000) 35%, transparent)', display: 'flex', alignItems: 'center', gap: '4px' }}>
             Press <KeyBadge label="Esc" /> to dismiss
           </span>
-          <span style={{ fontSize: '11px', color: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', gap: '2px' }}>
+          <span style={{ fontSize: '11px', color: 'color-mix(in srgb, var(--editor-text-color, #000) 35%, transparent)', display: 'flex', alignItems: 'center', gap: '2px' }}>
             <KeyBadge label={mod} /><KeyBadge label={shift} /><KeyBadge label="K" /> to toggle
           </span>
         </div>

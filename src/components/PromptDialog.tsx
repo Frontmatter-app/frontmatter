@@ -67,7 +67,7 @@ export function PromptDialog() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: 'rgba(0,0,0,0.45)',
+        backgroundColor: 'color-mix(in srgb, var(--editor-text-color, #000) 45%, transparent)',
         backdropFilter: 'blur(4px)',
       }}
     >
@@ -79,9 +79,9 @@ export function PromptDialog() {
           maxWidth: '380px',
           margin: '0 16px',
           borderRadius: '14px',
-          border: '1px solid rgba(0,0,0,0.10)',
+          border: '1px solid var(--editor-border, rgba(0,0,0,0.10))',
           background: 'var(--editor-secondary-bg, #fff)',
-          boxShadow: '0 25px 60px rgba(0,0,0,0.20), 0 8px 24px rgba(0,0,0,0.12)',
+          boxShadow: '0 25px 60px color-mix(in srgb, var(--editor-text-color, #000) 20%, transparent), 0 8px 24px color-mix(in srgb, var(--editor-text-color, #000) 12%, transparent)',
           overflow: 'hidden',
         }}
       >
@@ -98,7 +98,7 @@ export function PromptDialog() {
           <p style={{
             margin: '6px 0 0',
             fontSize: '12px',
-            color: 'rgba(0,0,0,0.45)',
+            color: 'color-mix(in srgb, var(--editor-text-color, #000) 45%, transparent)',
             lineHeight: 1.4,
           }}>
             {state.description}
@@ -115,7 +115,7 @@ export function PromptDialog() {
               width: '100%',
               padding: '8px 10px',
               borderRadius: '8px',
-              border: '1px solid rgba(0,0,0,0.15)',
+              border: '1px solid var(--editor-border, rgba(0,0,0,0.15))',
               background: 'var(--editor-primary-bg, #fff)',
               color: 'var(--editor-text-color, #111)',
               fontSize: '13px',
@@ -124,14 +124,14 @@ export function PromptDialog() {
               boxSizing: 'border-box',
               transition: 'border-color 0.15s',
             }}
-            onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(99,102,241,0.5)')}
-            onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(0,0,0,0.15)')}
+            onFocus={(e) => (e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--editor-caret-color, #6366f1) 50%, transparent)')}
+            onBlur={(e) => (e.currentTarget.style.borderColor = 'var(--editor-border, rgba(0,0,0,0.15))')}
           />
         </div>
 
         <div style={{
           padding: '12px 20px',
-          borderTop: '1px solid rgba(0,0,0,0.07)',
+          borderTop: '1px solid var(--editor-border, rgba(0,0,0,0.07))',
           display: 'flex',
           justifyContent: 'flex-end',
           gap: '8px',
@@ -141,7 +141,7 @@ export function PromptDialog() {
             style={{
               padding: '6px 14px',
               borderRadius: '8px',
-              border: '1px solid rgba(0,0,0,0.12)',
+              border: '1px solid var(--editor-border, rgba(0,0,0,0.12))',
               background: 'transparent',
               color: 'var(--editor-text-color, #374151)',
               fontSize: '12px',
@@ -149,7 +149,7 @@ export function PromptDialog() {
               cursor: 'pointer',
               transition: 'background 0.15s',
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0,0,0,0.05)')}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'color-mix(in srgb, var(--editor-text-color, #000) 5%, transparent)')}
             onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
           >
             Cancel
@@ -160,15 +160,15 @@ export function PromptDialog() {
               padding: '6px 14px',
               borderRadius: '8px',
               border: 'none',
-              background: '#6366f1',
+              background: 'var(--editor-caret-color, #6366f1)',
               color: '#fff',
               fontSize: '12px',
               fontWeight: 500,
               cursor: 'pointer',
               transition: 'background 0.15s',
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = '#4f46e5')}
-            onMouseLeave={(e) => (e.currentTarget.style.background = '#6366f1')}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'color-mix(in srgb, var(--editor-caret-color, #6366f1) 80%, #000)')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--editor-caret-color, #6366f1)')}
           >
             OK
           </button>

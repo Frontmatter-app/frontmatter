@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Excalidraw, MainMenu, CaptureUpdateAction } from '@excalidraw/excalidraw';
+import { Excalidraw, MainMenu, exportToBlob, CaptureUpdateAction } from '@excalidraw/excalidraw';
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
 import * as Y from 'yjs';
 import * as awarenessProtocol from 'y-protocols/awareness';
@@ -8,7 +8,7 @@ import { registry } from '../yjs/DocumentRegistry';
 import { useExcalidrawStore } from './excalidrawStore';
 import { loadImageIntoScene, exportAndSaveImage, saveSceneState, clearSceneState, getContextFromYdoc } from './excalidrawService';
 import { useExcalidrawSync } from './excalidrawYjsSync';
-import { importToAssets } from '../images/imageService';
+import { importToAssets, saveAnnotatedImage } from '../images/imageService';
 import { usePlanStore } from '../billing/PlanProvider';
 import { auth } from '../auth/firebase';
 
@@ -58,11 +58,27 @@ export function ExcalidrawModal() {
   }, [api, mode, imageUrl, ydoc]);
 
   const handleSave = useCallback(async () => {
-    if (!api || !ydoc || !imageUrl) return;
+    if (!api || !ydoc) return;
     setSaving(true);
     try {
       const ps = usePlanStore.getState(); const isCloud = ps.activeContext.type === 'team';
       const ctx = getContextFromYdoc(ydoc, isCloud, ps.teamId, auth.currentUser?.uid);
+
+      if (mode === 'new-drawing' && !imageUrl) {
+        const blob = await exportToBlob({
+          elements: api.getSceneElements() as any,
+          appState: api.getAppState(),
+          files: api.getFiles(),
+          mimeType: 'image/png',
+        });
+        const result = await saveAnnotatedImage(blob, 'drawing', ctx);
+        useExcalidrawStore.getState().onSave?.(result.url);
+        await saveSceneState(ydoc, api, ctx);
+        setSaving(false); setApi(null); close();
+        return;
+      }
+
+      if (!imageUrl) { setSaving(false); return; }
       const text = ydoc.getText('markdown'); const current = text.toString();
       const newUrl = await exportAndSaveImage(api, imageUrl, imageAlt, ctx);
       await saveSceneState(ydoc, api, ctx);
@@ -71,7 +87,7 @@ export function ExcalidrawModal() {
       if (updated !== current) { ydoc.transact(() => { text.delete(0, text.length); text.insert(0, updated); }); }
     } catch (err) { console.error('[ExcalidrawModal] Save failed:', err); }
     finally { setSaving(false); setApi(null); close(); }
-  }, [api, imageUrl, imageAlt, ydoc, close]);
+  }, [api, imageUrl, imageAlt, ydoc, close, mode]);
 
   const handleRevert = useCallback(() => {
     if (!ydoc) return;

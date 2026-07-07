@@ -16,9 +16,9 @@ import { registry } from "../../yjs/DocumentRegistry";
 import { setCurrentExcalidrawDocumentId, setImageAnnotationManager, setImageAuthorId, setImageYdoc } from "../../editor/extensions/inlinePreview/interactions";
 import { linkCommand } from "../../editor/formatting/commands";
 import { refreshInlinePreviewEffect } from "../../editor/extensions/inlinePreview/settingsRefresh";
-import { valeLintExtension } from "../../editor/valeLintExtension";
+import { valeLintExtension } from "../../editor/extensions/valeLintExtension";
 import { parseDocumentMetrics } from "../../settings/metrics/metricsParser";
-import { suggestionsExtension, setSuggestionsEffect } from "../../editor/suggestionsExtension";
+import { suggestionsExtension, setSuggestionsEffect } from "../../editor/extensions/suggestionsExtension";
 import { buildMetricLintAlerts, filterLintAlerts, sanitizeMarkdownForLint } from "../../review/reviewIssues";
 import type { LintIgnoreState } from "../../review/reviewIssues";
 import { getActiveHeading } from "./headingUtils";
@@ -197,13 +197,13 @@ export function useReviseEditor(ydoc: Y.Doc, documentId: string) {
   const handleCopy = useCallback(async () => {
     const v = handleRef.current?.view, s = saved.current;
     if (!v || !s || s.from === s.to) return;
-    try { await navigator.clipboard.writeText(v.state.doc.sliceString(s.from, s.to)); } catch {}
+    try { await navigator.clipboard.writeText(v.state.doc.sliceString(s.from, s.to)); } catch { }
   }, []);
 
   const handleCut = useCallback(async () => {
     const v = handleRef.current?.view, s = saved.current;
     if (!v || !s || s.from === s.to) return;
-    try { await navigator.clipboard.writeText(v.state.doc.sliceString(s.from, s.to)); } catch {}
+    try { await navigator.clipboard.writeText(v.state.doc.sliceString(s.from, s.to)); } catch { }
     v.dispatch({ changes: { from: s.from, to: s.to, insert: "" }, selection: { anchor: s.from } });
   }, []);
 

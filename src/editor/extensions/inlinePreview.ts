@@ -8,7 +8,7 @@ export { docMetaField } from './inlinePreview/markdownAnalysis';
 export { blockDecorationsField } from './inlinePreview/blockDecorations';
 export { inlineMarkPlugin } from './inlinePreview/inlineDecorations';
 export { inlinePreviewInteractions } from './inlinePreview/interactions';
-export { referencePickerField, referencePickerExtension, documentPathFacet } from './referencePicker';
+export { referencePickerField, referencePickerExtension, documentPathFacet, referencePickerKeymap } from './referencePicker';
 export { resolvedObjectsField, transclusionDecoField, transclusionPlugin, transclusionTheme } from './transclusionRenderer';
 
 export const inlinePreviewPlugin = [

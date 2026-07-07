@@ -101,8 +101,8 @@ export function SidebarContextMenu({
     background: 'color-mix(in srgb, var(--editor-bg-color, #ffffff) 88%, transparent)',
     backdropFilter: 'blur(20px) saturate(1.5)',
     WebkitBackdropFilter: 'blur(20px) saturate(1.5)',
-    border: '1px solid rgba(128,128,128,0.15)',
-    boxShadow: '0 10px 30px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.06)',
+    border: '1px solid var(--editor-border, rgba(128,128,128,0.15))',
+    boxShadow: '0 10px 30px color-mix(in srgb, var(--editor-text-color, #000) 12%, transparent), 0 2px 6px color-mix(in srgb, var(--editor-text-color, #000) 6%, transparent)',
     fontFamily: 'var(--font-sans, system-ui, sans-serif)',
     userSelect: 'none',
     padding: '4px 0',
@@ -110,7 +110,7 @@ export function SidebarContextMenu({
 
   const dividerStyle: React.CSSProperties = {
     height: 1,
-    background: 'rgba(128,128,128,0.12)',
+    background: 'var(--editor-border, rgba(128,128,128,0.12))',
     margin: '4px 0',
   };
 
@@ -123,7 +123,7 @@ export function SidebarContextMenu({
     fontSize: 13,
     fontWeight: 500,
     color: danger
-      ? '#e11d48'
+      ? 'var(--editor-error, #e11d48)'
       : accent
         ? accent
         : muted
@@ -177,13 +177,13 @@ export function SidebarContextMenu({
           {btn('Rename', <Edit2 style={ic('currentColor')} />, onRename)}
           {!isCloudFolder && btn('Reveal in Finder', <FolderOpen style={ic('currentColor')} />, onRevealInFolder)}
           {showCloudSection && <div style={dividerStyle} />}
-          {canSync && !isSynced && btn('Sync to Cloud', <Cloud style={ic('#3b82f6')} />, onSyncToCloud)}
-          {isSynced && btn('Remove Cloud Sync', <CloudOff style={ic('#6b7280')} />, onUnsyncFromCloud, false, true)}
-          {showOfflineToggle && !isOfflineEnabled && btn('Make Available Offline', <WifiHigh style={ic('#8b5cf6')} />, onMakeOffline)}
-          {showOfflineToggle && isOfflineEnabled && btn('Remove Offline Access', <WifiOff style={ic('#6b7280')} />, onRemoveOffline, false, true)}
-          {canAddToTeam && btn('Add to Team', <UserPlus style={ic('#f97316')} />, onAddToTeam, false, false)}
+          {canSync && !isSynced && btn('Sync to Cloud', <Cloud style={ic('var(--editor-info, #3b82f6)')} />, onSyncToCloud)}
+          {isSynced && btn('Remove Cloud Sync', <CloudOff style={ic('var(--editor-muted, #6b7280)')} />, onUnsyncFromCloud, false, true)}
+          {showOfflineToggle && !isOfflineEnabled && btn('Make Available Offline', <WifiHigh style={ic('var(--editor-accent, #8b5cf6)')} />, onMakeOffline)}
+          {showOfflineToggle && isOfflineEnabled && btn('Remove Offline Access', <WifiOff style={ic('var(--editor-muted, #6b7280)')} />, onRemoveOffline, false, true)}
+          {canAddToTeam && btn('Add to Team', <UserPlus style={ic('var(--editor-warning, #f97316)')} />, onAddToTeam, false, false)}
           {showManagePerms && <div style={dividerStyle} />}
-          {showManagePerms && btn('Manage Permissions', <Shield style={ic('#a855f7')} />, onManagePermissions, false, false, '#a855f7')}
+          {showManagePerms && btn('Manage Permissions', <Shield style={ic('var(--editor-accent, #a855f7)')} />, onManagePermissions, false, false, 'var(--editor-accent, #a855f7)')}
           <div style={dividerStyle} />
           {btn('Delete', <Trash2 style={{ width: 14, height: 14, opacity: 0.8 }} />, onDelete, true)}
         </>
@@ -192,13 +192,13 @@ export function SidebarContextMenu({
           {!isCloudOnly && btn('Open', <ExternalLink style={ic('currentColor')} />, onOpen)}
           {!isCloudOnly && btn('Rename', <Edit2 style={ic('currentColor')} />, onRename)}
           {showCloudSection && <div style={dividerStyle} />}
-          {canSync && !isSynced && !isCloudOnly && btn('Sync to Cloud', <Cloud style={ic('#3b82f6')} />, onSyncToCloud)}
-          {(isSynced || isCloudOnly) && btn('Remove Cloud Sync', <CloudOff style={ic('#6b7280')} />, onUnsyncFromCloud, false, true)}
-          {showOfflineToggle && !isOfflineEnabled && btn('Make Available Offline', <WifiHigh style={ic('#8b5cf6')} />, onMakeOffline)}
-          {showOfflineToggle && isOfflineEnabled && btn('Remove Offline Access', <WifiOff style={ic('#6b7280')} />, onRemoveOffline, false, true)}
-          {canAddToTeam && !isSynced && !isCloudOnly && btn('Add to Team', <UserPlus style={ic('#f97316')} />, onAddToTeam, false, false)}
+          {canSync && !isSynced && !isCloudOnly && btn('Sync to Cloud', <Cloud style={ic('var(--editor-info, #3b82f6)')} />, onSyncToCloud)}
+          {(isSynced || isCloudOnly) && btn('Remove Cloud Sync', <CloudOff style={ic('var(--editor-muted, #6b7280)')} />, onUnsyncFromCloud, false, true)}
+          {showOfflineToggle && !isOfflineEnabled && btn('Make Available Offline', <WifiHigh style={ic('var(--editor-accent, #8b5cf6)')} />, onMakeOffline)}
+          {showOfflineToggle && isOfflineEnabled && btn('Remove Offline Access', <WifiOff style={ic('var(--editor-muted, #6b7280)')} />, onRemoveOffline, false, true)}
+          {canAddToTeam && !isSynced && !isCloudOnly && btn('Add to Team', <UserPlus style={ic('var(--editor-warning, #f97316)')} />, onAddToTeam, false, false)}
           {showManagePerms && <div style={dividerStyle} />}
-          {showManagePerms && btn('Manage Permissions', <Shield style={ic('#a855f7')} />, onManagePermissions, false, false, '#a855f7')}
+          {showManagePerms && btn('Manage Permissions', <Shield style={ic('var(--editor-accent, #a855f7)')} />, onManagePermissions, false, false, 'var(--editor-accent, #a855f7)')}
           <div style={dividerStyle} />
           {btn('Delete', <Trash2 style={{ width: 14, height: 14, opacity: 0.8 }} />, onDelete, true)}
         </>

@@ -83,8 +83,8 @@ export function EditorContextMenu({
     background: 'color-mix(in srgb, var(--editor-bg-color, #ffffff) 88%, transparent)',
     backdropFilter: 'blur(24px) saturate(1.6)',
     WebkitBackdropFilter: 'blur(24px) saturate(1.6)',
-    border: '1px solid rgba(128,128,128,0.14)',
-    boxShadow: '0 12px 40px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.08)',
+    border: '1px solid var(--editor-border, rgba(128,128,128,0.14))',
+    boxShadow: '0 12px 40px color-mix(in srgb, var(--editor-text-color, #000) 14%, transparent), 0 2px 8px color-mix(in srgb, var(--editor-text-color, #000) 8%, transparent)',
     animation: 'contextMenuIn 0.15s cubic-bezier(0.16, 1, 0.3, 1)',
     transformOrigin: 'top left',
     fontFamily: 'var(--font-sans, system-ui, sans-serif)',
@@ -93,7 +93,7 @@ export function EditorContextMenu({
 
   const divider: React.CSSProperties = {
     height: 1,
-    background: 'rgba(128,128,128,0.12)',
+    background: 'var(--editor-border, rgba(128,128,128,0.12))',
   };
 
   const baseItem = (danger = false, disabled = false): React.CSSProperties => ({
@@ -107,7 +107,7 @@ export function EditorContextMenu({
     color: disabled
       ? `color-mix(in srgb, var(--editor-text-color, #111) 35%, transparent)`
       : danger
-        ? '#e11d48'
+        ? 'var(--editor-error, #e11d48)'
         : 'var(--editor-text-color, #111827)',
     cursor: disabled ? 'default' : 'pointer',
     background: 'transparent',
@@ -119,7 +119,7 @@ export function EditorContextMenu({
 
   const hover = (e: React.MouseEvent<HTMLButtonElement>, on: boolean) => {
     (e.currentTarget as HTMLButtonElement).style.background = on
-      ? 'rgba(128,128,128,0.09)'
+      ? 'color-mix(in srgb, var(--editor-text-color, #000) 9%, transparent)'
       : 'transparent';
   };
 

@@ -2,6 +2,7 @@ import { EditorState, StateField } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
 import { DecorationSet } from '@codemirror/view';
 import { collectMarkdownReferences, parseMarkdownImageToken, type MarkdownReferences } from './markdown';
+import { isMarkdownTableSeparator, isMarkdownTableRow, parseFenceInfo, stripInlineAttrs, stripBlockMathFence } from './markdownUtils';
 
 const KNOWN_BLOCK_TAGS = new Set([
   'tabs', 'tab', 'note', 'info', 'summary',
@@ -248,25 +249,4 @@ export function parseMarkdownImage(raw: string, references: MarkdownReferences =
   return parseMarkdownImageToken(raw, references);
 }
 
-export function isMarkdownTableSeparator(text: string) {
-  return /^\|?(\s*:?-+\s*:?\|)+(\s*:?-+\s*:?)?$/.test(text.trim());
-}
 
-export function isMarkdownTableRow(text: string) {
-  return text.includes('|');
-}
-
-export function parseFenceInfo(text: string) {
-  const match = text.trim().match(/^```([^\s`]*)/);
-  return { language: (match?.[1] ?? '').trim().toLowerCase() };
-}
-
-function stripInlineAttrs(text: string) {
-  return text.replace(/\s*\{[^}]*\}\s*$/, '').trim();
-}
-
-function stripBlockMathFence(text: string, opening: boolean) {
-  const trimmed = text.trim();
-  if (opening) return stripInlineAttrs(trimmed.replace(/^\$\$\s*/, ''));
-  return trimmed.replace(/\s*\$\$\s*(?:\{[^}]*\}\s*)?$/, '').trim();
-}

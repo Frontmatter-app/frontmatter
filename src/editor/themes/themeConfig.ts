@@ -1,4 +1,5 @@
 import { EditorView } from '@codemirror/view';
+import { getSemanticColors } from '../../lib/colors';
 
 export interface EditorThemeConfig {
   fontFamily: string;
@@ -313,6 +314,7 @@ export function updateThemeConfig(newConfig: Partial<EditorThemeConfig>) {
  * Generates the CSS variable definitions based on the current theme config.
  */
 export function getThemeCSSVariables(config: EditorThemeConfig = activeThemeConfig): string {
+  const semantic = getSemanticColors(config.caretColor, config.backgroundColor, config.textColor);
   return `
     --editor-font-family: ${config.fontFamily};
     --editor-font-size: ${config.fontSize};
@@ -341,6 +343,21 @@ export function getThemeCSSVariables(config: EditorThemeConfig = activeThemeConf
     --editor-blockquote-border: ${config.blockquoteBorderColor};
     --editor-blockquote-color: ${config.blockquoteColor};
     --editor-link-color: ${config.linkColor};
+
+    --editor-success: ${semantic.success};
+    --editor-success-bg: ${semantic.successBg};
+    --editor-error: ${semantic.error};
+    --editor-error-bg: ${semantic.errorBg};
+    --editor-warning: ${semantic.warning};
+    --editor-warning-bg: ${semantic.warningBg};
+    --editor-info: ${semantic.info};
+    --editor-info-bg: ${semantic.infoBg};
+    --editor-annotation: ${semantic.annotation};
+    --editor-annotation-bg: ${semantic.annotationBg};
+    --editor-accent: ${semantic.accent};
+    --editor-accent-bg: ${semantic.accentBg};
+    --editor-border: ${semantic.border};
+    --editor-muted: ${semantic.muted};
   `;
 }
 

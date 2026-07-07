@@ -70,7 +70,7 @@ function Avatar({
     .toUpperCase();
 
   const borderColor = (member.isSelf || member.isActive)
-    ? '#22c55e'
+    ? 'var(--editor-success, #22c55e)'
     : 'rgba(255,255,255,0.12)';
 
   const dimmed = !member.isActive && !member.isSelf;
@@ -124,7 +124,7 @@ function Avatar({
                 member.isActive && !member.isSelf
                   ? `linear-gradient(135deg, ${member.color}55, ${member.color}22)`
                   : member.isSelf
-                  ? 'linear-gradient(135deg, rgba(34,197,94,0.25), rgba(16,185,129,0.15))'
+                  ? 'linear-gradient(135deg, color-mix(in srgb, var(--editor-success, #22c55e) 25%, transparent), color-mix(in srgb, var(--editor-success, #22c55e) 15%, transparent))'
                   : 'linear-gradient(135deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03))',
               fontSize: size * 0.33,
               fontWeight: 700,
@@ -148,7 +148,7 @@ function Avatar({
             width: 7,
             height: 7,
             borderRadius: '50%',
-            background: '#22c55e',
+            background: 'var(--editor-success, #22c55e)',
             border: '1.5px solid #18181b',
             pointerEvents: 'none',
             animation: member.isActive && !member.isSelf
@@ -216,7 +216,7 @@ function MemberPopover({
             overflow: 'hidden',
             border: `2px solid ${
               member.isSelf
-                ? '#22c55e'
+                ? 'var(--editor-success, #22c55e)'
                 : member.isActive
                 ? member.color
                 : 'rgba(255,255,255,0.13)'
@@ -325,13 +325,13 @@ function MemberPopover({
             gap: 4,
             background:
               member.isActive || member.isSelf
-                ? 'rgba(34,197,94,0.11)'
+                ? 'color-mix(in srgb, var(--editor-success, #22c55e) 11%, transparent)'
                 : 'rgba(255,255,255,0.04)',
             color:
-              member.isActive || member.isSelf ? '#4ade80' : 'rgba(255,255,255,0.28)',
+              member.isActive || member.isSelf ? 'var(--editor-success, #4ade80)' : 'rgba(255,255,255,0.28)',
             border:
               member.isActive || member.isSelf
-                ? '1px solid rgba(34,197,94,0.18)'
+                ? '1px solid color-mix(in srgb, var(--editor-success, #22c55e) 18%, transparent)'
                 : '1px solid rgba(255,255,255,0.06)',
             fontFamily: 'Inter, system-ui, sans-serif',
           }}
@@ -344,7 +344,7 @@ function MemberPopover({
               display: 'inline-block',
               background:
                 member.isActive || member.isSelf
-                  ? '#4ade80'
+                  ? 'var(--editor-success, #4ade80)'
                   : 'rgba(255,255,255,0.22)',
             }}
           />
@@ -359,7 +359,7 @@ function MemberPopover({
         </div>
         <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 4, fontFamily: 'Inter, system-ui, sans-serif' }}>
           {member.isActive || member.isSelf ? (
-            <span style={{ color: '#4ade80', fontWeight: 500 }}>Online now</span>
+            <span style={{ color: 'var(--editor-success, #4ade80)', fontWeight: 500 }}>Online now</span>
           ) : (
             <span>Last active: <span style={{ color: 'rgba(255,255,255,0.9)' }}>{formatLastSeen(member.updatedAt)}</span></span>
           )}
@@ -491,7 +491,7 @@ export function CollaborationBar({ documentId }: { documentId?: string | null })
         role: teamMembers.find((m) => m.uid === user.id)?.role ?? 'member',
         isActive: true,
         isSelf: true,
-        color: '#22c55e',
+        color: 'var(--editor-success, #22c55e)',
         updatedAt: new Date(),
       }
     : null;

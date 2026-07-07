@@ -14,7 +14,7 @@ import { refreshInlinePreviewEffect } from '../../editor/extensions/inlinePrevie
 import { formattingKeymap } from '../../editor/formatting/keymap';
 import { setCurrentDocId } from '../../keyboard/useGlobalShortcuts';
 import { SuggestionManager } from '../../yjs/suggestions';
-import { suggestionsExtension, setSuggestionsEffect } from '../../editor/suggestionsExtension';
+import { suggestionsExtension, setSuggestionsEffect } from '../../editor/extensions/suggestionsExtension';
 import { useWorkspace } from '../../workspace/WorkspaceProvider';
 
 function getActiveHeading(state: EditorState): string | null {
@@ -94,8 +94,15 @@ export function useWriteEditor(
           return startAbs && endAbs && pos >= startAbs.index && pos <= endAbs.index && !sug.resolved;
         });
         setActiveSuggestionId(activeSug ? activeSug.id : null);
-        if (update.selectionSet && update.state.selection.main.empty) {
-          setSelToolbar(null);
+        if (update.state.selection.main.empty) {
+          const sel = update.state.selection.main;
+          const line = update.state.doc.lineAt(sel.head);
+          const atEmptyLineStart = line.length === 0 && sel.head === line.from;
+          if (atEmptyLineStart) {
+            setSelToolbar({ from: sel.head, to: sel.head });
+          } else {
+            setSelToolbar(null);
+          }
         }
       }
     });

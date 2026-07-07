@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import * as Y from 'yjs';
 import { Lock } from 'lucide-react';
@@ -6,6 +6,9 @@ import { EditorContextMenu } from '../../components/EditorContextMenu';
 import { SelectionToolbar } from '../../components/SelectionToolbar';
 import { linkCommand } from '../../editor/formatting/commands';
 import { useWriteEditor } from './useWriteEditor';
+import { getContextFromYdoc } from '../../excalidraw/excalidrawService';
+import { usePlan } from '../../billing/PlanProvider';
+import { useAuth } from '../../auth/AuthProvider';
 
 const WIDTH_MAP: Record<string, string> = { narrow: '560px', medium: '720px', wide: '900px', full: '100%' };
 
@@ -14,6 +17,14 @@ export function WriteView({ ydoc, documentId }: { ydoc: Y.Doc; documentId?: stri
     containerRef, handleRef, focusMode, isReadOnly, contextMenuPos, hasSelection,
     settings, setContextMenuPos, setHasSelection, selToolbar, setSelToolbar,
   } = useWriteEditor(ydoc, documentId);
+  const { isTeam, teamId, activeContext } = usePlan();
+  const { user } = useAuth();
+
+  const imageContext = useMemo(() => {
+    if (!ydoc) return null;
+    const isCloud = activeContext.type === 'team';
+    return getContextFromYdoc(ydoc, isCloud, teamId || undefined, user?.id || undefined);
+  }, [ydoc, activeContext.type, teamId, user?.id]);
 
   const maxWidth = WIDTH_MAP[settings.editorWidth] || '720px';
 
@@ -75,6 +86,8 @@ export function WriteView({ ydoc, documentId }: { ydoc: Y.Doc; documentId?: stri
           from={selToolbar.from}
           to={selToolbar.to}
           onClose={() => setSelToolbar(null)}
+          documentId={documentId}
+          imageContext={imageContext}
         />
       )}
     </div>

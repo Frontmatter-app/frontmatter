@@ -1,7 +1,7 @@
 import { ViewPlugin, Decoration, DecorationSet, EditorView } from '@codemirror/view';
 import { StateEffect, StateField, Extension, EditorState } from '@codemirror/state';
-import type { ValeAlert } from '../types';
-import { getValeActionText, getValeLocationText } from '../review/reviewIssues';
+import type { ValeAlert } from '../../types';
+import { getValeActionText, getValeLocationText } from '../../review/reviewIssues';
 
 export const setValeAlertsEffect = StateEffect.define<ValeAlert[]>();
 
@@ -25,16 +25,16 @@ const suggestionDeco = Decoration.mark({ class: 'cm-vale-suggestion' });
 
 export const valeLintTheme = EditorView.theme({
   '.cm-vale-error': {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    borderBottom: '2px wavy rgba(239, 68, 68, 0.8)',
+    backgroundColor: 'var(--editor-error-bg)',
+    borderBottom: '2px wavy var(--editor-error)',
   },
   '.cm-vale-warning': {
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-    borderBottom: '2px wavy rgba(245, 158, 11, 0.8)',
+    backgroundColor: 'var(--editor-warning-bg)',
+    borderBottom: '2px wavy var(--editor-warning)',
   },
   '.cm-vale-suggestion': {
-    backgroundColor: 'rgba(59, 130, 246, 0.15)',
-    borderBottom: '2px wavy rgba(59, 130, 246, 0.8)',
+    backgroundColor: 'var(--editor-info-bg)',
+    borderBottom: '2px wavy var(--editor-info)',
   },
 });
 
@@ -142,7 +142,7 @@ export const valeLintExtension = (enabled: boolean): Extension => {
         if (
           update.docChanged ||
           update.state.field(valeAlertState, false) !==
-            update.startState.field(valeAlertState, false)
+          update.startState.field(valeAlertState, false)
         ) {
           this.decorations = this.buildDeco(update.view);
         }

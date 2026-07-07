@@ -1,7 +1,7 @@
 import { ViewPlugin, Decoration, DecorationSet, EditorView } from '@codemirror/view';
 import { StateEffect, StateField, Extension, Transaction, EditorState } from '@codemirror/state';
 import * as Y from 'yjs';
-import { Suggestion, SuggestionManager } from '../yjs/suggestions';
+import { Suggestion, SuggestionManager } from '../../yjs/suggestions';
 
 export const setSuggestionsEffect = StateEffect.define<Suggestion[]>();
 export const suggestionApplyEffect = StateEffect.define<void>();
@@ -25,13 +25,13 @@ const deleteDeco = Decoration.mark({ class: 'cm-suggestion-delete' });
 
 export const suggestionTheme = EditorView.theme({
   '.cm-suggestion-insert': {
-    backgroundColor: 'rgba(34, 197, 94, 0.15)',
-    borderBottom: '2px solid rgba(34, 197, 94, 0.8)',
+    backgroundColor: 'var(--editor-success-bg)',
+    borderBottom: '2px solid var(--editor-success)',
     color: 'inherit'
   },
   '.cm-suggestion-delete': {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    textDecoration: 'line-through rgba(239, 68, 68, 0.8) 2px',
+    backgroundColor: 'var(--editor-error-bg)',
+    textDecoration: 'line-through var(--editor-error) 2px',
     color: 'inherit',
     opacity: 0.8
   }
@@ -72,7 +72,7 @@ export const suggestionsExtension = (
 
             const startAbs = Y.createAbsolutePositionFromRelativePosition(sug.start_pos, ytext.doc!);
             const endAbs = Y.createAbsolutePositionFromRelativePosition(sug.end_pos, ytext.doc!);
-            
+
             if (startAbs && endAbs && startAbs.index <= endAbs.index) {
               const deco = sug.type === 'insert' ? insertDeco : deleteDeco;
               builder.push(deco.range(startAbs.index, endAbs.index));
@@ -81,7 +81,7 @@ export const suggestionsExtension = (
         } catch (e) {
           console.error("Failed to build suggestion decorations:", e);
         }
-        
+
         builder.sort((a, b) => a.from - b.from);
         return Decoration.set(builder, true);
       }
@@ -97,7 +97,7 @@ export const suggestionsExtension = (
     if (tr.effects.some(e => e.is(suggestionApplyEffect))) {
       return tr;
     }
-    
+
     // 2. Only intercept user edits
     const isUser = tr.annotation(Transaction.userEvent);
     if (!isUser || !suggestionManager || !authorId) {
@@ -118,7 +118,7 @@ export const suggestionsExtension = (
       const newChanges: any[] = [];
       tr.changes.iterChanges((fromA, toA, fromB, toB, inserted) => {
         const deletedText = tr.startState.doc.sliceString(fromA, toA);
-        
+
         // Add delete suggestion in YJS asynchronously to avoid transaction loop
         setTimeout(() => {
           const id = Math.random().toString(36).substring(2, 9);
@@ -152,9 +152,9 @@ export const suggestionsExtension = (
 
       setTimeout(() => {
         // Try to append to the last pending insert suggestion by the same author
-        const pending = suggestionManager.getSuggestions().find(s => 
-          s.author_id === authorId && 
-          s.type === 'insert' && 
+        const pending = suggestionManager.getSuggestions().find(s =>
+          s.author_id === authorId &&
+          s.type === 'insert' &&
           !s.resolved &&
           isAdjacent(s.end_pos, fromA, ytext)
         );

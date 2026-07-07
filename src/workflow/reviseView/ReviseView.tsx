@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import * as Y from "yjs";
-import { EditorState } from "@codemirror/state";
 import { EditorContextMenu } from "../../components/EditorContextMenu";
 import { useWorkspace } from "../../workspace/WorkspaceProvider";
 import { useTeamPermissions } from "../../auth/teamPermissions";

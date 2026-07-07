@@ -39,3 +39,59 @@ export function getCollabColors(): string[] {
   const light = l > 0.5 ? 0.55 : 0.45;
   return Array.from({ length: 10 }, (_, i) => hslToHex(i / 10, sat, light));
 }
+
+export interface SemanticColors {
+  success: string;
+  successBg: string;
+  error: string;
+  errorBg: string;
+  warning: string;
+  warningBg: string;
+  info: string;
+  infoBg: string;
+  annotation: string;
+  annotationBg: string;
+  accent: string;
+  accentBg: string;
+  border: string;
+  muted: string;
+}
+
+/**
+ * Derive semantic colors from an existing theme config using HSL rotation.
+ * This keeps all semantic colors visually harmonious with the current theme
+ * without requiring hardcoded values in each theme variant.
+ */
+export function getSemanticColors(caretColor: string, bgColor: string, textColor: string): SemanticColors {
+  const [, cs, cl] = hexToHsl(caretColor);
+  const [, , bl] = hexToHsl(bgColor);
+  const [, , tl] = hexToHsl(textColor);
+  const isDark = bl < 0.5;
+
+  const s = Math.min(cs * 1.2, 0.7);
+  const l = isDark ? 0.55 : 0.45;
+
+  function bg(hue: number): string {
+    return hslToHex(hue / 360, s * 0.35, isDark ? 0.1 : 0.92);
+  }
+  function fg(hue: number): string {
+    return hslToHex(hue / 360, s, l);
+  }
+
+  return {
+    error: fg(0),
+    errorBg: bg(0),
+    success: fg(120),
+    successBg: bg(120),
+    warning: fg(45),
+    warningBg: bg(45),
+    info: fg(210),
+    infoBg: bg(210),
+    annotation: fg(55),
+    annotationBg: bg(55),
+    accent: fg(270),
+    accentBg: bg(270),
+    border: hslToHex(0, 0, isDark ? 0.22 : 0.85),
+    muted: hslToHex(0, 0, isDark ? 0.5 : 0.55),
+  };
+}

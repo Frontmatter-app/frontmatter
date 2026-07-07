@@ -1,7 +1,7 @@
 import { ViewPlugin, Decoration, DecorationSet, EditorView } from '@codemirror/view';
 import { StateEffect, StateField, Extension } from '@codemirror/state';
 import * as Y from 'yjs';
-import { AnnotationManager, Annotation } from '../yjs/annotations';
+import { AnnotationManager, Annotation } from '../../yjs/annotations';
 
 export const setAnnotationsEffect = StateEffect.define<Annotation[]>();
 
@@ -24,12 +24,12 @@ const resolvedDeco = Decoration.mark({ class: 'cm-annotation-resolved' });
 
 export const annotationTheme = EditorView.theme({
   '.cm-annotation-highlight': {
-    backgroundColor: 'rgba(250, 204, 21, 0.3)',
-    borderBottom: '2px solid rgba(250, 204, 21, 1)'
+    backgroundColor: 'var(--editor-annotation-bg)',
+    borderBottom: '2px solid var(--editor-annotation)'
   },
   '.cm-annotation-resolved': {
     backgroundColor: 'transparent',
-    borderBottom: '2px dashed rgba(156, 163, 175, 1)'
+    borderBottom: '2px dashed var(--editor-muted)'
   }
 });
 
@@ -56,7 +56,7 @@ export const annotationsExtension = (ytext: Y.Text): Extension => {
           for (const ann of annotations) {
             const startAbs = Y.createAbsolutePositionFromRelativePosition(ann.start_pos, ytext.doc!);
             const endAbs = Y.createAbsolutePositionFromRelativePosition(ann.end_pos, ytext.doc!);
-            
+
             if (startAbs && endAbs && startAbs.index <= endAbs.index) {
               const deco = ann.resolved ? resolvedDeco : highlightDeco;
               builder.push(deco.range(startAbs.index, endAbs.index));
@@ -64,7 +64,7 @@ export const annotationsExtension = (ytext: Y.Text): Extension => {
           }
         } catch (e) {
         }
-        
+
         builder.sort((a, b) => a.from - b.from);
         return Decoration.set(builder, true);
       }
