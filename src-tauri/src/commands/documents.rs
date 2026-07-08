@@ -68,20 +68,38 @@ pub async fn update_document(
         .bind(&id).fetch_optional(&pool).await.map_err(|e| e.to_string())?;
 
     if let Some(r) = row {
-        if let Some(path) = r.get::<Option<String>, _>("file_path") {
+        // Extract the markdown portion for indexing
+        let mut mkd_content = content.clone();
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+            if let Some(mkd) = json.get("markdown").and_then(|v| v.as_str()) {
+                mkd_content = mkd.to_string();
+            }
+        }
+
+        let file_path_opt: Option<String> = r.get("file_path");
+        if let Some(ref path) = file_path_opt {
             if !path.is_empty() {
-                let mut mkd_content = content.clone();
-                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
-                    if let Some(mkd) = json.get("markdown").and_then(|v| v.as_str()) {
-                        mkd_content = mkd.to_string();
-                    }
-                }
-                let _ = std::fs::write(&path, mkd_content);
+                // Write to disk and index from file (local documents)
+                let _ = std::fs::write(path, &mkd_content);
                 let indexer = crate::commands::indexer::WorkspaceIndexer::new(
                     pool.clone(), std::path::PathBuf::from(&ws_path),
                 );
-                let _ = indexer.index_file(std::path::Path::new(&path)).await;
+                let _ = indexer.index_file(std::path::Path::new(path)).await;
+            } else {
+                // No disk file — index from content string (cloud-only docs)
+                let indexer = crate::commands::indexer::WorkspaceIndexer::new(
+                    pool.clone(), std::path::PathBuf::from(&ws_path),
+                );
+                let virtual_path = format!("__cloud__/{}.md", id);
+                let _ = indexer.index_content_string(&mkd_content, &virtual_path).await;
             }
+        } else {
+            // file_path is NULL — index from content string (team/cloud docs)
+            let indexer = crate::commands::indexer::WorkspaceIndexer::new(
+                pool.clone(), std::path::PathBuf::from(&ws_path),
+            );
+            let virtual_path = format!("__cloud__/{}.md", id);
+            let _ = indexer.index_content_string(&mkd_content, &virtual_path).await;
         }
     }
 

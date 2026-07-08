@@ -1,11 +1,24 @@
 import { EditorState, StateField, StateEffect, Range } from '@codemirror/state';
 import { EditorView, Decoration, DecorationSet, ViewPlugin, ViewUpdate } from '@codemirror/view';
+import * as Y from 'yjs';
 import { invoke } from '../../filesystem/tauriCommands';
 import type { ResolvedObject, TransclusionRange } from './transclusionTypes';
 import { mapToResolvedObject } from './transclusionTypes';
 import StatusWidget from './transclusionWidget';
 
 export type { ResolvedObject, TransclusionRange } from './transclusionTypes';
+
+// Module-level ydoc reference so the transclusionPlugin can read shared hash state
+// without needing a Facet or prop-drilling through CodeMirror extensions.
+let _activeYdoc: Y.Doc | null = null;
+
+export function setTransclusionYdoc(ydoc: Y.Doc | null) {
+  _activeYdoc = ydoc;
+}
+
+export function getTransclusionYdoc(): Y.Doc | null {
+  return _activeYdoc;
+}
 
 export const setTransclusionObjectEffect = StateEffect.define<{
   uuid: string;
@@ -84,7 +97,11 @@ function buildDecorations(state: EditorState, resolved: { [uuid: string]: Resolv
 
     if (obj) {
       name = obj.name;
-      status = (obj.transclusion_hash && obj.transclusion_hash === obj.content_hash) ? 'sync' : 'out-of-sync';
+      // Check Yjs shared hash first (syncs across team peers), then fall back to stored hash
+      const ydoc = _activeYdoc;
+      const yjsHash = ydoc ? (ydoc.getMap('transclusion_hashes').get(range.uuid) as string | undefined) : undefined;
+      const effectiveHash = yjsHash ?? obj.transclusion_hash;
+      status = (effectiveHash && effectiveHash === obj.content_hash) ? 'sync' : 'out-of-sync';
     } else {
       status = 'not-found';
     }
@@ -131,15 +148,27 @@ export const transclusionPlugin = ViewPlugin.fromClass(
         const uuid = match[2];
         if (!resolved[uuid] && !this.loading.has(uuid)) {
           this.loading.add(uuid);
+          // Read hash from Yjs Y.Map first — if found, skip the SQLite round-trip
+          const ydoc = _activeYdoc;
+          const yjsHash: string | undefined = ydoc
+            ? (ydoc.getMap('transclusion_hashes').get(uuid) as string | undefined)
+            : undefined;
+
           Promise.all([
             invoke<any>('get_object_by_uuid', { objectUuid: uuid }),
-            invoke<string | null>('get_transclusion_hash', { objectUuid: uuid }),
+            yjsHash
+              ? Promise.resolve(yjsHash)
+              : invoke<string | null>('get_transclusion_hash', { objectUuid: uuid }),
           ])
             .then(([result, transclusionHash]) => {
               this.loading.delete(uuid);
               if (result) {
                 const obj = mapToResolvedObject(uuid, result);
                 obj.transclusion_hash = transclusionHash || undefined;
+                // If we got a hash from SQLite, write it to Yjs so peers benefit too
+                if (transclusionHash && !yjsHash && ydoc) {
+                  ydoc.getMap('transclusion_hashes').set(uuid, transclusionHash);
+                }
                 view.dispatch({
                   effects: setTransclusionObjectEffect.of({ uuid, object: obj }),
                 });
@@ -175,5 +204,3 @@ export const transclusionTheme = EditorView.theme({
     '100%': { transform: 'rotate(360deg)' },
   },
 });
-
-

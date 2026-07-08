@@ -9,6 +9,7 @@ import { useWriteEditor } from './useWriteEditor';
 import { getContextFromYdoc } from '../../excalidraw/excalidrawService';
 import { usePlan } from '../../billing/PlanProvider';
 import { useAuth } from '../../auth/AuthProvider';
+import { useSyncStatusStore } from '../../cloud/syncStatusStore';
 
 const WIDTH_MAP: Record<string, string> = { narrow: '560px', medium: '720px', wide: '900px', full: '100%' };
 
@@ -19,12 +20,13 @@ export function WriteView({ ydoc, documentId }: { ydoc: Y.Doc; documentId?: stri
   } = useWriteEditor(ydoc, documentId);
   const { isTeam, teamId, activeContext } = usePlan();
   const { user } = useAuth();
+  const cloudDocumentIds = useSyncStatusStore(state => state.cloudDocumentIds);
 
   const imageContext = useMemo(() => {
     if (!ydoc) return null;
-    const isCloud = activeContext.type === 'team';
+    const isCloud = activeContext.type === 'team' || (documentId ? cloudDocumentIds.has(documentId) : false);
     return getContextFromYdoc(ydoc, isCloud, teamId || undefined, user?.id || undefined);
-  }, [ydoc, activeContext.type, teamId, user?.id]);
+  }, [ydoc, activeContext.type, teamId, user?.id, documentId, cloudDocumentIds]);
 
   const maxWidth = WIDTH_MAP[settings.editorWidth] || '720px';
 

@@ -1,131 +1,11 @@
 import { db } from '../../auth/firebase';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import { invoke, isWebPreview } from '../../filesystem/tauriCommands';
+import { UserMetricsData } from './metricsTypes';
+import { loadMetricsFromLocalStorage, persistToLocalStorage, loadMetricsFromSqlite } from './metricsStorage';
 
-export interface UserMetricsData {
-  heatmap: { [dateStr: string]: number };
-  writingTime: { [dateStr: string]: number };
-  focusSessions: {
-    totalCount: number;
-    avgDurationMin: number;
-  };
-  typingSpeed: {
-    avgWpm: number;
-    peakWpm: number;
-    sampleCount: number;
-  };
-  hourlyBuckets: { [dateStr: string]: number[] };
-  lastSync?: number;
-}
-
-function getEmptyMetrics(): UserMetricsData {
-  return {
-    heatmap: {},
-    writingTime: {},
-    focusSessions: { totalCount: 0, avgDurationMin: 0 },
-    typingSpeed: { avgWpm: 0, peakWpm: 0, sampleCount: 0 },
-    hourlyBuckets: {},
-  };
-}
-
-// Load from localStorage (synchronous fallback used for instant renders)
-function loadMetricsFromLocalStorage(uid: string): UserMetricsData {
-  try {
-    const raw = localStorage.getItem(`marktype_metrics_${uid}`);
-    if (raw) {
-      const parsed = JSON.parse(raw) as Partial<UserMetricsData>;
-      return {
-        heatmap: parsed.heatmap || {},
-        writingTime: parsed.writingTime || {},
-        focusSessions: {
-          totalCount: parsed.focusSessions?.totalCount || 0,
-          avgDurationMin: parsed.focusSessions?.avgDurationMin || 0,
-        },
-        typingSpeed: {
-          avgWpm: parsed.typingSpeed?.avgWpm || 0,
-          peakWpm: parsed.typingSpeed?.peakWpm || 0,
-          sampleCount: parsed.typingSpeed?.sampleCount || 0,
-        },
-        hourlyBuckets: parsed.hourlyBuckets || {},
-      };
-    }
-  } catch (e) {
-    console.error('Failed to load metrics from localStorage:', e);
-  }
-  return getEmptyMetrics();
-}
-
-// Load metrics from SQLite via Tauri backend (primary source of truth)
-export async function loadMetricsFromSqlite(uid: string): Promise<UserMetricsData> {
-  const today = new Date();
-  const startDate = new Date(today);
-  startDate.setDate(today.getDate() - 169);
-  const startStr = startDate.toISOString().split('T')[0];
-  const endStr = today.toISOString().split('T')[0];
-
-  try {
-    const rows = await invoke<
-      {
-        date: string;
-        edits: number;
-        writing_time_seconds: number;
-        hourly_buckets: string;
-        focus_sessions_total: number;
-        focus_sessions_avg_min: number;
-        avg_wpm: number;
-        peak_wpm: number;
-        wpm_sample_count: number;
-      }[]
-    >('get_metrics_date_range', {
-      args: {
-        uid,
-        start_date: startStr,
-        end_date: endStr,
-      },
-    });
-
-    if (!rows || rows.length === 0) {
-      return getEmptyMetrics();
-    }
-
-    const heatmap: { [dateStr: string]: number } = {};
-    const writingTime: { [dateStr: string]: number } = {};
-    const hourlyBuckets: { [dateStr: string]: number[] } = {};
-    let totalFocus = 0;
-    let focusCnt = 0;
-    let totalWpmNumerator = 0;
-    let peakWpm = 0;
-
-    for (const row of rows) {
-      heatmap[row.date] = row.edits;
-      writingTime[row.date] = row.writing_time_seconds;
-      hourlyBuckets[row.date] = JSON.parse(row.hourly_buckets || '[]');
-      if (row.focus_sessions_total > 0) {
-        totalFocus += row.focus_sessions_avg_min * row.focus_sessions_total;
-        focusCnt += row.focus_sessions_total;
-      }
-      totalWpmNumerator += row.avg_wpm * row.wpm_sample_count;
-      if (row.peak_wpm > peakWpm) peakWpm = row.peak_wpm;
-    }
-
-    const totalSampleCount = rows.reduce((sum, r) => sum + r.wpm_sample_count, 0);
-    const avgWpm = totalSampleCount > 0 ? Math.round(totalWpmNumerator / totalSampleCount) : 0;
-
-    return {
-      heatmap,
-      writingTime,
-      focusSessions: {
-        totalCount: focusCnt,
-        avgDurationMin: focusCnt > 0 ? Math.round(totalFocus / focusCnt) : 0,
-      },
-      typingSpeed: { avgWpm, peakWpm, sampleCount: totalSampleCount },
-      hourlyBuckets,
-    };
-  } catch (e) {
-    console.error('Failed to load metrics from SQLite:', e);
-    return getEmptyMetrics();
-  }
-}
+export type { UserMetricsData } from './metricsTypes';
+export { migrateLocalStorageToSqlite } from './metricsStorage';
 
 // Primary loader: SQLite first, fallback to localStorage
 export async function loadLocalMetrics(uid: string): Promise<UserMetricsData> {
@@ -149,6 +29,7 @@ export function mergeMetrics(base: UserMetricsData, overlay: Partial<UserMetrics
   const mergedHeatmap = { ...base.heatmap, ...(overlay.heatmap || {}) };
   const mergedWritingTime = { ...base.writingTime, ...(overlay.writingTime || {}) };
   const mergedHourlyBuckets = { ...base.hourlyBuckets, ...(overlay.hourlyBuckets || {}) };
+  const mergedFocusDaily = { ...(base.focusSessionsDaily || {}), ...(overlay.focusSessionsDaily || {}) };
 
   const baseSpeed = base.typingSpeed;
   const overlaySpeed = overlay.typingSpeed || { avgWpm: 0, peakWpm: 0, sampleCount: 0 };
@@ -173,13 +54,23 @@ export function mergeMetrics(base: UserMetricsData, overlay: Partial<UserMetrics
     }
   }
 
+  // Aggregate focus sessions
+  let totalFocusCount = 0;
+  let totalFocusDuration = 0;
+  Object.values(mergedFocusDaily).forEach((val) => {
+    totalFocusCount += val.totalCount;
+    totalFocusDuration += val.avgDurationMin * val.totalCount;
+  });
+  const mergedFocusAvg = totalFocusCount > 0 ? Math.round(totalFocusDuration / totalFocusCount) : 0;
+
   return {
     heatmap: mergedHeatmap,
     writingTime: mergedWritingTime,
     focusSessions: {
-      totalCount: Math.max(base.focusSessions.totalCount, overlay.focusSessions?.totalCount || 0),
-      avgDurationMin: overlay.focusSessions?.avgDurationMin || base.focusSessions.avgDurationMin,
+      totalCount: totalFocusCount,
+      avgDurationMin: mergedFocusAvg,
     },
+    focusSessionsDaily: mergedFocusDaily,
     typingSpeed: {
       avgWpm: mergedAvgWpm,
       peakWpm: mergedPeakWpm,
@@ -188,15 +79,6 @@ export function mergeMetrics(base: UserMetricsData, overlay: Partial<UserMetrics
     hourlyBuckets: mergedHourlyBuckets,
     lastSync: overlay.lastSync || base.lastSync,
   };
-}
-
-// Persist metrics to localStorage (synchronous cache for instant UI)
-function persistToLocalStorage(uid: string, data: UserMetricsData) {
-  try {
-    localStorage.setItem(`marktype_metrics_${uid}`, JSON.stringify(data));
-  } catch (e) {
-    console.error('Failed to write metrics to localStorage cache:', e);
-  }
 }
 
 // Save metrics to SQLite via Tauri backend, and sync to Firestore when applicable
@@ -216,22 +98,23 @@ export async function saveAndSyncMetrics(
     const dates = Object.keys(data.heatmap);
     if (dates.length > 0) {
       try {
-        const promises = dates.map((dateStr) =>
-          invoke<void>('save_daily_metrics', {
+        const promises = dates.map((dateStr) => {
+          const dailyFocus = data.focusSessionsDaily?.[dateStr] || { totalCount: 0, avgDurationMin: 0 };
+          return invoke<void>('save_daily_metrics', {
             args: {
               uid,
               date: dateStr,
               edits: data.heatmap[dateStr] || 0,
               writing_time_seconds: data.writingTime[dateStr] || 0,
               hourly_buckets: JSON.stringify(data.hourlyBuckets[dateStr] || []),
-              focus_sessions_total: data.focusSessions.totalCount,
-              focus_sessions_avg_min: data.focusSessions.avgDurationMin,
+              focus_sessions_total: dailyFocus.totalCount,
+              focus_sessions_avg_min: dailyFocus.avgDurationMin,
               avg_wpm: data.typingSpeed.avgWpm,
               peak_wpm: data.typingSpeed.peakWpm,
               wpm_sample_count: data.typingSpeed.sampleCount,
             },
-          })
-        );
+          });
+        });
         await Promise.all(promises);
       } catch (e) {
         console.error('Failed to persist metrics to SQLite:', e);
@@ -256,94 +139,56 @@ export async function saveAndSyncMetrics(
   }
 }
 
-// Fix hourly buckets that were stored with buggy dateStr-hour keys (e.g. "2024-01-15-14")
-function fixHourlyBuckets(data: UserMetricsData): UserMetricsData {
-  const { hourlyBuckets } = data;
-  const fixed: { [dateStr: string]: number[] } = {};
-
-  for (const key of Object.keys(hourlyBuckets)) {
-    const match = key.match(/^(\d{4}-\d{2}-\d{2})-\d{1,2}$/);
-    if (match) {
-      const dateStr = match[1];
-      const arr = hourlyBuckets[key];
-      if (!Array.isArray(arr)) continue;
-      if (!fixed[dateStr]) fixed[dateStr] = new Array(24).fill(0);
-      for (let i = 0; i < Math.min(arr.length, 24); i++) {
-        fixed[dateStr][i] += (arr[i] || 0);
-      }
-    } else {
-      fixed[key] = hourlyBuckets[key];
-    }
-  }
-
-  return { ...data, hourlyBuckets: fixed };
-}
-
-let _migrated = false;
-
-// One-time migration from localStorage to SQLite (fixes the hourly bucket key bug)
-export async function migrateLocalStorageToSqlite(uid: string): Promise<void> {
-  if (_migrated || isWebPreview || !uid) return;
-  _migrated = true;
-
-  try {
-    const raw = localStorage.getItem(`marktype_metrics_${uid}`);
-    if (!raw) return;
-
-    const parsed = JSON.parse(raw) as Partial<UserMetricsData>;
-    if (!parsed.heatmap || Object.keys(parsed.heatmap).length === 0) return;
-
-    const needsFix = Object.keys(parsed.hourlyBuckets || {}).some(
-      k => /^\d{4}-\d{2}-\d{2}-\d{1,2}$/.test(k)
-    );
-    const data = needsFix ? fixHourlyBuckets(parsed as UserMetricsData) : (parsed as UserMetricsData);
-
-    const sqliteData = await loadMetricsFromSqlite(uid);
-    if (Object.keys(data.heatmap).length > Object.keys(sqliteData.heatmap).length) {
-      console.log(`[Metrics] Migrating ${Object.keys(data.heatmap).length} days from localStorage`);
-      // Only persist to SQLite, skip cloud sync
-      if (!isWebPreview) {
-        const dates = Object.keys(data.heatmap);
-        const promises = dates.map((dateStr) =>
-          invoke<void>('save_daily_metrics', {
-            args: {
-              uid,
-              date: dateStr,
-              edits: data.heatmap[dateStr] || 0,
-              writing_time_seconds: data.writingTime[dateStr] || 0,
-              hourly_buckets: JSON.stringify(data.hourlyBuckets[dateStr] || []),
-              focus_sessions_total: data.focusSessions.totalCount,
-              focus_sessions_avg_min: data.focusSessions.avgDurationMin,
-              avg_wpm: data.typingSpeed.avgWpm,
-              peak_wpm: data.typingSpeed.peakWpm,
-              wpm_sample_count: data.typingSpeed.sampleCount,
-            },
-          })
-        );
-        await Promise.all(promises);
-      }
-      // Fix the localStorage copy too
-      persistToLocalStorage(uid, data);
-      console.log('[Metrics] Migration complete');
-    }
-  } catch (e) {
-    console.error('[Metrics] Migration failed:', e);
-  }
-}
-
 // Record a completed Focus Session
-export function recordFocusSession(uid: string, teamId: string | null, durationMinutes: number) {
+export async function recordFocusSession(uid: string, teamId: string | null, durationMinutes: number) {
   if (!uid || durationMinutes <= 0) return;
 
   const todayStr = new Date().toISOString().split('T')[0];
 
-  const currentData: UserMetricsData = {
-    heatmap: { [todayStr]: 0 },
-    writingTime: { [todayStr]: 0 },
-    focusSessions: { totalCount: 1, avgDurationMin: durationMinutes },
-    typingSpeed: { avgWpm: 0, peakWpm: 0, sampleCount: 0 },
-    hourlyBuckets: { [todayStr]: new Array(24).fill(0) },
-  };
+  try {
+    const currentData = await loadLocalMetrics(uid);
 
-  saveAndSyncMetrics(uid, teamId, currentData).catch(console.error);
+    const updatedHeatmap = { ...currentData.heatmap };
+    if (updatedHeatmap[todayStr] === undefined) updatedHeatmap[todayStr] = 0;
+
+    const updatedWritingTime = { ...currentData.writingTime };
+    if (updatedWritingTime[todayStr] === undefined) updatedWritingTime[todayStr] = 0;
+
+    const updatedHourlyBuckets = { ...currentData.hourlyBuckets };
+    if (updatedHourlyBuckets[todayStr] === undefined) updatedHourlyBuckets[todayStr] = new Array(24).fill(0);
+
+    const dailyFocus = currentData.focusSessionsDaily?.[todayStr] || { totalCount: 0, avgDurationMin: 0 };
+    const newDailyCount = dailyFocus.totalCount + 1;
+    const newDailyAvg = Math.round(
+      (dailyFocus.avgDurationMin * dailyFocus.totalCount + durationMinutes) / newDailyCount
+    );
+
+    const updatedFocusSessionsDaily = {
+      ...(currentData.focusSessionsDaily || {}),
+      [todayStr]: { totalCount: newDailyCount, avgDurationMin: newDailyAvg },
+    };
+
+    // Calculate updated global focus sessions
+    let totalFocusCount = 0;
+    let totalFocusDuration = 0;
+    Object.values(updatedFocusSessionsDaily).forEach((val) => {
+      totalFocusCount += val.totalCount;
+      totalFocusDuration += val.avgDurationMin * val.totalCount;
+    });
+    const globalAvgDuration = totalFocusCount > 0 ? Math.round(totalFocusDuration / totalFocusCount) : 0;
+
+    const updatedData: UserMetricsData = {
+      heatmap: updatedHeatmap,
+      writingTime: updatedWritingTime,
+      focusSessions: { totalCount: totalFocusCount, avgDurationMin: globalAvgDuration },
+      focusSessionsDaily: updatedFocusSessionsDaily,
+      typingSpeed: currentData.typingSpeed,
+      hourlyBuckets: updatedHourlyBuckets,
+      lastSync: Date.now(),
+    };
+
+    await saveAndSyncMetrics(uid, teamId, updatedData);
+  } catch (e) {
+    console.error('Failed to record focus session:', e);
+  }
 }

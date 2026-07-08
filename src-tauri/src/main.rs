@@ -163,6 +163,7 @@ fn main() {
             commands::prose::scan_prose,
             commands::indexer::index_workspace,
             commands::indexer::index_file,
+            commands::indexer::index_document_content,
             commands::references::search_objects,
             commands::references::find_references,
             commands::references::rename_object,

@@ -159,6 +159,14 @@ impl WorkspaceIndexer {
             .map_err(|e| format!("Failed to read {}: {}", file_path.display(), e))?;
 
         let rel_path = self.relative_path(file_path);
+        self.index_content_string(&content, &rel_path).await
+    }
+
+    /// Index a document whose content is already in memory (no file I/O).
+    /// `virtual_path` is used as the stable key in the `objects` table and
+    /// for UUID derivation — it should be unique per document (e.g. the doc id).
+    pub async fn index_content_string(&self, content: &str, virtual_path: &str) -> Result<(), String> {
+        let rel_path = virtual_path;
         let lines: Vec<&str> = content.lines().collect();
 
         let mut objects = Vec::new();
@@ -197,7 +205,7 @@ impl WorkspaceIndexer {
                     uuid: stable_object_uuid(&rel_path, start_line as i32),
                     object_type,
                     name,
-                    document_path: rel_path.clone(),
+                    document_path: rel_path.to_string(),
                     start_line: start_line as i32,
                     end_line: end_line as i32,
                     start_col,
@@ -243,7 +251,7 @@ impl WorkspaceIndexer {
                         uuid: stable_object_uuid(&rel_path, start_line as i32),
                         object_type,
                         name,
-                        document_path: rel_path.clone(),
+                        document_path: rel_path.to_string(),
                         start_line: start_line as i32,
                         end_line: end_line as i32,
                         start_col,
@@ -275,7 +283,7 @@ impl WorkspaceIndexer {
                     uuid: stable_object_uuid(&rel_path, line_num as i32),
                     object_type: ObjectType::Heading { level, ref_id },
                     name,
-                    document_path: rel_path.clone(),
+                    document_path: rel_path.to_string(),
                     start_line: line_num as i32,
                     end_line: line_num as i32,
                     start_col: 0,
@@ -303,7 +311,7 @@ impl WorkspaceIndexer {
                     uuid: stable_object_uuid(&rel_path, line_num as i32),
                     object_type: ObjectType::Image { url, alt: alt.clone(), ref_id },
                     name,
-                    document_path: rel_path.clone(),
+                    document_path: rel_path.to_string(),
                     start_line: line_num as i32,
                     end_line: line_num as i32,
                     start_col: 0,
@@ -350,7 +358,7 @@ impl WorkspaceIndexer {
                     uuid: stable_object_uuid(&rel_path, start_line as i32),
                     object_type: ObjectType::Table { ref_id },
                     name,
-                    document_path: rel_path.clone(),
+                    document_path: rel_path.to_string(),
                     start_line: start_line as i32,
                     end_line: end_line as i32,
                     start_col: 0,
@@ -371,7 +379,7 @@ impl WorkspaceIndexer {
                 let ref_id = caps.get(1).unwrap().as_str().to_string();
                 references.push(WorkspaceReference {
                     id: Uuid::new_v4().simple().to_string(),
-                    document_path: rel_path.clone(),
+                    document_path: rel_path.to_string(),
                     line: line_num as i32,
                     col: line.find(marker).unwrap_or(0) as i32,
                     object_uuid: self.resolve_ref_id(&ref_id).await?,
@@ -732,4 +740,33 @@ pub async fn index_file(
 
     let indexer = WorkspaceIndexer::new(pool.clone(), std::path::PathBuf::from(workspace_path));
     indexer.index_file(std::path::Path::new(&file_path)).await
+}
+
+/// Index a cloud/team document from its markdown content string.
+/// Called when a document has no local file_path (cloud-only).
+/// Uses the document id as a stable virtual path key.
+#[tauri::command]
+pub async fn index_document_content(
+    window: tauri::Window,
+    state: tauri::State<'_, crate::AppState>,
+    document_id: String,
+    markdown: String,
+) -> Result<(), String> {
+    let label = window.label();
+    let ws_guard = state.window_workspaces.lock().await;
+    let workspace_path = match ws_guard.get(label) {
+        Some(p) => p,
+        None => return Err("No workspace open".to_string()),
+    };
+
+    let db_guard = state.dbs.lock().await;
+    let pool = match db_guard.get(workspace_path) {
+        Some(p) => p,
+        None => return Err("No database pool".to_string()),
+    };
+
+    let indexer = WorkspaceIndexer::new(pool.clone(), std::path::PathBuf::from(workspace_path));
+    // Use __cloud__/<id>.md as a stable virtual path that won't clash with real files
+    let virtual_path = format!("__cloud__/{}.md", document_id);
+    indexer.index_content_string(&markdown, &virtual_path).await
 }

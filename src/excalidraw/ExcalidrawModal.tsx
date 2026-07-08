@@ -6,11 +6,12 @@ import * as Y from 'yjs';
 import * as awarenessProtocol from 'y-protocols/awareness';
 import { registry } from '../yjs/DocumentRegistry';
 import { useExcalidrawStore } from './excalidrawStore';
-import { loadImageIntoScene, exportAndSaveImage, saveSceneState, clearSceneState, getContextFromYdoc } from './excalidrawService';
+import { loadImageIntoScene, exportAndSaveImage, clearSceneState, getContextFromYdoc } from './excalidrawService';
 import { useExcalidrawSync } from './excalidrawYjsSync';
 import { importToAssets, saveAnnotatedImage } from '../images/imageService';
 import { usePlanStore } from '../billing/PlanProvider';
 import { auth } from '../auth/firebase';
+import { useSyncStatusStore } from '../cloud/syncStatusStore';
 
 const EK = 'excalidraw';
 
@@ -50,7 +51,8 @@ export function ExcalidrawModal() {
     api.updateScene({ elements: [], captureUpdate: CaptureUpdateAction.NEVER });
     (async () => {
       try {
-        const ps = usePlanStore.getState(); const isCloud = ps.activeContext.type === 'team';
+        const ps = usePlanStore.getState();
+        const isCloud = ps.activeContext.type === 'team' || (documentId ? useSyncStatusStore.getState().cloudDocumentIds.has(documentId) : false);
         const ctx = getContextFromYdoc(ydoc, isCloud, ps.teamId, auth.currentUser?.uid);
         const imported = await importToAssets(imageUrl, ctx); await loadImageIntoScene(api, imported.url);
       } catch (err) { console.error('[ExcalidrawModal] Failed to load image:', err); }
@@ -61,7 +63,8 @@ export function ExcalidrawModal() {
     if (!api || !ydoc) return;
     setSaving(true);
     try {
-      const ps = usePlanStore.getState(); const isCloud = ps.activeContext.type === 'team';
+      const ps = usePlanStore.getState();
+      const isCloud = ps.activeContext.type === 'team' || (documentId ? useSyncStatusStore.getState().cloudDocumentIds.has(documentId) : false);
       const ctx = getContextFromYdoc(ydoc, isCloud, ps.teamId, auth.currentUser?.uid);
 
       if (mode === 'new-drawing' && !imageUrl) {
@@ -73,7 +76,6 @@ export function ExcalidrawModal() {
         });
         const result = await saveAnnotatedImage(blob, 'drawing', ctx);
         useExcalidrawStore.getState().onSave?.(result.url);
-        await saveSceneState(ydoc, api, ctx);
         setSaving(false); setApi(null); close();
         return;
       }
@@ -81,7 +83,6 @@ export function ExcalidrawModal() {
       if (!imageUrl) { setSaving(false); return; }
       const text = ydoc.getText('markdown'); const current = text.toString();
       const newUrl = await exportAndSaveImage(api, imageUrl, imageAlt, ctx);
-      await saveSceneState(ydoc, api, ctx);
       const esc = imageUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const updated = current.replace(new RegExp(`\\(${esc}\\)`), `(${newUrl})`);
       if (updated !== current) { ydoc.transact(() => { text.delete(0, text.length); text.insert(0, updated); }); }
@@ -91,7 +92,8 @@ export function ExcalidrawModal() {
 
   const handleRevert = useCallback(() => {
     if (!ydoc) return;
-    const ps = usePlanStore.getState(); const isCloud = ps.activeContext.type === 'team';
+    const ps = usePlanStore.getState();
+    const isCloud = ps.activeContext.type === 'team' || (documentId ? useSyncStatusStore.getState().cloudDocumentIds.has(documentId) : false);
     const ctx = getContextFromYdoc(ydoc, isCloud, ps.teamId, auth.currentUser?.uid);
     clearSceneState(ydoc, ctx);
     if (api) (api as any).updateScene({ elements: [], captureUpdate: CaptureUpdateAction.NEVER });

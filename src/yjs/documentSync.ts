@@ -108,6 +108,17 @@ export async function loadDocData(documentId: string): Promise<{ data: any; pars
       parsed = JSON.parse(data.content);
     } catch (e) {}
   }
+
+  // Index cloud-only documents so their objects appear in the @ picker.
+  // Local docs are indexed automatically by update_document -> index_file.
+  // Cloud docs (file_path is null or empty) need explicit indexing after load.
+  if (!data.file_path && parsed.markdown) {
+    invoke('index_document_content', {
+      documentId,
+      markdown: parsed.markdown,
+    }).catch((e) => console.warn('[docSync] Failed to index cloud doc:', e));
+  }
+
   return { data, parsed };
 }
 

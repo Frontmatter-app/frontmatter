@@ -1,20 +1,11 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../auth/AuthProvider';
 import { usePlan } from '../../billing/PlanProvider';
 import { useSettingsStore } from '../settingsStore';
 import { loadLocalMetrics, loadLocalMetricsSync, UserMetricsData } from './metricsSync';
-import { 
-  Calendar, 
-  Clock, 
-  Flame, 
-  Zap, 
-  Sparkles, 
-  TrendingUp, 
-  ChevronRight, 
-  Smile,
-  Activity,
-  Heart
-} from 'lucide-react';
+import { useHeatmapGrid, useActivityInsights, useHourlyIntensity } from './metricsCalculation';
+import { StatsPanel } from './StatsPanel';
+import { Calendar, Clock, Flame, Sparkles, Activity, ChevronRight, Heart } from 'lucide-react';
 
 interface RecentActivityDashboardProps {
   metricsOverride?: UserMetricsData;
@@ -27,7 +18,7 @@ export function RecentActivityDashboard({ metricsOverride, displayNameOverride }
   const { settings } = useSettingsStore();
   const isDark = settings.themeType.startsWith('github_dark');
    
-  const uid = user?.uid || 'guest';
+  const uid = user?.id || 'guest';
   
   const [metrics, setMetrics] = useState<UserMetricsData>(() => 
     metricsOverride || loadLocalMetricsSync(uid)
@@ -47,47 +38,10 @@ export function RecentActivityDashboard({ metricsOverride, displayNameOverride }
   
   const [hoveredCell, setHoveredCell] = useState<{ date: string; count: number; x: number; y: number } | null>(null);
 
-  // 1. Calculate Grid Dates (24 Weeks x 7 Days)
-  const gridCells = useMemo(() => {
-    const cells: { dateStr: string; count: number; dayOfWeek: number; monthLabel: string }[] = [];
-    const today = new Date();
-    
-    // Find the starting Sunday, 24 weeks ago
-    const startSunday = new Date(today);
-    startSunday.setDate(today.getDate() - (24 * 7) - today.getDay());
-    
-    for (let i = 0; i < 24 * 7; i++) {
-      const cellDate = new Date(startSunday);
-      cellDate.setDate(startSunday.getDate() + i);
-      const dateStr = cellDate.toISOString().split('T')[0];
-      const count = metrics.heatmap[dateStr] || 0;
-      
-      // Add a month label if this cell represents the 1st of the month
-      let monthLabel = '';
-      if (cellDate.getDate() === 1 || i === 0) {
-        monthLabel = cellDate.toLocaleString('default', { month: 'short' });
-      }
-      
-      cells.push({
-        dateStr,
-        count,
-        dayOfWeek: cellDate.getDay(),
-        monthLabel
-      });
-    }
-    return cells;
-  }, [metrics.heatmap]);
+  const { gridCells, columns } = useHeatmapGrid(metrics);
+  const insights = useActivityInsights(metrics);
+  const hourlyIntensity = useHourlyIntensity(metrics);
 
-  // Group cells by column (week) for easier grid rendering
-  const columns = useMemo(() => {
-    const cols: typeof gridCells[] = [];
-    for (let i = 0; i < gridCells.length; i += 7) {
-      cols.push(gridCells.slice(i, i + 7));
-    }
-    return cols;
-  }, [gridCells]);
-
-  // 2. Heatmap Color Helper
   const getCellColor = (count: number) => {
     if (count === 0) return isDark ? 'bg-white/5 border border-white/2' : 'bg-black/5 border border-black/2';
     
@@ -104,113 +58,14 @@ export function RecentActivityDashboard({ metricsOverride, displayNameOverride }
     }
   };
 
-  // Compute real insights from metrics data
-  const insights = useMemo(() => {
-    const dates = Object.keys(metrics.heatmap).sort();
-    if (dates.length === 0) {
-      return {
-        streak: 0,
-        bestStreak: 0,
-        peakDay: null as string | null,
-        recentEdits: 0,
-        isActive: false,
-        totalEdits: 0,
-        activeDays: 0,
-        weekendPercent: 0,
-      };
-    }
-
-    const dayOfWeek = (d: string) => new Date(d + 'T00:00:00').getDay();
-    const today = new Date().toISOString().split('T')[0];
-
-    let streak = 0;
-    let bestStreak = 0;
-    let currentRun = 0;
-    let recentEdits = 0;
-    let totalEdits = 0;
-    let activeDays = 0;
-    let weekendEdits = 0;
-    let weekdayEdits = 0;
-
-    const dayTotals: { [dow: number]: number } = {};
-
-    for (let i = dates.length - 1; i >= 0; i--) {
-      const d = dates[i];
-      const count = metrics.heatmap[d] || 0;
-      totalEdits += count;
-
-      if (count > 0) {
-        activeDays++;
-        if (i === dates.length - 1 && d === today) {
-          streak++;
-          currentRun++;
-        } else if (i > 0) {
-          const prev = dates[i + 1];
-          const prevDate = new Date(prev + 'T00:00:00');
-          const currDate = new Date(d + 'T00:00:00');
-          const dayDiff = Math.round((prevDate.getTime() - currDate.getTime()) / (1000 * 60 * 60 * 24));
-          if (dayDiff === 1) {
-            currentRun++;
-            if (i === dates.length - 1) streak = currentRun;
-          } else {
-            currentRun = 1;
-            if (i === dates.length - 1) streak = currentRun;
-          }
-        } else {
-          currentRun = 1;
-          if (i === dates.length - 1) streak = currentRun;
-        }
-        bestStreak = Math.max(bestStreak, currentRun);
-
-        const dow = dayOfWeek(d);
-        dayTotals[dow] = (dayTotals[dow] || 0) + count;
-
-        if (dow === 0 || dow === 6) {
-          weekendEdits += count;
-        } else {
-          weekdayEdits += count;
-        }
-      } else {
-        currentRun = 0;
-      }
-
-      if (i >= dates.length - 7) {
-        recentEdits += count;
-      }
-    }
-
-    const daysWithData = dates.length;
-    const weekendPercent = totalEdits > 0 ? Math.round((weekendEdits / totalEdits) * 100) : 0;
-    const peakDayNum = Object.entries(dayTotals).sort((a, b) => b[1] - a[1])[0]?.[0];
-    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const peakDay = peakDayNum !== undefined ? dayNames[Number(peakDayNum)] : null;
-
-    const lastActive = dates.length > 0 ? dates[dates.length - 1] : null;
-
-    return {
-      streak,
-      bestStreak,
-      peakDay,
-      recentEdits,
-      isActive: totalEdits > 0,
-      totalEdits,
-      activeDays,
-      weekendPercent,
-      lastActive,
-    };
-  }, [metrics.heatmap]);
-
-  // 3. Compute Productivity Indicators
   const todayStr = new Date().toISOString().split('T')[0];
   const editsToday = metrics.heatmap[todayStr] || 0;
   
-  // Daily writing time (Today)
   const rawTimeToday = metrics.writingTime[todayStr] || 0;
   const timeTodayStr = rawTimeToday > 0 
     ? `${Math.floor(rawTimeToday / 60)}m ${rawTimeToday % 60}s` 
     : '0m';
-    
-  // Weekly writing time
+     
   const weeklyWritingTimeSeconds = useMemo(() => {
     const today = new Date();
     let sum = 0;
@@ -226,35 +81,6 @@ export function RecentActivityDashboard({ metricsOverride, displayNameOverride }
   const weeklyTimeStr = weeklyWritingTimeSeconds > 0
     ? `${Math.floor(weeklyWritingTimeSeconds / 3600)}h ${Math.round((weeklyWritingTimeSeconds % 3600) / 60)}m`
     : '0h';
-
-  // 4. Productive Hours Timeline from real telemetry data
-  const hourlyIntensity = useMemo(() => {
-    const hours: { hour: number; pct: number }[] = Array.from({ length: 24 }, (_, h) => ({ hour: h, pct: 0 }));
-
-    if (!metrics.hourlyBuckets) return hours;
-
-    const today = new Date();
-    const dayTotals = new Array(24).fill(0);
-
-    for (let d = 0; d < 7; d++) {
-      const date = new Date(today);
-      date.setDate(today.getDate() - d);
-      const dateStr = date.toISOString().split('T')[0];
-      const buckets = metrics.hourlyBuckets[dateStr];
-      if (buckets && buckets.length === 24) {
-        for (let h = 0; h < 24; h++) {
-          dayTotals[h] += buckets[h];
-        }
-      }
-    }
-
-    const maxTotal = Math.max(...dayTotals, 1);
-    for (let h = 0; h < 24; h++) {
-      hours[h].pct = Math.round((dayTotals[h] / maxTotal) * 100);
-    }
-
-    return hours;
-  }, [metrics.hourlyBuckets]);
 
   return (
     <div className="flex flex-col gap-6 text-[var(--editor-text-color)] select-none">
@@ -283,10 +109,7 @@ export function RecentActivityDashboard({ metricsOverride, displayNameOverride }
           Consistency Heatmap (Last 24 Weeks)
         </h4>
 
-        {/* Heatmap Grid Container */}
         <div className="relative flex flex-col items-start overflow-x-auto py-2">
-          
-          {/* Months Row */}
           <div className="flex h-4 text-[9px] text-gray-400 dark:text-gray-500 font-medium pl-6 gap-[11.5px] select-none">
             {columns.map((col, cIdx) => {
               const label = col.find(c => c.monthLabel)?.monthLabel;
@@ -298,16 +121,13 @@ export function RecentActivityDashboard({ metricsOverride, displayNameOverride }
             })}
           </div>
 
-          {/* Grid Layout (Days sidebar + cells columns) */}
           <div className="flex items-start gap-1">
-            {/* Days Column */}
             <div className="flex flex-col text-[9px] text-gray-400 dark:text-gray-500 font-mono w-5 h-[84px] justify-between pt-0.5 pr-1.5">
               <span>Mon</span>
               <span>Wed</span>
               <span>Fri</span>
             </div>
 
-            {/* Heatmap Columns */}
             <div className="flex gap-[3px]">
               {columns.map((col, colIdx) => (
                 <div key={colIdx} className="flex flex-col gap-[3px]">
@@ -333,7 +153,6 @@ export function RecentActivityDashboard({ metricsOverride, displayNameOverride }
           </div>
         </div>
 
-        {/* Heatmap Legend */}
         <div className="flex justify-between items-center mt-3 text-[9px] text-gray-400 dark:text-gray-500 font-medium pt-2 border-t border-black/5 dark:border-white/5">
           <span>{gridCells[0]?.dateStr} to {gridCells[gridCells.length - 1]?.dateStr}</span>
           <div className="flex items-center gap-1">
@@ -347,7 +166,6 @@ export function RecentActivityDashboard({ metricsOverride, displayNameOverride }
           </div>
         </div>
 
-        {/* Tooltip Popup */}
         {hoveredCell && (
           <div 
             className="fixed z-50 px-2.5 py-1.5 bg-black/90 dark:bg-white/95 text-white dark:text-black rounded-lg text-[10px] font-bold shadow-md pointer-events-none transition-all flex flex-col items-center border border-white/10 dark:border-black/10"
@@ -360,69 +178,14 @@ export function RecentActivityDashboard({ metricsOverride, displayNameOverride }
       </div>
 
       {/* 2. STATS OVERVIEW CARDS */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
-        
-        {/* Card 1: Writing Time */}
-        <div className="p-3 bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-2xl flex flex-col gap-1.5">
-          <div className="flex items-center gap-1.5 text-blue-500">
-            <Clock className="w-4 h-4" />
-            <span className="text-[10px] font-bold uppercase tracking-wider opacity-70">Writing Time</span>
-          </div>
-          <div>
-            <div className="text-lg font-bold">{timeTodayStr}</div>
-            <div className="text-[9px] opacity-60">Today</div>
-          </div>
-          <div className="pt-1.5 border-t border-black/5 dark:border-white/5 text-[9px] font-medium opacity-80">
-            This Week: <span className="font-bold text-blue-500">{weeklyTimeStr}</span>
-          </div>
-        </div>
-
-        {/* Card 2: Focus Sessions */}
-        <div className="p-3 bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-2xl flex flex-col gap-1.5">
-          <div className="flex items-center gap-1.5 text-purple-500">
-            <Zap className="w-4 h-4" />
-            <span className="text-[10px] font-bold uppercase tracking-wider opacity-70">Focus Sessions</span>
-          </div>
-          <div>
-            <div className="text-lg font-bold">{metrics.focusSessions.totalCount} sessions</div>
-            <div className="text-[9px] opacity-60">Deep work blocks</div>
-          </div>
-          <div className="pt-1.5 border-t border-black/5 dark:border-white/5 text-[9px] font-medium opacity-80">
-            Average: <span className="font-bold text-purple-500">{metrics.focusSessions.avgDurationMin} mins</span>
-          </div>
-        </div>
-
-        {/* Card 3: Edits Today */}
-        <div className="p-3 bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-2xl flex flex-col gap-1.5">
-          <div className="flex items-center gap-1.5 text-amber-500">
-            <Flame className="w-4 h-4" />
-            <span className="text-[10px] font-bold uppercase tracking-wider opacity-70">Edits Today</span>
-          </div>
-          <div>
-            <div className="text-lg font-bold">{editsToday}</div>
-            <div className="text-[9px] opacity-60">Keystroke events</div>
-          </div>
-          <div className="pt-1.5 border-t border-black/5 dark:border-white/5 text-[9px] font-medium opacity-80">
-            Active days: <span className="font-bold text-amber-500">{insights.activeDays}</span>
-          </div>
-        </div>
-
-        {/* Card 4: Typing Speed */}
-        <div className="p-3 bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-2xl flex flex-col gap-1.5">
-          <div className="flex items-center gap-1.5 text-emerald-500">
-            <TrendingUp className="w-4 h-4" />
-            <span className="text-[10px] font-bold uppercase tracking-wider opacity-70">Typing Speed</span>
-          </div>
-          <div>
-            <div className="text-lg font-bold">{metrics.typingSpeed.avgWpm} WPM</div>
-            <div className="text-[9px] opacity-60">Average rate</div>
-          </div>
-          <div className="pt-1.5 border-t border-black/5 dark:border-white/5 text-[9px] font-medium opacity-80">
-            Peak Speed: <span className="font-bold text-emerald-500">{metrics.typingSpeed.peakWpm} WPM</span>
-          </div>
-        </div>
-
-      </div>
+      <StatsPanel
+        metrics={metrics}
+        timeTodayStr={timeTodayStr}
+        weeklyTimeStr={weeklyTimeStr}
+        editsToday={editsToday}
+        activeDays={insights.activeDays}
+        bestStreak={insights.bestStreak}
+      />
 
       {/* 3. PRODUCTIVE HOURS & PERSONAL INSIGHTS SPLIT */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
@@ -454,7 +217,6 @@ export function RecentActivityDashboard({ metricsOverride, displayNameOverride }
             })}
           </div>
           
-          {/* Timeline labels */}
           <div className="flex justify-between px-2.5 mt-2 text-[9px] text-gray-400 dark:text-gray-500 font-mono">
             <span>12 AM</span>
             <span>6 AM</span>
@@ -465,9 +227,10 @@ export function RecentActivityDashboard({ metricsOverride, displayNameOverride }
 
           <div className="mt-3.5 p-2 bg-emerald-500/5 border border-emerald-500/10 rounded-xl text-[10px] flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
             <Sparkles className="w-3.5 h-3.5 flex-shrink-0" />
-            <span>{insights.isActive 
+            <span dangerouslySetInnerHTML={{ __html: insights.isActive 
               ? `Your peak activity tends to land on <b>${insights.peakDay || 'weekdays'}</b>${insights.weekendPercent > 40 ? `, with <b>${insights.weekendPercent}%</b> of your activity happening on weekends.` : '.'}`
-              : 'Track some edits to see your peak productivity hours.'}</span>
+              : 'Track some edits to see your peak productivity hours.'
+            }} />
           </div>
         </div>
 
@@ -531,7 +294,7 @@ export function RecentActivityDashboard({ metricsOverride, displayNameOverride }
           </div>
           
           <div className="mt-4 pt-3.5 border-t border-black/5 dark:border-white/5 flex items-center justify-between text-[9px] opacity-75">
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-1 font-medium">
               <Heart className="w-3 h-3 text-red-500 fill-red-500" /> Technical Writers choice
             </span>
             <span className="font-mono text-[8px] bg-black/5 dark:bg-white/5 px-1.5 py-0.5 rounded">

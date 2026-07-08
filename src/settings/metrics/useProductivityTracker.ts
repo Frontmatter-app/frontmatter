@@ -17,7 +17,7 @@ export function useProductivityTracker() {
   const { user } = useAuth();
   const { teamId } = usePlan();
 
-  const uid = user?.uid || '';
+  const uid = user?.id || '';
 
   const pendingEditsRef = useRef<{ [dateStr: string]: number }>({});
   const pendingWritingTimeRef = useRef<{ [dateStr: string]: number }>({});
@@ -89,6 +89,7 @@ export function useProductivityTracker() {
         heatmap: updatedHeatmap,
         writingTime: updatedWritingTime,
         focusSessions: currentData.focusSessions,
+        focusSessionsDaily: currentData.focusSessionsDaily,
         typingSpeed: updatedSpeed,
         hourlyBuckets: updatedHourlyBuckets,
         lastSync: Date.now(),
@@ -134,6 +135,7 @@ export function useProductivityTracker() {
 
     const handleUpdate = (event: Y.YTextEvent) => {
       if (!active) return;
+      if (!event.transaction.local) return; // Only track edits by the local user
 
       const now = Date.now();
       const todayStr = new Date().toISOString().split('T')[0];

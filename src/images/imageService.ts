@@ -28,10 +28,6 @@ async function readFileLocal(path: string): Promise<Uint8Array | null> {
 function assetsDir(docDir: string): string {
   return `${docDir}/${IMGS_DIR}`;
 }
-function editingDir(docDir: string, documentId: string): string {
-  return `${docDir}/${ASSETS_DIR}/editing/${documentId}`;
-}
-
 function r2PublicUrl(r2Key: string): string {
   const base = import.meta.env.VITE_R2_API_BASE_URL || '';
   return `${base}/public/${encodeURIComponent(r2Key)}`;
@@ -187,63 +183,4 @@ export async function saveAnnotatedImage(
   return { url: `./${IMGS_DIR}/${fileName}`, localPath: destPath, isExternal: false, isCloud: false };
 }
 
-export async function saveEditingState(
-  documentId: string,
-  data: string,
-  context: ImageContext
-): Promise<void> {
-  const bytes = new TextEncoder().encode(data);
 
-  if (context.isCloud) {
-    const { uploadToR2 } = await import('./cloud/cloudflareR2');
-    const r2Key = `editing/${documentId}/scene.json`;
-    await uploadToR2(r2Key, bytes, 'application/json', context.teamId || '');
-    return;
-  }
-
-  const docDir = getDocDir(context);
-  const dir = editingDir(docDir, documentId);
-  const path = `${dir}/scene.json`;
-  await writeFileLocal(path, bytes);
-}
-
-export async function loadEditingState(
-  documentId: string,
-  context: ImageContext
-): Promise<string | null> {
-  if (context.isCloud) {
-    const { downloadFromR2 } = await import('./cloud/cloudflareR2');
-    const r2Key = `editing/${documentId}/scene.json`;
-    try {
-      const blob = await downloadFromR2(r2Key, context.teamId || '');
-      return await blob.text();
-    } catch {
-      return null;
-    }
-  }
-
-  const docDir = getDocDir(context);
-  const path = `${editingDir(docDir, documentId)}/scene.json`;
-  const data = await readFileLocal(path);
-  return data ? new TextDecoder().decode(data) : null;
-}
-
-export async function deleteEditingState(
-  documentId: string,
-  context: ImageContext
-): Promise<void> {
-  if (context.isCloud) {
-    const { deleteFromR2 } = await import('./cloud/cloudflareR2');
-    const r2Key = `editing/${documentId}/scene.json`;
-    await deleteFromR2(r2Key, context.teamId || '');
-    return;
-  }
-
-  try {
-    const { remove } = await import('@tauri-apps/plugin-fs');
-    const docDir = getDocDir(context);
-    const dir = editingDir(docDir, documentId);
-    await remove(`${dir}/scene.json`);
-    await remove(dir, { recursive: true }).catch(() => {});
-  } catch {}
-}

@@ -209,36 +209,73 @@ pub async fn get_object_by_uuid(
         let end_line: i32 = row.get("end_line");
 
         // Read file and extract content segment
+        // First try the real filesystem (local documents)
         let abs_path = std::path::PathBuf::from(workspace_path).join(&document_path);
-        let content = match std::fs::read_to_string(&abs_path) {
-            Ok(file_content) => {
-                let lines: Vec<&str> = file_content.lines().collect();
-                let start = (start_line as usize - 1).min(lines.len());
-                let end = (end_line as usize).min(lines.len());
-                if start < end {
-                    let is_code_block = match &object_type {
-                        crate::commands::indexer::ObjectType::CodeBlock { .. } => true,
-                        _ => false,
-                    };
-                    
-                    if is_code_block {
-                        // Exclude the starting and ending backticks lines
-                        if end - start > 2 {
-                            Some(lines[start + 1..end - 1].join("\n"))
-                        } else {
-                            Some("".to_string())
-                        }
+        let file_source = std::fs::read_to_string(&abs_path).ok();
+
+        // Fallback: if no local file, reconstruct content from the documents SQLite row.
+        // Cloud/team documents store their content as JSON {markdown: "..."} in the documents table.
+        let resolved_content_str: Option<String> = if file_source.is_some() {
+            file_source
+        } else {
+            // Look up by virtual path (__cloud__/<id>.md) — we need the document id.
+            // The document_path for cloud docs is "__cloud__/<id>.md", so we strip the prefix.
+            let doc_id = if document_path.starts_with("__cloud__/") && document_path.ends_with(".md") {
+                Some(document_path["__cloud__/".len()..document_path.len() - 3].to_string())
+            } else {
+                None
+            };
+
+            if let Some(ref did) = doc_id {
+                let db_row = sqlx::query("SELECT content FROM documents WHERE id = ?")
+                    .bind(did)
+                    .fetch_optional(pool)
+                    .await
+                    .ok()
+                    .flatten();
+
+                if let Some(db_row) = db_row {
+                    let raw: String = db_row.get("content");
+                    // Content is stored as JSON {markdown: "..."}
+                    if raw.starts_with('{') {
+                        serde_json::from_str::<serde_json::Value>(&raw)
+                            .ok()
+                            .and_then(|v| v.get("markdown").and_then(|m| m.as_str()).map(|s| s.to_string()))
                     } else {
-                        Some(lines[start..end].join("\n"))
+                        Some(raw)
                     }
                 } else {
                     None
                 }
-            }
-            Err(e) => {
-                eprintln!("Failed to read file for transclusion: {}", e);
+            } else {
                 None
             }
+        };
+
+        let content = if let Some(ref file_str) = resolved_content_str {
+            let lines: Vec<&str> = file_str.lines().collect();
+            let start = (start_line as usize - 1).min(lines.len());
+            let end = (end_line as usize).min(lines.len());
+            if start < end {
+                let is_code_block = match &object_type {
+                    crate::commands::indexer::ObjectType::CodeBlock { .. } => true,
+                    _ => false,
+                };
+
+                if is_code_block {
+                    if end - start > 2 {
+                        Some(lines[start + 1..end - 1].join("\n"))
+                    } else {
+                        Some("".to_string())
+                    }
+                } else {
+                    Some(lines[start..end].join("\n"))
+                }
+            } else {
+                None
+            }
+        } else {
+            None
         };
 
         let mut val = serde_json::json!({

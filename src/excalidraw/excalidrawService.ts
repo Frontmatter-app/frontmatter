@@ -1,9 +1,9 @@
 import { exportToBlob, CaptureUpdateAction } from '@excalidraw/excalidraw';
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
-import type { BinaryFileData, BinaryFiles } from '@excalidraw/excalidraw/types';
+import type { BinaryFileData } from '@excalidraw/excalidraw/types';
 import * as Y from 'yjs';
 import { fetchImageAsDataURL, getImageBaseName, generateId } from '../images/imageUtils';
-import { resolveImageUrl, importToAssets, saveAnnotatedImage, saveEditingState, loadEditingState, deleteEditingState } from '../images/imageService';
+import { resolveImageUrl, importToAssets, saveAnnotatedImage } from '../images/imageService';
 import type { ImageContext } from '../images/imageTypes';
 
 const EXCALIDRAW_MAP_KEY = 'excalidraw';
@@ -86,50 +86,6 @@ export async function exportAndSaveImage(
   return saved.url;
 }
 
-export async function saveSceneState(
-  ydoc: Y.Doc,
-  api: ExcalidrawImperativeAPI,
-  context: ImageContext,
-): Promise<void> {
-  const elements = api.getSceneElements();
-  const appState = api.getAppState();
-  const files = api.getFiles();
-
-  const data = JSON.stringify({
-    elements,
-    appState,
-    files,
-    version: Date.now(),
-  });
-
-  await saveEditingState(context.documentId, data, context);
-}
-
-export async function loadSceneState(
-  api: ExcalidrawImperativeAPI,
-  context: ImageContext,
-): Promise<boolean> {
-  const data = await loadEditingState(context.documentId, context);
-  if (!data) return false;
-
-  try {
-    const parsed = JSON.parse(data);
-    if (parsed.files) {
-      const entries = Object.values(parsed.files).filter(Boolean) as BinaryFileData[];
-      if (entries.length > 0) api.addFiles(entries);
-    }
-    if (parsed.elements) {
-      (api as any).updateScene({
-        elements: parsed.elements,
-        captureUpdate: CaptureUpdateAction.NEVER,
-      });
-    }
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 export async function clearSceneState(
   ydoc: Y.Doc,
   context: ImageContext,
@@ -143,8 +99,6 @@ export async function clearSceneState(
     map.delete('files');
     filesMap.clear();
   }, ydoc.clientID);
-
-  await deleteEditingState(context.documentId, context);
 }
 
 export function getContextFromYdoc(ydoc: Y.Doc, isCloud: boolean, teamId?: string, uid?: string): ImageContext {

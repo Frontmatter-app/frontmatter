@@ -6,6 +6,8 @@ import { referencePickerField, setReferencePickerStateEffect, dismissPicker } fr
 import type { SearchItem, PickerScope } from './referencePickerTypes';
 import { getPickerDocumentPath, getPickerScope } from './referencePickerState';
 import { buildRefContent, buildExecContent } from './shared/transclusionUtils';
+import { setTransclusionObjectEffect, getTransclusionYdoc } from './transclusionRenderer';
+import { mapToResolvedObject } from './transclusionTypes';
 
 export async function searchReferences(query: string): Promise<ObjectSearchResult[]> {
   try {
@@ -86,21 +88,28 @@ export async function selectItem(view: EditorView, item: SearchItem) {
       return;
     }
 
+    const hash = wsObj.content_hash || '';
+    const ydoc = getTransclusionYdoc();
+
     if (item.action === 'ref') {
       const contentToInsert = buildRefContent(wsObj);
-      invoke('set_transclusion_hash', { objectUuid: uuid, hash: wsObj.content_hash || '' }).catch(() => {});
+      invoke('set_transclusion_hash', { objectUuid: uuid, hash }).catch(() => {});
+      if (ydoc) ydoc.getMap('transclusion_hashes').set(uuid, hash);
       view.dispatch({
         changes: { from: picker.from, to: picker.to, insert: contentToInsert },
+        effects: setTransclusionObjectEffect.of({ uuid, object: mapToResolvedObject(uuid, wsObj) }),
       });
     } else if (item.action === 'exec') {
       const outputText = await executeBlockAndGetOutput(uuid, wsObj);
       if (outputText === null) return;
 
       const contentToInsert = buildExecContent(uuid, outputText);
-      invoke('set_transclusion_hash', { objectUuid: uuid, hash: wsObj.content_hash || '' }).catch(() => {});
+      invoke('set_transclusion_hash', { objectUuid: uuid, hash }).catch(() => {});
+      if (ydoc) ydoc.getMap('transclusion_hashes').set(uuid, hash);
 
       view.dispatch({
         changes: { from: picker.from, to: picker.to, insert: contentToInsert },
+        effects: setTransclusionObjectEffect.of({ uuid, object: mapToResolvedObject(uuid, wsObj) }),
       });
     }
   } catch (e) {

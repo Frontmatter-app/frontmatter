@@ -34,22 +34,6 @@ export async function uploadToR2(
   });
 }
 
-export async function downloadFromR2(
-  key: string,
-  teamId: string
-): Promise<Blob> {
-  const res = await r2Request(
-    `/download/${encodeURIComponent(key)}?teamId=${encodeURIComponent(teamId)}`
-  );
-  return res.blob();
-}
-
-export async function deleteFromR2(key: string, teamId: string): Promise<void> {
-  await r2Request(`/${encodeURIComponent(key)}?teamId=${encodeURIComponent(teamId)}`, {
-    method: 'DELETE',
-  });
-}
-
 export function getR2PublicUrl(key: string): string {
   return `${R2_API_BASE}/public/${encodeURIComponent(key)}`;
 }
