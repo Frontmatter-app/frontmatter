@@ -66,20 +66,16 @@ export const suggestionsExtension = (
         const builder = [];
         const suggestions = view.state.field(suggestionState, false) || [];
 
-        try {
-          for (const sug of suggestions) {
-            if (sug.resolved) continue;
+        for (const sug of suggestions) {
+          if (sug.resolved) continue;
 
-            const startAbs = Y.createAbsolutePositionFromRelativePosition(sug.start_pos, ytext.doc!);
-            const endAbs = Y.createAbsolutePositionFromRelativePosition(sug.end_pos, ytext.doc!);
+          const startAbs = Y.createAbsolutePositionFromRelativePosition(sug.start_pos, ytext.doc!);
+          const endAbs = Y.createAbsolutePositionFromRelativePosition(sug.end_pos, ytext.doc!);
 
-            if (startAbs && endAbs && startAbs.index <= endAbs.index) {
-              const deco = sug.type === 'insert' ? insertDeco : deleteDeco;
-              builder.push(deco.range(startAbs.index, endAbs.index));
-            }
+          if (startAbs && endAbs && startAbs.index < endAbs.index) {
+            const deco = sug.type === 'insert' ? insertDeco : deleteDeco;
+            builder.push(deco.range(startAbs.index, endAbs.index));
           }
-        } catch (e) {
-          console.error("Failed to build suggestion decorations:", e);
         }
 
         builder.sort((a, b) => a.from - b.from);

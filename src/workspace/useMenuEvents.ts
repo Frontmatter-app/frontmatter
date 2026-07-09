@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '../filesystem/tauriCommands';
-import { showPromptDialog, showConfirmDialog } from '../lib/tauriDialog';
+import { showPromptDialog, showConfirmDialog, showAlertDialog } from '../lib/tauriDialog';
 import { registry, useDirtyDocsStore } from '../yjs/DocumentRegistry';
 
 interface UseMenuEventsProps {
@@ -159,4 +159,79 @@ export function useMenuEvents({
     }).then(fn => { un = fn; });
     return () => { un?.(); };
   }, [currentDocumentId]);
+
+  useEffect(() => {
+    let un: (() => void) | undefined;
+    listen('menu-export-file-markdown', async () => {
+      if (!currentDocumentId) return;
+      const doc = await registry.acquire(currentDocumentId);
+      await navigator.clipboard.writeText(doc.getText('markdown').toString());
+      registry.release(currentDocumentId);
+    }).then(fn => { un = fn; });
+    return () => { un?.(); };
+  }, [currentDocumentId]);
+
+  useEffect(() => {
+    let un: (() => void) | undefined;
+    listen('menu-export-file-pdf', async () => {
+      if (!currentDocumentId) return;
+      const doc = await registry.acquire(currentDocumentId);
+      const md = doc.getText('markdown').toString();
+      registry.release(currentDocumentId);
+      try {
+        const res = await invoke<{ path: string; success: boolean; error?: string }>('export_file_pdf', { markdown: md });
+        if (res.success) {
+          await showAlertDialog('Export PDF', 'A preview window has opened. Use File > Print (⌘P) then select "Save as PDF".');
+        } else if (res.error) {
+          await showAlertDialog('Export Failed', res.error);
+        }
+      } catch (e) { console.error('PDF export failed:', e); }
+    }).then(fn => { un = fn; });
+    return () => { un?.(); };
+  }, [currentDocumentId]);
+
+  useEffect(() => {
+    let un: (() => void) | undefined;
+    listen('menu-export-file-html', async () => {
+      if (!currentDocumentId) return;
+      const doc = await registry.acquire(currentDocumentId);
+      const md = doc.getText('markdown').toString();
+      registry.release(currentDocumentId);
+      try {
+        const res = await invoke<{ path: string; success: boolean; error?: string }>('export_file_html', { markdown: md });
+        if (res.success) {
+          await showAlertDialog('Export Complete', `HTML saved to:\n${res.path}`);
+        }
+      } catch (e) { console.error('HTML export failed:', e); }
+    }).then(fn => { un = fn; });
+    return () => { un?.(); };
+  }, [currentDocumentId]);
+
+  useEffect(() => {
+    let un: (() => void) | undefined;
+    listen('menu-export-project-blog', () => showAlertDialog('Coming Soon', 'Export as Blog'))
+      .then(fn => { un = fn; });
+    return () => { un?.(); };
+  }, []);
+
+  useEffect(() => {
+    let un: (() => void) | undefined;
+    listen('menu-export-project-docs', () => showAlertDialog('Coming Soon', 'Export as Documentation'))
+      .then(fn => { un = fn; });
+    return () => { un?.(); };
+  }, []);
+
+  useEffect(() => {
+    let un: (() => void) | undefined;
+    listen('menu-export-project-book', () => showAlertDialog('Coming Soon', 'Export as Book'))
+      .then(fn => { un = fn; });
+    return () => { un?.(); };
+  }, []);
+
+  useEffect(() => {
+    let un: (() => void) | undefined;
+    listen('menu-export-project-slide', () => showAlertDialog('Coming Soon', 'Export as Slide'))
+      .then(fn => { un = fn; });
+    return () => { un?.(); };
+  }, []);
 }

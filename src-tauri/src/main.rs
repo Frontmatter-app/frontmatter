@@ -77,6 +77,13 @@ fn main() {
                     window_ops::emit_to_focused_window(app, "menu-toggle-auto-save");
                 }
                 "clone_repository" => window_ops::emit_to_focused_window(app, "menu-clone-repository"),
+                "export_file_pdf" => window_ops::emit_to_focused_window(app, "menu-export-file-pdf"),
+                "export_file_html" => window_ops::emit_to_focused_window(app, "menu-export-file-html"),
+                "export_file_markdown" => window_ops::emit_to_focused_window(app, "menu-export-file-markdown"),
+                "export_project_blog" => window_ops::emit_to_focused_window(app, "menu-export-project-blog"),
+                "export_project_docs" => window_ops::emit_to_focused_window(app, "menu-export-project-docs"),
+                "export_project_book" => window_ops::emit_to_focused_window(app, "menu-export-project-book"),
+                "export_project_slide" => window_ops::emit_to_focused_window(app, "menu-export-project-slide"),
                 "clear_recent" => {
                     let _ = commands::project::clear_recent_projects();
                 }
@@ -173,6 +180,9 @@ fn main() {
             commands::references::get_transclusion_hash,
             commands::execution::execute_block,
             commands::execution::get_outputs,
+            commands::export::convert_md_to_html,
+            commands::export::export_file_html,
+            commands::export::export_file_pdf,
             commands::runtimes::list_runtimes,
             commands::runtimes::add_runtime,
             commands::runtimes::remove_runtime,

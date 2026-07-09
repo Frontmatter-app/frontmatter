@@ -4,6 +4,7 @@ pub mod dialogs;
 pub mod documents;
 pub mod drafts;
 pub mod execution;
+pub mod export;
 pub mod file_ops;
 pub mod fonts;
 pub mod git;

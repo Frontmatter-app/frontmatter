@@ -39,7 +39,7 @@ function isR2Url(url: string): boolean {
 
 export function resolveImageUrl(path: string): string {
   if (!path) return '';
-  if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) {
+  if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:') || path.startsWith('asset:')) {
     return path;
   }
   const cleanPath = path.replace('file://', '').replace(/^\.\//, '/');

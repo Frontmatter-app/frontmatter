@@ -30,6 +30,41 @@ pub fn create_menu<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<MenuB
     let recent_submenu = build_recent_submenu(app)?;
     let auto_save_item = CheckMenuItem::with_id(app, "toggle_auto_save", "Auto Save", true, false, Some("CmdOrCtrl+Alt+S"))?;
 
+    let export_file_menu = Submenu::with_items(
+        app,
+        "Export File",
+        true,
+        &[
+            &MenuItem::with_id(app, "export_file_pdf", "Export as PDF...", true, Some("CmdOrCtrl+Shift+P"))?,
+            &MenuItem::with_id(app, "export_file_html", "Export as HTML...", true, None::<&str>)?,
+            &PredefinedMenuItem::separator(app)?,
+            &MenuItem::with_id(app, "export_file_markdown", "Copy as Markdown", true, Some("CmdOrCtrl+Shift+C"))?,
+        ],
+    )?;
+
+    let export_project_menu = Submenu::with_items(
+        app,
+        "Export Project",
+        true,
+        &[
+            &MenuItem::with_id(app, "export_project_blog", "Export as Blog...", true, None::<&str>)?,
+            &MenuItem::with_id(app, "export_project_docs", "Export as Documentation...", true, None::<&str>)?,
+            &MenuItem::with_id(app, "export_project_book", "Export as Book...", true, None::<&str>)?,
+            &MenuItem::with_id(app, "export_project_slide", "Export as Slide...", true, None::<&str>)?,
+        ],
+    )?;
+
+    let export_menu = Submenu::with_items(
+        app,
+        "Export",
+        true,
+        &[
+            &export_file_menu,
+            &PredefinedMenuItem::separator(app)?,
+            &export_project_menu,
+        ],
+    )?;
+
     let file_menu = Submenu::with_items(
         app,
         "File",
@@ -108,6 +143,7 @@ pub fn create_menu<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<MenuB
     menu_items.push(&file_menu);
     menu_items.push(&edit_menu);
     menu_items.push(&view_menu);
+    menu_items.push(&export_menu);
     menu_items.push(&window_menu);
     menu_items.push(&help_menu);
 

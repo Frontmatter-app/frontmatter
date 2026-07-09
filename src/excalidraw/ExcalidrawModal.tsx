@@ -54,7 +54,10 @@ export function ExcalidrawModal() {
         const ps = usePlanStore.getState();
         const isCloud = ps.activeContext.type === 'team' || (documentId ? useSyncStatusStore.getState().cloudDocumentIds.has(documentId) : false);
         const ctx = getContextFromYdoc(ydoc, isCloud, ps.teamId, auth.currentUser?.uid);
-        const imported = await importToAssets(imageUrl, ctx); await loadImageIntoScene(api, imported.url);
+        const imported = await importToAssets(imageUrl, ctx);
+        const { convertFileSrc } = await import('@tauri-apps/api/core');
+        const assetUrl = imported.localPath ? convertFileSrc(imported.localPath) : imported.url;
+        await loadImageIntoScene(api, assetUrl);
       } catch (err) { console.error('[ExcalidrawModal] Failed to load image:', err); }
     })();
   }, [api, mode, imageUrl, ydoc]);

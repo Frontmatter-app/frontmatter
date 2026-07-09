@@ -12,19 +12,24 @@ export function handleHeading(builder: Range<Decoration>[], atomicBuilder: Range
   const raw = doc.sliceString(node.from, node.to);
   const marker = raw.match(/^#{1,6}\s+/);
 
+  const markFrom = !isCurrentLineActive && lp.hideSyntax.headings && marker ? node.from + marker[0].length : node.from;
+  const markTo = node.to;
+
   if (!isCurrentLineActive && lp.hideSyntax.headings && marker) {
-    const hidden = Decoration.replace({}).range(node.from, node.from + marker[0].length);
+    const hidden = Decoration.replace({}).range(node.from, markFrom);
     builder.push(hidden);
     atomicBuilder.push(hidden);
   }
 
-  builder.push(Decoration.mark({
-    attributes: {
-      style: isCurrentLineActive
-        ? 'font-weight:700;font-family:var(--editor-heading-font-family);color:var(--editor-heading-color)'
-        : `font-size:${fontSize};font-weight:700;font-family:var(--editor-heading-font-family);color:var(--editor-heading-color)`,
-    },
-  }).range(!isCurrentLineActive && lp.hideSyntax.headings && marker ? node.from + marker[0].length : node.from, node.to));
+  if (markFrom < markTo) {
+    builder.push(Decoration.mark({
+      attributes: {
+        style: isCurrentLineActive
+          ? 'font-weight:700;font-family:var(--editor-heading-font-family);color:var(--editor-heading-color)'
+          : `font-size:${fontSize};font-weight:700;font-family:var(--editor-heading-font-family);color:var(--editor-heading-color)`,
+      },
+    }).range(markFrom, markTo));
+  }
 }
 
 export function handleStrongEmphasis(builder: Range<Decoration>[], atomicBuilder: Range<Decoration>[], node: any, doc: any, isCurrentLineActive: boolean, lp: any) {
@@ -42,7 +47,9 @@ export function handleStrongEmphasis(builder: Range<Decoration>[], atomicBuilder
     atomicBuilder.push(before, after);
   }
 
-  builder.push(Decoration.mark({ attributes: { style: 'font-weight:700;color:var(--editor-strong-color)' } }).range(markFrom, markTo));
+  if (markFrom < markTo) {
+    builder.push(Decoration.mark({ attributes: { style: 'font-weight:700;color:var(--editor-strong-color)' } }).range(markFrom, markTo));
+  }
 }
 
 export function handleEmphasis(builder: Range<Decoration>[], atomicBuilder: Range<Decoration>[], node: any, doc: any, isCurrentLineActive: boolean, lp: any) {
@@ -60,7 +67,9 @@ export function handleEmphasis(builder: Range<Decoration>[], atomicBuilder: Rang
     atomicBuilder.push(before, after);
   }
 
-  builder.push(Decoration.mark({ attributes: { style: 'font-style:italic;color:var(--editor-emphasis-color)' } }).range(markFrom, markTo));
+  if (markFrom < markTo) {
+    builder.push(Decoration.mark({ attributes: { style: 'font-style:italic;color:var(--editor-emphasis-color)' } }).range(markFrom, markTo));
+  }
 }
 
 export function handleStrikethrough(builder: Range<Decoration>[], atomicBuilder: Range<Decoration>[], node: any, doc: any, isCurrentLineActive: boolean, lp: any) {
@@ -77,7 +86,9 @@ export function handleStrikethrough(builder: Range<Decoration>[], atomicBuilder:
     atomicBuilder.push(before, after);
   }
 
-  builder.push(Decoration.mark({ attributes: { style: 'text-decoration:line-through;color:var(--editor-muted)' } }).range(markFrom, markTo));
+  if (markFrom < markTo) {
+    builder.push(Decoration.mark({ attributes: { style: 'text-decoration:line-through;color:var(--editor-muted)' } }).range(markFrom, markTo));
+  }
 }
 
 export function handleInlineCode(builder: Range<Decoration>[], atomicBuilder: Range<Decoration>[], node: any, doc: any, isCurrentLineActive: boolean, lp: any) {
@@ -95,9 +106,11 @@ export function handleInlineCode(builder: Range<Decoration>[], atomicBuilder: Ra
     atomicBuilder.push(before, after);
   }
 
-  builder.push(Decoration.mark({
-    attributes: { style: 'font-family:monospace;background-color:var(--editor-inline-code-bg);color:var(--editor-inline-code-color);padding:2px 4px;border-radius:4px;font-size:0.9em' },
-  }).range(markFrom, markTo));
+  if (markFrom < markTo) {
+    builder.push(Decoration.mark({
+      attributes: { style: 'font-family:monospace;background-color:var(--editor-inline-code-bg);color:var(--editor-inline-code-color);padding:2px 4px;border-radius:4px;font-size:0.9em' },
+    }).range(markFrom, markTo));
+  }
 }
 
 export function handleLink(builder: Range<Decoration>[], atomicBuilder: Range<Decoration>[], node: any, doc: any, isCurrentLineActive: boolean, lp: any, references: any) {
@@ -114,18 +127,20 @@ export function handleLink(builder: Range<Decoration>[], atomicBuilder: Range<De
       const before = Decoration.replace({}).range(node.from, node.from + 1);
       const after = Decoration.replace({}).range(labelTo, node.to);
       builder.push(before);
-      builder.push(Decoration.mark({
-        tagName: 'a',
-        attributes: {
-          href: link.url,
-          'data-inline-preview-link': link.url,
-          title: link.title ? `${link.title} - Cmd/Ctrl-click to open` : 'Cmd/Ctrl-click to open',
-          style: 'color:var(--editor-link-color);text-decoration:underline;cursor:pointer',
-        },
-      }).range(labelFrom, labelTo));
+      if (labelFrom < labelTo) {
+        builder.push(Decoration.mark({
+          tagName: 'a',
+          attributes: {
+            href: link.url,
+            'data-inline-preview-link': link.url,
+            title: link.title ? `${link.title} - Cmd/Ctrl-click to open` : 'Cmd/Ctrl-click to open',
+            style: 'color:var(--editor-link-color);text-decoration:underline;cursor:pointer',
+          },
+        }).range(labelFrom, labelTo));
+      }
       builder.push(after);
       atomicBuilder.push(before, after);
-    } else {
+    } else if (node.from < node.to) {
       builder.push(Decoration.mark({
         tagName: 'a',
         attributes: {
@@ -140,7 +155,7 @@ export function handleLink(builder: Range<Decoration>[], atomicBuilder: Range<De
 }
 
 export function handleUrl(builder: Range<Decoration>[], node: any, lp: any) {
-  if (lp.links) {
+  if (lp.links && node.from < node.to) {
     builder.push(Decoration.mark({ attributes: { style: 'color:var(--editor-link-color);text-decoration:underline' } }).range(node.from, node.to));
   }
 }
