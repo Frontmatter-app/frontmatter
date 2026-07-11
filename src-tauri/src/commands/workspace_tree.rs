@@ -9,13 +9,14 @@ pub struct FileNode {
 }
 
 #[tauri::command]
-pub fn get_directory_tree(workspace_path: String) -> Result<FileNode, String> {
+pub fn get_directory_tree(workspace_path: String, show_hidden: Option<bool>) -> Result<FileNode, String> {
     let path = std::path::Path::new(&workspace_path);
     if !path.exists() { return Err("Workspace path does not exist".to_string()); }
-    read_dir(path)
+    let show = show_hidden.unwrap_or(false);
+    read_dir(path, show)
 }
 
-fn read_dir(path: &std::path::Path) -> Result<FileNode, String> {
+fn read_dir(path: &std::path::Path, show_hidden: bool) -> Result<FileNode, String> {
     let name = path.file_name()
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_default();
@@ -27,10 +28,10 @@ fn read_dir(path: &std::path::Path) -> Result<FileNode, String> {
         if let Ok(entries) = std::fs::read_dir(path) {
             for entry in entries.flatten() {
                 let entry_path = entry.path();
-                if entry_path.file_name().map(|n| n.to_string_lossy().starts_with('.')).unwrap_or(false) {
+                if !show_hidden && entry_path.file_name().map(|n| n.to_string_lossy().starts_with('.')).unwrap_or(false) {
                     continue;
                 }
-                if let Ok(node) = read_dir(&entry_path) { list.push(node); }
+                if let Ok(node) = read_dir(&entry_path, show_hidden) { list.push(node); }
             }
         }
         list.sort_by(|a, b| {

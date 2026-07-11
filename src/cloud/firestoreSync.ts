@@ -51,6 +51,9 @@ export function mapFirestoreDoc(data: any): DocumentMeta {
     is_cloud: true,
     created_at: data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
     updated_at: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate().toISOString() : new Date().toISOString(),
+    word_count: 0,
+    excerpt: undefined,
+    file_created_at: undefined,
   };
 }
 

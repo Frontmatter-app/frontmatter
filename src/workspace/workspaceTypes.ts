@@ -44,4 +44,6 @@ export interface WorkspaceContextType {
   setActiveAnnotationId: (id: string | null) => void;
   activeSuggestionId: string | null;
   setActiveSuggestionId: (id: string | null) => void;
+  showHidden: boolean;
+  toggleShowHidden: () => void;
 }

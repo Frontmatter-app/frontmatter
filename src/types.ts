@@ -22,6 +22,9 @@ export interface DocumentMeta {
   focus_mode: boolean;
   created_at: string;
   updated_at: string;
+  word_count: number;
+  excerpt?: string;
+  file_created_at?: string;
   // Cloud sync
   is_cloud?: boolean;        // true when this doc came purely from Firestore (no local copy)
   cloud_id?: string;         // Firestore document id of the mirrored cloud copy

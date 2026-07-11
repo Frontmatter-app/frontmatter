@@ -33,7 +33,8 @@
     "resources": [
       "assets/.vale.ini",
       "assets/styles/**/*",
-      "bin/**/*"
+      "bin/**/*",
+      "binaries/*"
     ],
     "shortDescription": "",
     "linux": {

@@ -189,5 +189,39 @@ pub async fn migrate_database(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         if !vflags[i] { sqlx::query(&format!("ALTER TABLE document_versions ADD COLUMN {col}")).execute(pool).await?; }
     }
 
+    // New columns on documents: word_count, excerpt, file_created_at
+    let drows = sqlx::query("PRAGMA table_info(documents)").fetch_all(pool).await?;
+    let mut dflags = [false; 3];
+    for row in &drows {
+        if let Ok(name) = row.try_get::<String, _>("name") {
+            match name.as_str() {
+                "word_count" => dflags[0] = true,
+                "excerpt" => dflags[1] = true,
+                "file_created_at" => dflags[2] = true,
+                _ => {}
+            }
+        }
+    }
+    let dcols = [
+        "word_count INTEGER NOT NULL DEFAULT 0",
+        "excerpt TEXT",
+        "file_created_at TEXT",
+    ];
+    for (i, col) in dcols.iter().enumerate() {
+        if !dflags[i] { sqlx::query(&format!("ALTER TABLE documents ADD COLUMN {col}")).execute(pool).await?; }
+    }
+
+    // Focus sessions table
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS focus_sessions (
+            id TEXT PRIMARY KEY,
+            document_id TEXT NOT NULL,
+            words_written INTEGER NOT NULL DEFAULT 0,
+            started_at TEXT NOT NULL,
+            ended_at TEXT,
+            FOREIGN KEY(document_id) REFERENCES documents(id) ON DELETE CASCADE
+        )"
+    ).execute(pool).await?;
+
     Ok(())
 }

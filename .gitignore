@@ -13,3 +13,4 @@ src-tauri/target/
 src-tauri/gen/
 src-tauri/node_modules/
 src-tauri/.tauri/
+src-tauri/binaries/

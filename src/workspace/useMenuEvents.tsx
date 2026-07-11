@@ -1,8 +1,17 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '../filesystem/tauriCommands';
 import { showPromptDialog, showConfirmDialog, showAlertDialog } from '../lib/tauriDialog';
 import { registry, useDirtyDocsStore } from '../yjs/DocumentRegistry';
+import { ExportLoader } from '../components/ExportLoader';
+import { ExportModal } from '../components/ExportModal';
+
+interface ExportResult {
+  success: boolean;
+  output_dir: string;
+  page_count: number;
+  error?: string;
+}
 
 interface UseMenuEventsProps {
   workspacePath: string | null;
@@ -23,6 +32,9 @@ export function useMenuEvents({
   createDocument,
   refreshDirectoryTree,
 }: UseMenuEventsProps) {
+  const [exporting, setExporting] = useState(false);
+  const [exportResult, setExportResult] = useState<ExportResult | null>(null);
+
   useEffect(() => {
     let un: (() => void) | undefined;
     listen('menu-new-folder', async () => {
@@ -208,30 +220,25 @@ export function useMenuEvents({
   }, [currentDocumentId]);
 
   useEffect(() => {
-    let un: (() => void) | undefined;
-    listen('menu-export-project-blog', () => showAlertDialog('Coming Soon', 'Export as Blog'))
-      .then(fn => { un = fn; });
-    return () => { un?.(); };
+    let un1: (() => void) | undefined;
+    let un2: (() => void) | undefined;
+    listen<ExportResult>('export-start', () => {
+      setExportResult(null);
+      setExporting(true);
+    }).then(fn => { un1 = fn; });
+    listen<ExportResult>('export-done', (event) => {
+      setExporting(false);
+      setExportResult(event.payload);
+    }).then(fn => { un2 = fn; });
+    return () => { un1?.(); un2?.(); };
   }, []);
 
-  useEffect(() => {
-    let un: (() => void) | undefined;
-    listen('menu-export-project-docs', () => showAlertDialog('Coming Soon', 'Export as Documentation'))
-      .then(fn => { un = fn; });
-    return () => { un?.(); };
-  }, []);
-
-  useEffect(() => {
-    let un: (() => void) | undefined;
-    listen('menu-export-project-book', () => showAlertDialog('Coming Soon', 'Export as Book'))
-      .then(fn => { un = fn; });
-    return () => { un?.(); };
-  }, []);
-
-  useEffect(() => {
-    let un: (() => void) | undefined;
-    listen('menu-export-project-slide', () => showAlertDialog('Coming Soon', 'Export as Slide'))
-      .then(fn => { un = fn; });
-    return () => { un?.(); };
-  }, []);
+  return (
+    <>
+      {exporting && <ExportLoader />}
+      {exportResult && !exporting && (
+        <ExportModal result={exportResult} onClose={() => setExportResult(null)} />
+      )}
+    </>
+  );
 }

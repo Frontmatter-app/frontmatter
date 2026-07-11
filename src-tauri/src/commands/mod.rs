@@ -6,6 +6,7 @@ pub mod drafts;
 pub mod execution;
 pub mod export;
 pub mod file_ops;
+pub mod focus_sessions;
 pub mod fonts;
 pub mod git;
 pub mod git_clone;

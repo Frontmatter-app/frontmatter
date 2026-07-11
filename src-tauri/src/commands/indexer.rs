@@ -115,6 +115,32 @@ fn parse_inline_attrs(line: &str) -> HashMap<String, String> {
     attrs
 }
 
+fn find_excerpt(lines: &[&str]) -> Option<String> {
+    let mut h1_index = None;
+    for (i, line) in lines.iter().enumerate() {
+        if HEADING_RE.is_match(line) && line.trim_start().starts_with("# ") {
+            h1_index = Some(i);
+            break;
+        }
+    }
+    let start = match h1_index {
+        Some(idx) => idx + 1,
+        None => 0,
+    };
+    for line in &lines[start..] {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if trimmed.starts_with('#') || trimmed.starts_with("```") || trimmed.starts_with("$$") {
+            continue;
+        }
+        let excerpt = trimmed.chars().take(250).collect::<String>();
+        return if excerpt.is_empty() { None } else { Some(excerpt) };
+    }
+    None
+}
+
 pub struct WorkspaceIndexer {
     pool: sqlx::SqlitePool,
     workspace_path: PathBuf,
@@ -159,7 +185,24 @@ impl WorkspaceIndexer {
             .map_err(|e| format!("Failed to read {}: {}", file_path.display(), e))?;
 
         let rel_path = self.relative_path(file_path);
-        self.index_content_string(&content, &rel_path).await
+        self.index_content_string(&content, &rel_path).await?;
+
+        // Persist file_created_at from filesystem metadata
+        if let Ok(meta) = fs::metadata(file_path) {
+            if let Ok(created) = meta.created() {
+                let created_rfc: String = {
+                    let dt: chrono::DateTime<chrono::Utc> = created.into();
+                    dt.to_rfc3339()
+                };
+                let _ = sqlx::query("UPDATE documents SET file_created_at = ? WHERE file_path = ?")
+                    .bind(&created_rfc)
+                    .bind(&rel_path)
+                    .execute(&self.pool)
+                    .await;
+            }
+        }
+
+        Ok(())
     }
 
     /// Index a document whose content is already in memory (no file I/O).
@@ -396,6 +439,18 @@ impl WorkspaceIndexer {
         // Persist to database
         self.persist_objects(&rel_path, objects).await?;
         self.persist_references(&rel_path, references).await?;
+
+        // Compute and persist doc-level metadata
+        let word_count = content.split_whitespace().count() as i32;
+        let excerpt = find_excerpt(&lines);
+
+        // Update the documents row — may not exist yet for brand-new files, ignore if so
+        let _ = sqlx::query("UPDATE documents SET word_count = ?, excerpt = ? WHERE file_path = ?")
+            .bind(word_count)
+            .bind(&excerpt)
+            .bind(rel_path)
+            .execute(&self.pool)
+            .await;
 
         Ok(())
     }

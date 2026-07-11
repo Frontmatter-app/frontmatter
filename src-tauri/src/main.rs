@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod commands;
+mod export;
 mod menu;
 mod schema;
 mod watcher;
@@ -80,10 +81,14 @@ fn main() {
                 "export_file_pdf" => window_ops::emit_to_focused_window(app, "menu-export-file-pdf"),
                 "export_file_html" => window_ops::emit_to_focused_window(app, "menu-export-file-html"),
                 "export_file_markdown" => window_ops::emit_to_focused_window(app, "menu-export-file-markdown"),
-                "export_project_blog" => window_ops::emit_to_focused_window(app, "menu-export-project-blog"),
-                "export_project_docs" => window_ops::emit_to_focused_window(app, "menu-export-project-docs"),
-                "export_project_book" => window_ops::emit_to_focused_window(app, "menu-export-project-book"),
-                "export_project_slide" => window_ops::emit_to_focused_window(app, "menu-export-project-slide"),
+                "export_project_blog"
+                | "export_project_docs"
+                | "export_project_book"
+                | "export_project_slide" => {
+                    let app = app.clone();
+                    let ptype = id.to_string();
+                    tauri::async_runtime::spawn(async move { export::commands::export_project_data(app, ptype).await; });
+                }
                 "clear_recent" => {
                     let _ = commands::project::clear_recent_projects();
                 }
@@ -167,6 +172,7 @@ fn main() {
             commands::window::close_window,
             commands::window::get_window_state,
             commands::fonts::get_system_fonts,
+            commands::focus_sessions::save_focus_session,
             commands::prose::scan_prose,
             commands::indexer::index_workspace,
             commands::indexer::index_file,

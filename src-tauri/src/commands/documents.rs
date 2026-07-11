@@ -33,7 +33,7 @@ pub async fn create_document(
     let stage = "write".to_string();
     let now = chrono::Utc::now().to_rfc3339();
 
-    sqlx::query("INSERT INTO documents (id, title, content, stage, file_path, focus_mode, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?)")
+    sqlx::query("INSERT INTO documents (id, title, content, stage, file_path, focus_mode, word_count, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?)")
         .bind(&id).bind(&title).bind(&content).bind(&stage).bind(&file_path)
         .bind(&now).bind(&now)
         .execute(&pool).await.map_err(|e| e.to_string())?;
@@ -43,6 +43,7 @@ pub async fn create_document(
         focus_mode: false, cloud_id: None, cloud_synced: false,
         cloud_path: None, offline_enabled: false, last_cloud_sync: None,
         created_at: now.clone(), updated_at: now,
+        word_count: 0, excerpt: None, file_created_at: None,
     })
 }
 
@@ -128,7 +129,7 @@ pub async fn get_document(
 ) -> Result<DocumentMeta, String> {
     let (pool, _) = get_pool(&window, &state).await?;
     let row = sqlx::query(
-        "SELECT id, title, content, stage, file_path, focus_mode, cloud_id, cloud_synced, cloud_path, offline_enabled, last_cloud_sync, created_at, updated_at FROM documents WHERE id = ?"
+        "SELECT id, title, content, stage, file_path, focus_mode, cloud_id, cloud_synced, cloud_path, offline_enabled, last_cloud_sync, created_at, updated_at, word_count, excerpt, file_created_at FROM documents WHERE id = ?"
     ).bind(&id).fetch_optional(&pool).await.map_err(|e| e.to_string())?;
 
     match row {
@@ -140,6 +141,9 @@ pub async fn get_document(
             cloud_path: r.get("cloud_path"), offline_enabled: r.get::<i32, _>("offline_enabled") != 0,
             last_cloud_sync: r.get("last_cloud_sync"),
             created_at: r.get("created_at"), updated_at: r.get("updated_at"),
+            word_count: r.get::<Option<i32>, _>("word_count").unwrap_or(0),
+            excerpt: r.get("excerpt"),
+            file_created_at: r.get("file_created_at"),
         }),
         None => Err("Document not found".to_string()),
     }

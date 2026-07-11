@@ -30,6 +30,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
   const [activeAnnotationId, setActiveAnnotationId] = useState<string | null>(null);
   const [activeSuggestionId, setActiveSuggestionId] = useState<string | null>(null);
+  const [showHidden, setShowHidden] = useState(false);
 
   const {
     localDocuments, setLocalDocuments, cloudDocuments, cloudFolders, documents,
@@ -66,11 +67,15 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const refreshDirectoryTree = useCallback(async () => {
     try {
       if (workspacePath) {
-        const tree = await invoke('get_directory_tree', { workspacePath });
+        const tree = await invoke('get_directory_tree', { workspacePath, showHidden });
         setDirectoryTree(tree);
       }
     } catch { /* ignore */ }
-  }, [workspacePath]);
+  }, [workspacePath, showHidden]);
+
+  const toggleShowHidden = useCallback(() => {
+    setShowHidden(prev => !prev);
+  }, []);
 
   const openDocument = useCallback((id: string) => {
     setOpenTabs(prev => prev.includes(id) ? prev : [...prev, id]);
@@ -83,6 +88,17 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     setCurrentDocumentId(prev => prev === id ? null : prev);
     setActiveVersionId(null);
   }, []);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.metaKey && e.shiftKey && e.key === '.') {
+        e.preventDefault();
+        toggleShowHidden();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [toggleShowHidden]);
 
   useWorkspaceInit({ activeContext, setWorkspacePath, setIsInitializing, fetchDocs, openDocument });
 
@@ -104,7 +120,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     { setWorkspacePath, setLocalDocuments, fetchDocs, refreshDirectoryTree, openDocument, closeDocument },
   );
 
-  useMenuEvents({
+  const overlay = useMenuEvents({
     workspacePath, currentDocumentId, openExternalDocument: ops.handleOpenExternalDocument,
     openWorkspace: ops.handleOpenWorkspace, openFileFromPath: ops.handleOpenFileFromPath,
     createDocument: ops.handleCreateDocument, refreshDirectoryTree,
@@ -123,8 +139,10 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       setOfflineEnabled: ops.handleSetOfflineEnabled,
       activeHeading, setActiveHeading, activeVersionId, setActiveVersionId,
       activeAnnotationId, setActiveAnnotationId, activeSuggestionId, setActiveSuggestionId,
+      showHidden, toggleShowHidden,
     }}>
       {children}
+      {overlay}
     </WorkspaceContext.Provider>
   );
 }

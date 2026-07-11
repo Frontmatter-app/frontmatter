@@ -22,7 +22,7 @@ pub async fn open_or_import_file(
 ) -> Result<DocumentMeta, String> {
     let (pool, _) = get_pool(&window, &state).await?;
 
-    let row = sqlx::query("SELECT id, title, content, stage, file_path, focus_mode, created_at, updated_at FROM documents WHERE file_path = ?")
+    let row = sqlx::query("SELECT id, title, content, stage, file_path, focus_mode, created_at, updated_at, word_count, excerpt, file_created_at FROM documents WHERE file_path = ?")
         .bind(&file_path).fetch_optional(&pool).await.map_err(|e| e.to_string())?;
 
     if let Some(r) = row {
@@ -56,6 +56,7 @@ pub async fn open_or_import_file(
             cloud_id: None, cloud_synced: false, cloud_path: None,
             offline_enabled: false, last_cloud_sync: None,
             created_at, updated_at: now,
+            word_count: 0, excerpt: None, file_created_at: None,
         });
     }
 
@@ -71,7 +72,7 @@ pub async fn open_or_import_file(
     let now = chrono::Utc::now().to_rfc3339();
     let content = serde_json::json!({"markdown": markdown_content, "draft": ""}).to_string();
 
-    sqlx::query("INSERT INTO documents (id, title, content, stage, file_path, focus_mode, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?)")
+    sqlx::query("INSERT INTO documents (id, title, content, stage, file_path, focus_mode, word_count, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?)")
         .bind(&id).bind(&title).bind(&content).bind(&stage).bind(Some(&file_path))
         .bind(&now).bind(&now).execute(&pool).await.map_err(|e| e.to_string())?;
 
@@ -80,6 +81,7 @@ pub async fn open_or_import_file(
         focus_mode: false, cloud_id: None, cloud_synced: false,
         cloud_path: None, offline_enabled: false, last_cloud_sync: None,
         created_at: now.clone(), updated_at: now,
+        word_count: 0, excerpt: None, file_created_at: None,
     })
 }
 

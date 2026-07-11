@@ -18,6 +18,9 @@ pub struct DocumentMeta {
     pub last_cloud_sync: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+    pub word_count: i32,
+    pub excerpt: Option<String>,
+    pub file_created_at: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -132,17 +135,22 @@ pub async fn get_documents(
     let pool = match db_guard.get(&path) { Some(p) => p, None => return Ok(vec![]) };
 
     let rows = sqlx::query(
-        "SELECT id, title, content, stage, file_path, focus_mode, cloud_id, cloud_synced, cloud_path, offline_enabled, last_cloud_sync, created_at, updated_at FROM documents ORDER BY updated_at DESC"
+        "SELECT id, title, content, stage, file_path, focus_mode, cloud_id, cloud_synced, cloud_path, offline_enabled, last_cloud_sync, created_at, updated_at, word_count, excerpt, file_created_at FROM documents ORDER BY updated_at DESC"
     ).fetch_all(pool).await.map_err(|e| e.to_string())?;
 
-    Ok(rows.iter().map(|row| DocumentMeta {
-        id: row.get("id"), title: row.get("title"), content: row.get("content"),
-        stage: row.get("stage"), file_path: row.get("file_path"),
-        focus_mode: row.get::<i32, _>("focus_mode") != 0,
-        cloud_id: row.get("cloud_id"), cloud_synced: row.get::<i32, _>("cloud_synced") != 0,
-        cloud_path: row.get("cloud_path"), offline_enabled: row.get::<i32, _>("offline_enabled") != 0,
-        last_cloud_sync: row.get("last_cloud_sync"),
-        created_at: row.get("created_at"), updated_at: row.get("updated_at"),
+    Ok(rows.iter().map(|row| {
+        DocumentMeta {
+            id: row.get("id"), title: row.get("title"), content: row.get("content"),
+            stage: row.get("stage"), file_path: row.get("file_path"),
+            focus_mode: row.get::<i32, _>("focus_mode") != 0,
+            cloud_id: row.get("cloud_id"), cloud_synced: row.get::<i32, _>("cloud_synced") != 0,
+            cloud_path: row.get("cloud_path"), offline_enabled: row.get::<i32, _>("offline_enabled") != 0,
+            last_cloud_sync: row.get("last_cloud_sync"),
+            created_at: row.get("created_at"), updated_at: row.get("updated_at"),
+            word_count: row.get::<Option<i32>, _>("word_count").unwrap_or(0),
+            excerpt: row.get("excerpt"),
+            file_created_at: row.get("file_created_at"),
+        }
     }).collect())
 }
 

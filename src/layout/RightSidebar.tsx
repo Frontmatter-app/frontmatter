@@ -24,7 +24,7 @@ export function RightSidebar({ className, style }: { className?: string; style?:
   const { ydoc, stage, setStage, docText, focusMode, setFocusMode, lintIgnoreState, updateLintIgnoreState } = useYjsDocument(currentDocumentId);
   const wordCount = useWordCount(ydoc);
   const outline = useOutline(ydoc ? ydoc.getText("draft") : null);
-  const { focusSessionWords, toggleFocusMode } = useFocusSession({ wordCount, focusMode, setFocusMode, ydoc });
+  const { focusSessionWords, toggleFocusMode } = useFocusSession({ wordCount, focusMode, setFocusMode, ydoc, currentDocumentId });
   const { snapshots, fetchSnapshots, createSnapshot, handleRestoreSnap, handleDeleteSnap, handleClearHistory } = useSnapshotHistory({ currentDocumentId, activeVersionId, setActiveVersionId, ydoc, currentUserName });
   const currentDoc = documents.find(d => d.id === currentDocumentId);
   const currentDocPath = currentDoc?.file_path || null;
