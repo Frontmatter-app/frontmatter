@@ -8,7 +8,10 @@ pub struct GitStatusEntry { pub path: String, pub staged: bool, pub status: Stri
 #[derive(Debug, Serialize)]
 pub struct GitStatus { pub branch: String, pub ahead: u32, pub behind: u32, pub dirty: bool, pub entries: Vec<GitStatusEntry>, }
 
+// The history panel reads `shortHash`; without this rename serde emits
+// `short_hash` and the abbreviated hash silently never renders.
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GitCommit { pub hash: String, pub short_hash: String, pub message: String, pub author: String, pub date: String, }
 
 #[derive(Debug, Serialize)]

@@ -8,7 +8,7 @@ mod watcher;
 mod window_ops;
 
 use std::collections::HashMap;
-use tauri::{Manager, TitleBarStyle};
+use tauri::{Emitter, Manager, TitleBarStyle};
 use tokio::sync::Mutex;
 
 
@@ -85,9 +85,12 @@ fn main() {
                 | "export_project_docs"
                 | "export_project_book"
                 | "export_project_slide" => {
-                    let app = app.clone();
-                    let ptype = id.to_string();
-                    tauri::async_runtime::spawn(async move { export::commands::export_project_data(app, ptype).await; });
+                    let project_type = id.strip_prefix("export_project_").unwrap_or(id).to_string();
+                    if let Some(window) = app.webview_windows().values().find(|w| w.is_focused().unwrap_or(false)) {
+                        let _ = window.emit("menu-export-project", project_type);
+                    } else {
+                        let _ = app.emit("menu-export-project", project_type);
+                    }
                 }
                 "clear_recent" => {
                     let _ = commands::project::clear_recent_projects();
@@ -189,6 +192,8 @@ fn main() {
             commands::export::convert_md_to_html,
             commands::export::export_file_html,
             commands::export::export_file_pdf,
+            export::commands::export_project_zola,
+            export::commands::list_theme_options,
             commands::runtimes::list_runtimes,
             commands::runtimes::add_runtime,
             commands::runtimes::remove_runtime,

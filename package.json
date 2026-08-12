@@ -8,7 +8,14 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "ipc:gen": "node scripts/generate-ipc.mjs",
+    "test": "npm run test:web && npm run test:rust",
+    "test:web": "vitest run",
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml --bin marktype",
+    "test:watch": "vitest",
+    "predev": "npm run test",
+    "prebuild": "npm run test"
   },
   "dependencies": {
     "@codemirror/commands": "^6.10.3",
@@ -59,9 +66,11 @@
     "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
+    "jsdom": "^30.0.1",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
-    "vite": "^6.2.3"
+    "vite": "^6.2.3",
+    "vitest": "^3.2.7"
   }
 }

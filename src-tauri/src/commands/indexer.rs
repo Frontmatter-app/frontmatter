@@ -163,6 +163,11 @@ impl WorkspaceIndexer {
         self.object_names.write().await.clear();
         self.seen_hashes.write().await.clear();
 
+        // Sync and reconcile filesystem changes to the database
+        if let Err(e) = crate::export::discover::reconcile_workspace(&self.workspace_path, &self.pool).await {
+            warn!("Reconciliation failed: {}", e);
+        }
+
         let files = self.collect_markdown_files(&self.workspace_path);
         let total = files.len();
         info!("Found {} markdown files", total);
@@ -184,8 +189,8 @@ impl WorkspaceIndexer {
         let content = fs::read_to_string(file_path)
             .map_err(|e| format!("Failed to read {}: {}", file_path.display(), e))?;
 
-        let rel_path = self.relative_path(file_path);
-        self.index_content_string(&content, &rel_path).await?;
+        let abs_path_str = file_path.to_string_lossy().to_string();
+        self.index_content_string(&content, &abs_path_str).await?;
 
         // Persist file_created_at from filesystem metadata
         if let Ok(meta) = fs::metadata(file_path) {
@@ -196,7 +201,7 @@ impl WorkspaceIndexer {
                 };
                 let _ = sqlx::query("UPDATE documents SET file_created_at = ? WHERE file_path = ?")
                     .bind(&created_rfc)
-                    .bind(&rel_path)
+                    .bind(&abs_path_str)
                     .execute(&self.pool)
                     .await;
             }
@@ -477,13 +482,6 @@ impl WorkspaceIndexer {
         files
     }
 
-    fn relative_path(&self, file_path: &Path) -> String {
-        file_path
-            .strip_prefix(&self.workspace_path)
-            .unwrap_or(file_path)
-            .to_string_lossy()
-            .to_string()
-    }
 
     fn hash_content(&self, content: &str) -> String {
         let mut hasher = Sha256::new();

@@ -1,28 +1,14 @@
-export interface GitStatusEntry {
-  path: string;
-  staged: boolean;
-  status: string;
-}
+/**
+ * Git DTOs are defined in Rust and generated into `src/ipc/generated.ts`.
+ * Re-exported here so there is exactly one definition and the two sides cannot
+ * drift — a mismatch is what hid `shortHash` never being sent to the UI.
+ */
+export type {
+  GitStatusEntry,
+  GitStatus,
+  GitCommit,
+  GitBranch,
+} from '../ipc/generated';
 
-export interface GitStatus {
-  branch: string;
-  ahead: number;
-  behind: number;
-  dirty: boolean;
-  entries: GitStatusEntry[];
-}
-
-export interface GitCommit {
-  hash: string;
-  shortHash: string;
-  message: string;
-  author: string;
-  date: string;
-}
-
-export interface GitBranch {
-  name: string;
-  current: boolean;
-}
-
+/** UI-only state; has no Rust counterpart. */
 export type RepoStatus = 'unknown' | 'checking' | 'repo' | 'not-repo' | 'git-not-found';

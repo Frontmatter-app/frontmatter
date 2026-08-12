@@ -2,6 +2,7 @@ use serde::Serialize;
 use sqlx::Row;
 use std::str::FromStr;
 use tauri::Manager;
+use tauri::Emitter;
 
 #[derive(Serialize)]
 pub struct DocumentMeta {
@@ -114,6 +115,8 @@ pub async fn open_workspace(
             drop(db_guard);
             let indexer = crate::commands::indexer::WorkspaceIndexer::new(pool, workspace_path_clone);
             let _ = indexer.index_workspace().await;
+            // Notify the frontend that reconciliation is done so it can refresh the document list
+            let _ = app_handle.emit("workspace-reconciled", ());
         }
     });
 

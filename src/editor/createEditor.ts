@@ -12,15 +12,13 @@ import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { Table } from '@lezer/markdown';
 import { languages } from '@codemirror/language-data';
 import { syntaxHighlighting, defaultHighlightStyle, bracketMatching } from '@codemirror/language';
-import { inlinePreviewPlugin } from './extensions/inlinePreview';
-import { inlinePreviewTheme } from './themes/marktype';
-import { focusModeExtension } from './extensions/focusMode';
-import { annotationsExtension, setAnnotationsEffect } from './extensions/annotationsExtension';
+import { setAnnotationsEffect } from './extensions/annotationsExtension';
 import { AnnotationManager } from '../yjs/annotations';
-import { valeLintExtension, setValeAlertsEffect } from './extensions/valeLintExtension';
+import { setValeAlertsEffect } from './extensions/valeLintExtension';
 import { getThemeConfig, createFontTheme } from './themes/themeConfig';
+import { createRegistry } from '../features/registry';
+import { editorFeatures } from '../features/editorFeatures';
 import * as Y from 'yjs';
-import { yCollab } from 'y-codemirror.next';
 
 export interface EditorHandle {
   view: EditorView;
@@ -39,7 +37,21 @@ export function createEditor(
   const config = getThemeConfig();
   const fontCompartment = new Compartment();
 
-  // Balanced base configurations maximizing standard UX and tool tracking
+  // Optional capabilities are resolved through the registry, so this file has
+  // no import of any individual feature. A feature removed from the manifest
+  // simply contributes nothing here.
+  const registry = createRegistry(editorFeatures);
+  const featureExtensions = registry.editorExtensions({
+    ytext,
+    awareness: providerAwareness,
+    annotationManager,
+  }) as Extension[];
+
+  if (registry.skipped.length > 0) {
+    console.warn('[features] disabled:', registry.skipped);
+  }
+
+  // Baseline editing: everything an editor cannot function without.
   const baseExtensions = [
     history(),
     drawSelection(),
@@ -56,13 +68,9 @@ export function createEditor(
       extensions: [Table],
     }),
     syntaxHighlighting(defaultHighlightStyle),
-    inlinePreviewPlugin,
-    inlinePreviewTheme,
     // Font configuration isolated for fast, fluid dynamic resizing runtime swaps
     fontCompartment.of(createFontTheme(config.fontFamily, config.fontSize, config.lineHeight)),
-    focusModeExtension(),
-    annotationsExtension(ytext),
-    yCollab(ytext, providerAwareness),
+    ...featureExtensions,
     ...extensions,
   ];
 

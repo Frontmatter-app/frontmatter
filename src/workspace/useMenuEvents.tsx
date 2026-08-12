@@ -4,7 +4,7 @@ import { invoke } from '../filesystem/tauriCommands';
 import { showPromptDialog, showConfirmDialog, showAlertDialog } from '../lib/tauriDialog';
 import { registry, useDirtyDocsStore } from '../yjs/DocumentRegistry';
 import { ExportLoader } from '../components/ExportLoader';
-import { ExportModal } from '../components/ExportModal';
+import { ThemeExportModal } from '../components/ThemeExportModal';
 
 interface ExportResult {
   success: boolean;
@@ -33,7 +33,7 @@ export function useMenuEvents({
   refreshDirectoryTree,
 }: UseMenuEventsProps) {
   const [exporting, setExporting] = useState(false);
-  const [exportResult, setExportResult] = useState<ExportResult | null>(null);
+  const [themeModalType, setThemeModalType] = useState<'blog' | 'docs' | 'slide' | 'book' | null>(null);
 
   useEffect(() => {
     let un: (() => void) | undefined;
@@ -220,24 +220,42 @@ export function useMenuEvents({
   }, [currentDocumentId]);
 
   useEffect(() => {
-    let un1: (() => void) | undefined;
-    let un2: (() => void) | undefined;
-    listen<ExportResult>('export-start', () => {
-      setExportResult(null);
-      setExporting(true);
-    }).then(fn => { un1 = fn; });
-    listen<ExportResult>('export-done', (event) => {
-      setExporting(false);
-      setExportResult(event.payload);
-    }).then(fn => { un2 = fn; });
-    return () => { un1?.(); un2?.(); };
+    let un: (() => void) | undefined;
+    listen<string>('menu-export-project', (event) => {
+      const type = event.payload as 'blog' | 'docs' | 'slide' | 'book';
+      setThemeModalType(type);
+    }).then(fn => { un = fn; });
+    return () => { un?.(); };
   }, []);
+
+  const handleExport = async (themeName: string) => {
+    if (!themeModalType) return;
+    setThemeModalType(null);
+    setExporting(true);
+    try {
+      const res = await invoke<ExportResult>('export_project_zola', {
+        projectType: themeModalType,
+        themeName,
+      });
+      setExporting(false);
+      if (!res.success && res.error) {
+        await showAlertDialog('Export Failed', res.error);
+      }
+    } catch (e: any) {
+      setExporting(false);
+      await showAlertDialog('Export Failed', e?.toString() || 'Unknown error');
+    }
+  };
 
   return (
     <>
       {exporting && <ExportLoader />}
-      {exportResult && !exporting && (
-        <ExportModal result={exportResult} onClose={() => setExportResult(null)} />
+      {themeModalType && (
+        <ThemeExportModal
+          type={themeModalType}
+          onClose={() => setThemeModalType(null)}
+          onExport={handleExport}
+        />
       )}
     </>
   );

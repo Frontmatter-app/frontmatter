@@ -112,7 +112,7 @@ export function useWriteEditor(
       suggestionsExtension(ydoc.getText('markdown'), suggestionManager ?? undefined),
       readOnlyCompartmentRef.current.of(EditorState.readOnly.of(false)),
       spellCheckCompartmentRef.current.of(EditorView.contentAttributes.of({ spellcheck: String(settings.spellCheck ?? true) })),
-      ...referencePickerExtension,
+      ...referencePickerExtension(),
       formattingKeymap,
     ]);
     handleRef.current = handle;

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { listen } from '@tauri-apps/api/event';
 import { invoke } from '../filesystem/tauriCommands';
 import { useAuth } from '../auth/AuthProvider';
 import { usePlan } from '../billing/PlanProvider';
@@ -56,7 +57,9 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const fetchDocs = useCallback(async () => {
     try {
       if (workspacePath) {
-        const data: DocumentMeta[] = await invoke('get_documents');
+        // `stage` is TEXT in SQLite, so Rust hands it back as a plain string.
+        // Narrowing to the Stage union is an assertion this boundary owns.
+        const data = (await invoke('get_documents')) as DocumentMeta[];
         setLocalDocuments(data || []);
         return data || [];
       }
@@ -99,6 +102,15 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [toggleShowHidden]);
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    listen('workspace-reconciled', () => {
+      fetchDocs();
+      refreshDirectoryTree();
+    }).then(fn => { unlisten = fn; });
+    return () => { if (unlisten) unlisten(); };
+  }, [fetchDocs, refreshDirectoryTree]);
 
   useWorkspaceInit({ activeContext, setWorkspacePath, setIsInitializing, fetchDocs, openDocument });
 

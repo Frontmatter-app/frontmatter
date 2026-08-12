@@ -1,41 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { AuthProvider } from './auth/AuthProvider';
 import { PlanProvider } from './billing/PlanProvider';
 import { WorkspaceProvider, useWorkspace } from './workspace/WorkspaceProvider';
 import { DesktopLayout } from './layout/DesktopLayout';
 
 import { useSettingsStore } from './settings/settingsStore';
-import { SettingsModal } from './settings/SettingsModal';
-import { ActivityMonitorModal } from './components/ActivityMonitorModal';
-import { UpgradeModal } from './billing/UpgradeModal.tsx';
-import { AgreementGate } from './components/AgreementGate';
-import { InviteLandingScreen } from './components/InviteLandingScreen';
-import { PromptDialog } from './components/PromptDialog';
-import { ExcalidrawModal } from './excalidraw/ExcalidrawModal';
-import { useProductivityTracker } from './settings/metrics/useProductivityTracker';
-import { useGlobalShortcuts } from './keyboard/useGlobalShortcuts';
+import { createRegistry } from './features/registry';
+import { shellFeatures } from './features/shellFeatures';
 
+// Built once at module scope: the manifest is static, so the resolved graph is
+// too. `App` imports no feature module directly — removing a feature from the
+// manifest removes it from the shell.
+const shell = createRegistry<Record<string, unknown>, React.ReactNode>(shellFeatures);
+if (shell.skipped.length > 0) {
+  console.warn('[features] shell features disabled:', shell.skipped);
+}
 
 function MainApp() {
   const { isInitializing } = useWorkspace();
   const { settings } = useSettingsStore();
-  const [isActivityOpen, setIsActivityOpen] = useState(false);
-  
-  // Track writing productivity in the background
-  useProductivityTracker();
-  // Centralized global keyboard shortcuts
-  useGlobalShortcuts();
-
-  useEffect(() => {
-    const handleOpen = () => setIsActivityOpen(true);
-    const handleClose = () => setIsActivityOpen(false);
-    window.addEventListener('open-activity-monitor', handleOpen);
-    window.addEventListener('close-activity-monitor', handleClose);
-    return () => {
-      window.removeEventListener('open-activity-monitor', handleOpen);
-      window.removeEventListener('close-activity-monitor', handleClose);
-    };
-  }, []);
 
   if (isInitializing) {
     return (
@@ -59,13 +42,7 @@ function MainApp() {
       }}
     >
       <DesktopLayout />
-      <SettingsModal />
-      <ActivityMonitorModal isOpen={isActivityOpen} onClose={() => setIsActivityOpen(false)} />
-      <UpgradeModal />
-      <AgreementGate />
-      <InviteLandingScreen />
-      <PromptDialog />
-      <ExcalidrawModal />
+      {shell.surfaces()}
     </div>
   );
 }
