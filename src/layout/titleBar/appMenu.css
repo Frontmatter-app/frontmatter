@@ -1,0 +1,65 @@
+@import '../../design/tokens.css';
+
+.app-menu {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  /* The title bar is a drag region; the menu must not be. */
+  -webkit-app-region: no-drag;
+}
+
+.app-menu__slot {
+  position: relative;
+}
+
+.app-menu__trigger {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  font-family: var(--nm-font);
+  font-size: var(--nm-text-xs);
+  font-weight: 550;
+  color: var(--nm-fg-secondary);
+  padding: var(--nm-space-1) var(--nm-space-3);
+  border-radius: var(--nm-radius-sm);
+  cursor: pointer;
+  transition:
+    background var(--nm-motion-fast) var(--nm-ease),
+    color var(--nm-motion-fast) var(--nm-ease),
+    box-shadow var(--nm-motion-fast) var(--nm-ease);
+}
+
+.app-menu__trigger:hover {
+  color: var(--nm-fg);
+  background: var(--nm-surface);
+}
+
+.app-menu__trigger[data-open='true'] {
+  color: var(--nm-fg);
+  background: var(--nm-bg);
+  box-shadow: var(--nm-shadow-pressed);
+}
+
+.app-menu__trigger:focus-visible {
+  outline: none;
+  box-shadow: var(--nm-ring-focus);
+}
+
+.app-menu__dropdown {
+  position: absolute;
+  top: calc(100% + var(--nm-space-2));
+  left: 0;
+  z-index: 120;
+  animation: app-menu-drop var(--nm-motion-fast) var(--nm-ease);
+}
+
+@keyframes app-menu-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

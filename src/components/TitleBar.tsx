@@ -29,6 +29,8 @@ import {
   Users,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { AppMenu } from '../layout/titleBar/AppMenu';
+import { useChromeTheme } from '../design/useChromeTheme';
 
 const APP_NAME = 'Marktype';
 const isMac =
@@ -254,10 +256,12 @@ function WindowControls({
 
 export function TitleBar() {
   const { plan, isTeamOwner, activeContext, upgradeToAuthor, upgradeToTeam } = usePlan();
-  const { currentDocumentId, documents } = useWorkspace();
+  const { currentDocumentId, documents, workspacePath } = useWorkspace();
   const syncStatus = useSyncStatusStore((state) => state.status);
   const lastSyncedAt = useSyncStatusStore((state) => state.lastSyncedAt);
   const { openSettings, settings } = useSettingsStore();
+
+  useChromeTheme();
 
   const [isMaximized, setIsMaximized] = useState(false);
   const [showSyncPopover, setShowSyncPopover] = useState(false);
@@ -351,6 +355,12 @@ export function TitleBar() {
       onDoubleClick={handleDoubleClick}
       onContextMenu={handleContextMenu}
     >
+      {/* Left: application menu. Non-macOS this is the only menu; on macOS it
+          mirrors the native menu bar for reachability. */}
+      <div className="flex items-center flex-shrink-0" data-tauri-drag-region={undefined}>
+        <AppMenu hasDocument={!!currentDocumentId} hasWorkspace={!!workspacePath} />
+      </div>
+
       {/* Center: Document title — absolutely positioned so it stays centered */}
       <div
         className="absolute left-1/2 -translate-x-1/2 flex items-center min-w-0 max-w-[40vw] gap-2 relative"
