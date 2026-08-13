@@ -2,6 +2,7 @@ import React from 'react';
 import { AuthProvider } from './auth/AuthProvider';
 import { PlanProvider } from './billing/PlanProvider';
 import { WorkspaceProvider, useWorkspace } from './workspace/WorkspaceProvider';
+import { DataProvider } from './data/DataProvider';
 import { DesktopLayout } from './layout/DesktopLayout';
 
 import { useSettingsStore } from './settings/settingsStore';
@@ -49,12 +50,14 @@ function MainApp() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <PlanProvider>
-        <WorkspaceProvider>
-          <MainApp />
-        </WorkspaceProvider>
-      </PlanProvider>
-    </AuthProvider>
+    <DataProvider>
+      <AuthProvider>
+        <PlanProvider>
+          <WorkspaceProvider>
+            <MainApp />
+          </WorkspaceProvider>
+        </PlanProvider>
+      </AuthProvider>
+    </DataProvider>
   );
 }

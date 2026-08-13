@@ -1,54 +1,7 @@
-import { useState, useEffect } from 'react';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { db } from '../auth/firebase';
-
-export interface TeamItem {
-  id: string;
-  name: string;
-}
-
-export function useTeamNames(teamMemberships: string[], isOpen: boolean) {
-  const [teams, setTeams] = useState<TeamItem[]>([]);
-
-  useEffect(() => {
-    if (!isOpen || !teamMemberships || teamMemberships.length === 0) {
-      setTeams([]);
-      return;
-    }
-
-    const unsubscribes = teamMemberships.map((tId) => {
-      const teamDocRef = doc(db, 'teams', tId);
-      return onSnapshot(
-        teamDocRef,
-        (snap) => {
-          if (snap.exists()) {
-            const data = snap.data();
-            setTeams((prev) => {
-              const filtered = prev.filter((t) => t.id !== tId);
-              return [...filtered, { id: tId, name: data.name || 'Unnamed Team' }].sort(
-                (a, b) => a.name.localeCompare(b.name)
-              );
-            });
-          } else {
-            // Fallback for non-existent team document
-            setTeams((prev) => {
-              const filtered = prev.filter((t) => t.id !== tId);
-              return [...filtered, { id: tId, name: 'Unnamed Team' }].sort(
-                (a, b) => a.name.localeCompare(b.name)
-              );
-            });
-          }
-        },
-        (err) => {
-          console.warn(`[useTeamNames] failed to listen to team ${tId}:`, err);
-        }
-      );
-    });
-
-    return () => {
-      unsubscribes.forEach((unsub) => unsub());
-    };
-  }, [isOpen, teamMemberships]);
-
-  return teams;
-}
+/**
+ * Team name resolution moved to the data layer, where it goes through the
+ * teams port instead of talking to Firestore directly. Re-exported here so
+ * existing imports keep working.
+ */
+export { useTeamNames } from '../data/hooks';
+export type { TeamItem } from '../data/hooks';

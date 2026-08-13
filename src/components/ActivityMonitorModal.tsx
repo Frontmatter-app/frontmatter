@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../auth/AuthProvider';
-import { db } from '../auth/firebase';
+import { useData } from '../data/DataProvider';
 import { usePlan } from '../billing/PlanProvider';
-import { doc, getDoc } from 'firebase/firestore';
 import { RecentActivityDashboard } from '../settings/metrics/RecentActivityDashboard';
 import { UserMetricsData } from '../settings/metrics/metricsSync';
 import { useSettingsStore } from '../settings/settingsStore';
@@ -32,6 +31,7 @@ interface TeamMember {
 export function ActivityMonitorModal({ isOpen, onClose }: ActivityMonitorModalProps) {
   const { user } = useAuth();
   const { teamId, isTeam, isTeamOwner, ownedTeamId } = usePlan();
+  const { teams, users } = useData();
   const { settings } = useSettingsStore();
   const isDark = settings.themeType.startsWith('github_dark');
 
@@ -74,26 +74,19 @@ export function ActivityMonitorModal({ isOpen, onClose }: ActivityMonitorModalPr
 
     const fetchTeamMembers = async () => {
       try {
-        const teamSnap = await getDoc(doc(db, 'teams', fetchTarget));
-        if (teamSnap.exists() && active) {
-          const teamData = teamSnap.data();
-          const memberIds = [teamData.ownerId, ...(teamData.members || [])];
-          const uniqueMemberIds = Array.from(new Set(memberIds.filter(Boolean)));
-          
-          const list: TeamMember[] = [];
-          for (const mId of uniqueMemberIds) {
-            const userSnap = await getDoc(doc(db, 'users', mId));
-            if (userSnap.exists()) {
-              const uData = userSnap.data();
-              list.push({
-                uid: mId,
-                email: uData.email || 'No email',
-                displayName: uData.displayName || 'Anonymous User',
-                role: mId === teamData.ownerId ? 'Team Owner' : 'Team Member',
-                metrics: (uData.metrics as UserMetricsData | undefined) || null
-              });
-            }
-          }
+        const team = await teams.get(fetchTarget);
+        if (team && active) {
+          const memberIds = Array.from(
+            new Set([team.ownerId, ...(team.members || [])].filter(Boolean)),
+          );
+          const profiles = await users.getMany(memberIds);
+          const list: TeamMember[] = profiles.map(profile => ({
+            uid: profile.id,
+            email: profile.email || 'No email',
+            displayName: profile.displayName || 'Anonymous User',
+            role: profile.id === team.ownerId ? 'Team Owner' : 'Team Member',
+            metrics: (profile.metrics as UserMetricsData | undefined) || null,
+          }));
           if (active) {
             setMembers(list);
           }

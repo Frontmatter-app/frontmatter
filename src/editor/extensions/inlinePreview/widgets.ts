@@ -1,7 +1,49 @@
 import { EditorView, WidgetType } from '@codemirror/view';
-import katex from 'katex';
 import { markdown, type MarkdownReferences } from './markdown';
 import { resolveImageUrl } from '../../../images/imageService';
+
+/**
+ * KaTeX is ~270 kB and only needed once a document actually contains math, so
+ * it is fetched on first use rather than shipped in the initial bundle.
+ *
+ * `toDOM` must return synchronously, so the formula is rendered as plain text
+ * and upgraded in place when the module arrives.
+ */
+let katexModule: typeof import('katex').default | null = null;
+let katexPromise: Promise<typeof import('katex').default> | null = null;
+
+function loadKatex(): Promise<typeof import('katex').default> {
+  if (!katexPromise) {
+    katexPromise = import('katex').then((module) => {
+      katexModule = module.default;
+      return katexModule;
+    });
+  }
+  return katexPromise;
+}
+
+interface MathRenderOptions {
+  displayMode: boolean;
+  throwOnError: boolean;
+  trust: boolean;
+  strict: 'warn';
+}
+
+function renderMath(
+  katexInstance: typeof import('katex').default,
+  formula: string,
+  target: HTMLElement,
+  options: MathRenderOptions,
+): void {
+  try {
+    katexInstance.render(formula, target, options);
+    target.classList.remove('cm-math-preview-error');
+  } catch (error) {
+    target.classList.add('cm-math-preview-error');
+    target.textContent = formula;
+    target.title = error instanceof Error ? error.message : 'Invalid math';
+  }
+}
 
 function attachImageLifecycleHandlers(img: HTMLImageElement, view: EditorView) {
   img.addEventListener('load', () => view.requestMeasure(), { once: true });
@@ -159,18 +201,28 @@ export class MathWidget extends WidgetType {
     if (this.to !== undefined) wrap.dataset.sourceTo = String(this.to);
     if (this.displayMode) wrap.dataset.isBlockPreview = 'true';
 
-    try {
-      katex.render(this.formula, wrap, {
-        displayMode: this.displayMode,
-        throwOnError: false,
-        trust: false,
-        strict: 'warn',
-      });
-    } catch (error) {
-      wrap.classList.add('cm-math-preview-error');
-      wrap.textContent = this.formula;
-      wrap.title = error instanceof Error ? error.message : 'Invalid math';
+    const options: MathRenderOptions = {
+      displayMode: this.displayMode,
+      throwOnError: false,
+      trust: false,
+      strict: 'warn',
+    };
+
+    if (katexModule) {
+      renderMath(katexModule, this.formula, wrap, options);
+      return wrap;
     }
+
+    // Show the source until KaTeX loads, then swap in the typeset output.
+    wrap.textContent = this.formula;
+    loadKatex()
+      .then((katexInstance) => {
+        if (wrap.isConnected) renderMath(katexInstance, this.formula, wrap, options);
+      })
+      .catch(() => {
+        wrap.classList.add('cm-math-preview-error');
+        wrap.title = 'Could not load the math renderer';
+      });
 
     return wrap;
   }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Users, ChevronDown, ChevronRight, Plus, Trash2, UserMinus, Mail, Shield, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../../auth/AuthProvider';
-import { db } from '../../../auth/firebase';
+import { useData } from '../../../data/DataProvider';
 import { usePlan } from '../../../billing/PlanProvider';
 import type { TeamGroupsMap, TeamGroup, GroupPermissions } from '../../../auth/teamPermissions';
 import { showConfirmDialog, showAlertDialog } from '../../../lib/tauriDialog';
@@ -11,6 +11,7 @@ const i = (cls: string) => cls;
 export function TeamSection() {
   const { user } = useAuth();
   const { isTeamOwner, teamId } = usePlan();
+  const { teams, users, cloudDocuments } = useData();
   const [st, setSt] = useState({ name: '', desc: '', agreement: `## Team Workspace Agreement\n\n...`, status: 'idle' as any, error: '' });
   const [ea, setEa] = useState({ text: '', status: 'idle' as any, error: '', docId: null as string | null });
   const [members, setM] = useState<any[]>([]);
@@ -24,26 +25,25 @@ export function TeamSection() {
     if (!teamId) return;
     setLm(true);
     try {
-      const { doc: dr, getDoc } = await import('firebase/firestore');
-      const snap = await getDoc(dr(db, 'teams', teamId));
-      if (!snap.exists()) { setLm(false); return; }
-      const td = snap.data();
-      setEa(p => ({ ...p, docId: td.agreementDocId || null }));
-      setG(td.groups ?? {});
-      if (td.agreementDocId) {
-        const ds = await getDoc(dr(db, 'cloud_documents', td.agreementDocId));
-        if (ds.exists()) {
-          const dc = ds.data();
-          try { setEa(p => ({ ...p, text: JSON.parse(dc.content).markdown || JSON.parse(dc.content).draft || dc.content || '' })); } catch { setEa(p => ({ ...p, text: dc.content || '' })); }
-        }
+      const team = await teams.get(teamId);
+      if (!team) { setLm(false); return; }
+
+      setEa(p => ({ ...p, docId: team.agreementDocId || null }));
+      setG(team.groups ?? {});
+
+      if (team.agreementDocId) {
+        const text = await cloudDocuments.getText(team.agreementDocId);
+        setEa(p => ({ ...p, text: text ?? '' }));
       }
-      const mids = [td.ownerId, ...(td.members || [])];
-      const ml: any[] = [];
-      for (const mid of mids) {
-        const us = await getDoc(dr(db, 'users', mid));
-        if (us.exists()) { const d = us.data(); ml.push({ uid: mid, email: d.email || 'No email', displayName: d.displayName || 'Unknown User', role: mid === td.ownerId ? 'owner' : 'member' }); }
-      }
-      setM(ml);
+
+      const memberIds = [team.ownerId, ...(team.members || [])].filter(Boolean);
+      const profiles = await users.getMany(memberIds);
+      setM(profiles.map(profile => ({
+        uid: profile.id,
+        email: profile.email || 'No email',
+        displayName: profile.displayName || 'Unknown User',
+        role: profile.id === team.ownerId ? 'owner' : 'member',
+      })));
     } catch (e) { console.error(e); } finally { setLm(false); }
   };
 
@@ -54,14 +54,12 @@ export function TeamSection() {
     if (!st.name.trim() || !st.agreement.trim() || !user) return;
     setSt(p => ({ ...p, status: 'loading', error: '' }));
     try {
-      const { doc: dr, setDoc, collection: col, arrayUnion } = await import('firebase/firestore');
-      const teamRef = dr(col(db, 'teams'));
-      const tid = teamRef.id;
-      const agrRef = dr(col(db, 'cloud_documents'));
-      const aid = agrRef.id;
-      await setDoc(teamRef, { ownerId: user.id, name: st.name.trim(), description: st.desc.trim(), agreementDocId: aid, agreementVersion: 1, members: [], createdAt: new Date().toISOString() });
-      await setDoc(agrRef, { id: aid, ownerId: user.id, teamId: tid, path: 'agreement', title: 'Agreement', content: JSON.stringify({ markdown: st.agreement.trim() }), stage: 'draft', focusMode: false, isAgreement: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
-      await setDoc(dr(db, 'users', user.id), { ownedTeamId: tid, teamMemberships: arrayUnion(tid), teamId: tid }, { merge: true });
+      await teams.create({
+        ownerId: user.id,
+        name: st.name.trim(),
+        description: st.desc.trim(),
+        agreementMarkdown: st.agreement.trim(),
+      });
       setSt(p => ({ ...p, status: 'success' })); showAlertDialog('Team Created', `Team created!`);
     } catch (err: any) { setSt(p => ({ ...p, status: 'error', error: err.message })); }
   };
@@ -70,9 +68,7 @@ export function TeamSection() {
     if (!teamId || !isTeamOwner) return;
     if (!(await showConfirmDialog('Remove Member', 'Remove this member?'))) return;
     try {
-      const { doc: dr, updateDoc, arrayRemove } = await import('firebase/firestore');
-      await updateDoc(dr(db, 'teams', teamId), { members: arrayRemove(uid) });
-      await updateDoc(dr(db, 'users', uid), { teamId: null, teamMemberships: arrayRemove(teamId) });
+      await teams.removeMember(teamId, uid);
       fetchTeamData();
     } catch (e) { console.error(e); }
   };
@@ -152,7 +148,7 @@ export function TeamSection() {
               <span className="text-xs font-bold text-gray-400 flex items-center gap-1.5"><Shield className="w-3.5 h-3.5" /> Permission Groups</span>
               <div className="flex items-center gap-2">
                 {gs.error && <span className="text-[10px] text-red-400">{gs.error}</span>}
-                <button onClick={async () => { if (!teamId) return; setGs(p => ({ ...p, saving: true, error: '' })); try { const { doc: dr, updateDoc } = await import('firebase/firestore'); await updateDoc(dr(db, 'teams', teamId), { groups }); } catch (e: any) { setGs(p => ({ ...p, error: e.message })); } finally { setGs(p => ({ ...p, saving: false })); } }} disabled={gs.saving} className="px-3 py-1.5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white text-[11px] font-bold rounded-xl transition cursor-pointer disabled:opacity-50">{gs.saving ? 'Saving...' : 'Save Groups'}</button>
+                <button onClick={async () => { if (!teamId) return; setGs(p => ({ ...p, saving: true, error: '' })); try { await teams.updateGroups(teamId, groups); } catch (e: any) { setGs(p => ({ ...p, error: e.message })); } finally { setGs(p => ({ ...p, saving: false })); } }} disabled={gs.saving} className="px-3 py-1.5 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white text-[11px] font-bold rounded-xl transition cursor-pointer disabled:opacity-50">{gs.saving ? 'Saving...' : 'Save Groups'}</button>
                 <button onClick={handleCreateGroup} className="px-3 py-1.5 bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-xl text-[11px] font-semibold hover:bg-black/10 dark:hover:bg-white/10 transition cursor-pointer flex items-center gap-1"><Plus className="w-3 h-3" /> New Group</button>
               </div>
             </div>

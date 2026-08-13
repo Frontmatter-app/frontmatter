@@ -4,8 +4,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { usePlan } from '../billing/PlanProvider';
 import { registry } from '../yjs/DocumentRegistry';
 import { PresenceData } from '../cloud/firestoreYjsProvider';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../auth/firebase';
+import { useData } from '../data/DataProvider';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -375,6 +374,7 @@ export function CollaborationBar({ documentId }: { documentId?: string | null })
   const { currentDocumentId } = useWorkspace();
   const { user } = useAuth();
   const { teamId, activeContext } = usePlan();
+  const { teams, users } = useData();
 
   const docId = documentId ?? currentDocumentId;
 
@@ -419,46 +419,29 @@ export function CollaborationBar({ documentId }: { documentId?: string | null })
 
     const fetchRoster = async () => {
       try {
-        const snap = await getDoc(doc(db, 'teams', teamId));
-        if (!snap.exists() || cancelled) return;
-        const data = snap.data();
-        const ownerId: string = data.ownerId || '';
+        const team = await teams.get(teamId);
+        if (!team || cancelled) return;
+        const ownerId = team.ownerId || '';
 
         const uids = new Set<string>([ownerId]);
-        if (data.groups) {
-          Object.values(data.groups as Record<string, { members: string[] }>).forEach((g) =>
-            (g.members || []).forEach((u: string) => uids.add(u))
-          );
-        }
-        if (Array.isArray(data.members)) {
-          data.members.forEach((u: string) => uids.add(u));
-        }
+        Object.values(team.groups ?? {}).forEach((g) =>
+          (g.members || []).forEach((u) => uids.add(u)),
+        );
+        (team.members ?? []).forEach((u) => uids.add(u));
 
         const infos: TeamMemberInfo[] = [];
-        await Promise.all(
-          Array.from(uids).map(async (uid) => {
-            try {
-              const uSnap = await getDoc(doc(db, 'users', uid));
-              if (uSnap.exists() && !cancelled) {
-                const u = uSnap.data();
-                infos.push({
-                  uid,
-                  displayName:
-                    u.displayName ||
-                    u.display_name ||
-                    u.email?.split('@')[0] ||
-                    'Member',
-                  email: u.email || null,
-                  photoURL: u.photoURL || u.avatar_url || null,
-                  role: uid === ownerId ? 'owner' : 'member',
-                  updatedAt: u.updatedAt?.toDate ? u.updatedAt.toDate() : null,
-                });
-              }
-            } catch (_) {
-              /* skip inaccessible user docs */
-            }
-          })
-        );
+        const profiles = await users.getMany(Array.from(uids).filter(Boolean));
+        if (cancelled) return;
+        for (const u of profiles) {
+          infos.push({
+            uid: u.id,
+            displayName: u.displayName || u.email?.split('@')[0] || 'Member',
+            email: u.email || null,
+            photoURL: u.photoURL || null,
+            role: u.id === ownerId ? 'owner' : 'member',
+            updatedAt: null,
+          });
+        }
 
         if (!cancelled) {
           infos.sort((a, b) => {

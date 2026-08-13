@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { doc, getDoc, updateDoc, deleteField } from 'firebase/firestore';
-import { db } from '../auth/firebase';
+import { useData } from '../data/DataProvider';
 import { usePlan } from '../billing/PlanProvider';
 import { Shield, X, Eye, Edit3, RotateCcw } from 'lucide-react';
 import type { TeamGroupsMap, FilePermissions } from '../auth/teamPermissions';
@@ -86,6 +85,7 @@ function GroupCheckboxList({
 
 export function FilePermissionsModal({ docId, docTitle, isOpen, onClose }: FilePermissionsModalProps) {
   const { teamDoc, activeContext } = usePlan();
+  const { cloudDocuments } = useData();
   const [perms, setPerms] = useState<PermissionState>({ visibleTo: [], writableBy: [], revisableBy: [] });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -98,34 +98,25 @@ export function FilePermissionsModal({ docId, docTitle, isOpen, onClose }: FileP
     if (!isOpen || !docId) return;
     setLoaded(false);
     setError('');
-    getDoc(doc(db, 'cloud_documents', docId))
-      .then(snap => {
-        if (snap.exists()) {
-          const data = snap.data();
-          const fp: FilePermissions = data.filePermissions ?? {};
-          setPerms({
-            visibleTo: fp.visibleTo ?? [],
-            writableBy: fp.writableBy ?? [],
-            revisableBy: fp.revisableBy ?? [],
-          });
-        }
+    cloudDocuments
+      .getFilePermissions(docId)
+      .then(fp => {
+        setPerms({
+          visibleTo: fp?.visibleTo ?? [],
+          writableBy: fp?.writableBy ?? [],
+          revisableBy: fp?.revisableBy ?? [],
+        });
         setLoaded(true);
       })
       .catch(e => { setError(e.message); setLoaded(true); });
-  }, [isOpen, docId]);
+  }, [isOpen, docId, cloudDocuments]);
 
   const handleSave = async () => {
     setSaving(true);
     setError('');
     try {
       const allClear = perms.visibleTo.length === 0 && perms.writableBy.length === 0 && perms.revisableBy.length === 0;
-      await updateDoc(doc(db, 'cloud_documents', docId), {
-        filePermissions: allClear ? deleteField() : {
-          visibleTo: perms.visibleTo,
-          writableBy: perms.writableBy,
-          revisableBy: perms.revisableBy,
-        },
-      });
+      await cloudDocuments.setFilePermissions(docId, allClear ? null : perms);
       onClose();
     } catch (e: any) {
       setError(e.message || 'Failed to save permissions');

@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import { usePlan } from '../billing/PlanProvider';
-import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
-import { db } from '../auth/firebase';
+import { useData } from '../data/DataProvider';
 import { markdown } from '../editor/extensions/inlinePreview/markdown';
 import { Mail, Check, LogOut, ShieldAlert, Users, Compass } from 'lucide-react';
 import { getAuth } from 'firebase/auth';
@@ -11,6 +10,7 @@ import { showAlertDialog } from '../lib/tauriDialog';
 export function InviteLandingScreen() {
   const { user, signInWithGoogle, logout } = useAuth();
   const { switchWorkspace } = usePlan();
+  const { invites, teams, cloudDocuments } = useData();
 
   const [token, setToken] = useState<string | null>(null);
   const [inviteData, setInviteData] = useState<any>(null);
@@ -42,37 +42,25 @@ export function InviteLandingScreen() {
     }
 
     setInviteLoading(true);
-    const invitesCol = collection(db, 'invites');
-    const q = query(invitesCol, where('token', '==', token));
+    const unsub = invites.watchByToken(token, (invite, error) => {
+      if (error) {
+        console.error(error);
+        setErrorMsg('Failed to load invitation info.');
+        setInviteLoading(false);
+        return;
+      }
 
-    const unsub = onSnapshot(q, (snapshot) => {
-      if (!snapshot.empty) {
-        const data = snapshot.docs[0].data();
-        setInviteData(data);
+      if (invite) {
+        setInviteData(invite);
         setErrorMsg(null);
 
-        // Fetch team settings
-        if (data.teamId) {
-          getDoc(doc(db, 'teams', data.teamId)).then(async (teamSnap) => {
-            if (teamSnap.exists()) {
-              const teamData = teamSnap.data();
-              setTeamDoc(teamData);
-
-              // Fetch agreement document
-              if (teamData.agreementDocId) {
-                const docSnap = await getDoc(doc(db, 'cloud_documents', teamData.agreementDocId));
-                if (docSnap.exists()) {
-                  const docData = docSnap.data();
-                  let text = '';
-                  try {
-                    const parsed = JSON.parse(docData.content);
-                    text = parsed.markdown || parsed.draft || docData.content || '';
-                  } catch (e) {
-                    text = docData.content || '';
-                  }
-                  setAgreementContent(text);
-                }
-              }
+        if (invite.teamId) {
+          teams.get(invite.teamId).then(async (team) => {
+            if (!team) return;
+            setTeamDoc(team);
+            if (team.agreementDocId) {
+              const text = await cloudDocuments.getText(team.agreementDocId);
+              if (text !== null) setAgreementContent(text);
             }
           });
         }
@@ -81,14 +69,10 @@ export function InviteLandingScreen() {
         setErrorMsg('Invalid or expired invitation link.');
       }
       setInviteLoading(false);
-    }, (err) => {
-      console.error(err);
-      setErrorMsg('Failed to load invitation info.');
-      setInviteLoading(false);
     });
 
     return () => unsub();
-  }, [token]);
+  }, [token, invites, teams, cloudDocuments]);
 
   // Handle scroll check
   const handleScroll = () => {
