@@ -11,6 +11,9 @@ export default defineConfig(() => {
       // at module scope. This is a desktop app; a DOM is the honest baseline.
       environment: 'jsdom',
       setupFiles: ['./src/test-setup.ts'],
+      // Component suites each stand up a jsdom environment and initialise the
+      // Firebase modules; under parallel workers the default 5s is tight.
+      testTimeout: 15000,
       include: ['src/**/*.{test,spec}.{ts,tsx}'],
       // The registry contract test enumerates feature directories from disk, so
       // tests must run from the repository root.
