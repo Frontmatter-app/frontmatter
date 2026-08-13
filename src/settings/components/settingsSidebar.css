@@ -1,0 +1,107 @@
+@import '../../design/tokens.css';
+
+.settings-nav {
+  width: 220px;
+  flex-shrink: 0;
+  padding: var(--nm-space-4) var(--nm-space-3);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--nm-space-5);
+  background: var(--nm-bg);
+  box-shadow: var(--nm-shadow-inset);
+  border-radius: var(--nm-radius-md);
+  user-select: none;
+}
+
+.settings-nav__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nm-space-1);
+}
+
+.settings-nav__heading {
+  margin: 0 0 var(--nm-space-1);
+  padding: 0 var(--nm-space-3);
+  font-family: var(--nm-font);
+  font-size: var(--nm-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--nm-fg-muted);
+}
+
+.settings-nav__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-nav__item {
+  width: 100%;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  font-family: var(--nm-font);
+  font-size: var(--nm-text-sm);
+  font-weight: 550;
+  color: var(--nm-fg-secondary);
+  text-align: left;
+  padding: var(--nm-space-2) var(--nm-space-3);
+  border-radius: var(--nm-radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--nm-space-3);
+  transition:
+    background var(--nm-motion-fast) var(--nm-ease),
+    color var(--nm-motion-fast) var(--nm-ease),
+    box-shadow var(--nm-motion-fast) var(--nm-ease);
+}
+
+.settings-nav__item:hover {
+  color: var(--nm-fg);
+  background: var(--nm-surface);
+}
+
+.settings-nav__item[data-active='true'] {
+  color: var(--nm-fg);
+  background: var(--nm-surface);
+  box-shadow: var(--nm-shadow-raised-sm);
+}
+
+.settings-nav__item:focus-visible {
+  outline: none;
+  box-shadow: var(--nm-ring-focus);
+}
+
+.settings-nav__icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  opacity: 0.75;
+}
+
+.settings-nav__item[data-active='true'] .settings-nav__icon {
+  opacity: 1;
+  color: var(--nm-primary);
+}
+
+.settings-nav__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-nav__empty {
+  margin: 0;
+  padding: var(--nm-space-4) var(--nm-space-3);
+  font-family: var(--nm-font);
+  font-size: var(--nm-text-xs);
+  color: var(--nm-fg-muted);
+  line-height: var(--nm-leading);
+  text-align: center;
+}

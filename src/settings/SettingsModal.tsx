@@ -1,8 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { useSettingsStore } from './settingsStore';
+import {
+  SETTINGS_NAV,
+  findCategory,
+  resolveActiveCategory,
+  searchSettingsNav,
+  visibleSettingsNav,
+} from './settingsNav';
+import '../design/neumorphic.css';
 import { usePlan } from '../billing/PlanProvider';
-import { SlidersHorizontal, Type, Palette, Sliders, User, CreditCard, Users, RefreshCw, Code2, Eye, GitBranch } from 'lucide-react';
 import { JsonSettingsEditor } from './components/JsonSettingsEditor';
 import { SettingsCategorySidebar } from './components/SettingsCategorySidebar';
 import { SettingsModalHeader } from './components/SettingsModalHeader';
@@ -57,50 +64,10 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
     return label.toLowerCase().includes(q) || desc.toLowerCase().includes(q) || (key && key.toLowerCase().includes(q));
   };
 
-  const categoryMatchCount = (catId: string) => {
-    const CATEGORIES: Record<string, { label: string; desc: string; key: string }[]> = {
-      general: [{ label: 'Auto Save', desc: 'Automatically save document edits', key: 'autoSave' }, { label: 'Auto Sync', desc: 'Automatically sync documents to cloud', key: 'autoSync' }, { label: 'Color Theme', desc: 'Choose color theme', key: 'themeType' }, { label: 'Editor Width', desc: 'Horizontal reading space width', key: 'editorWidth' }, { label: 'Icon Style', desc: 'Stroke weight of Lucide icons', key: 'iconStyle' }],
-      editor: [{ label: 'Font Family', desc: 'Editor font family typography', key: 'fontFamily' }, { label: 'Font Size', desc: 'Editor font size', key: 'fontSize' }, { label: 'Line Height', desc: 'Line height multiplier', key: 'lineHeight' }, { label: 'Typewriter Mode', desc: 'Vertical cursor centering', key: 'typewriterMode' }, { label: 'Spell Check', desc: 'Native spell check', key: 'spellCheck' }, { label: 'Prose Lint', desc: 'Vale inline highlights', key: 'showProseLint' }],
-      appearance: [{ label: 'Color Theme', desc: 'Choose color theme', key: 'themeType' }, { label: 'Icon Style', desc: 'Stroke weight', key: 'iconStyle' }],
-      colors: [{ label: 'Text Color', desc: 'Custom primary text color hex', key: 'textColor' }, { label: 'Background Color', desc: 'Custom canvas background color hex', key: 'backgroundColor' }, { label: 'Secondary Background', desc: 'Custom sidebar background color hex', key: 'secondaryBgColor' }, { label: 'Note Background', desc: 'Custom note blocks color hex', key: 'noteBgColor' }, { label: 'Caret Color', desc: 'Custom editor cursor caret color hex', key: 'caretColor' }, { label: 'Selection Background', desc: 'Custom highlights selection background color hex', key: 'selectionBgColor' }, { label: 'Link Color', desc: 'Custom inline links color hex', key: 'linkColor' }],
-      accounts: [{ label: 'Manage Accounts', desc: 'Toggle accounts or sign out', key: 'accounts' }],
-      billing: [{ label: 'Plan Billing Subscription', desc: 'Manage subscription upgrade team seats', key: 'billing' }],
-      updates: [{ label: 'Check for Updates', desc: 'Application updates client info version', key: 'updates' }],
-      code: [{ label: 'Code Execution', desc: 'Runtime settings for code blocks', key: 'code' }],
-      versionControl: [{ label: 'Enable Version Control', desc: 'Turn version control on or off', key: 'versionControl.enabled' }],
-      preview: [
-        { label: 'Headings', desc: 'Live-render ATX headings', key: 'livePreview.headings' },
-        { label: 'Bold', desc: 'Render bold text', key: 'livePreview.bold' },
-        { label: 'Italic', desc: 'Render italic text', key: 'livePreview.italic' },
-        { label: 'Strikethrough', desc: 'Render strikethrough', key: 'livePreview.strikethrough' },
-        { label: 'Inline Code', desc: 'Render inline code', key: 'livePreview.inlineCode' },
-        { label: 'Links', desc: 'Render clickable links', key: 'livePreview.links' },
-        { label: 'Images', desc: 'Render image widgets', key: 'livePreview.images' },
-        { label: 'Checkboxes', desc: 'Render task checkboxes', key: 'livePreview.checkboxes' },
-        { label: 'Tables', desc: 'Render table widgets', key: 'livePreview.tables' },
-        { label: 'Code Blocks', desc: 'Style fenced code blocks', key: 'livePreview.fencedCode' },
-        { label: 'Blockquotes', desc: 'Style blockquote lines', key: 'livePreview.blockquotes' },
-        { label: 'Custom Block Tags', desc: 'Collapse custom block tags', key: 'livePreview.blockTags' },
-      ],
-    };
-    return (CATEGORIES[catId] || []).filter(s => matches(s.label, s.desc, s.key)).length;
-  };
-
-  const categories = [
-    { id: 'general', label: 'Commonly Used', icon: SlidersHorizontal },
-    { id: 'editor', label: 'Text Editor', icon: Type },
-    { id: 'appearance', label: 'Appearance', icon: Palette },
-    { id: 'colors', label: 'Custom Colors', icon: Sliders },
-    { id: 'preview', label: 'Live Preview', icon: Eye },
-    { id: 'accounts', label: 'Accounts', icon: User },
-    { id: 'billing', label: 'Plan & Billing', icon: CreditCard },
-    { id: 'code', label: 'Code Execution', icon: Code2 },
-    { id: 'versionControl', label: 'Version Control', icon: GitBranch },
-    ...(isTeam ? [{ id: 'team', label: 'Teams', icon: Users }] : []),
-    { id: 'updates', label: 'Application Updates', icon: RefreshCw },
-  ];
-
-  const visibleCategories = categories.filter(c => !searchQuery || categoryMatchCount(c.id) > 0);
+  const availableNav = visibleSettingsNav(SETTINGS_NAV, { isTeam });
+  const navGroups = searchSettingsNav(availableNav, searchQuery);
+  const activeCategory = resolveActiveCategory(navGroups, activeSettingsCategory);
+  const activeSpec = activeCategory ? findCategory(availableNav, activeCategory) : undefined;
 
   const handleJsonChange = (val: string) => {
     setJsonText(val);
@@ -118,7 +85,7 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   const sectionProps = { matches };
 
   const renderSection = () => {
-    switch (activeSettingsCategory) {
+    switch (activeCategory) {
       case 'general': return <GeneralSettings {...sectionProps} />;
       case 'editor': return <EditorSettings {...sectionProps} />;
       case 'appearance': return <AppearanceSettings {...sectionProps} />;
@@ -135,14 +102,44 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 md:p-6 animate-in fade-in duration-200">
-      <div className="w-full max-w-5xl h-[85vh] rounded-[22px] border shadow-2xl flex flex-col overflow-hidden" style={glassStyle}>
-        <SettingsModalHeader mode={mode} searchQuery={searchQuery} onModeChange={setMode} onSearchChange={setSearchQuery} onClose={() => { closeSettings(); onClose?.(); }} />
-        <div className="flex-1 flex overflow-hidden w-full">
-          {mode === 'ui' && <SettingsCategorySidebar activeCategory={activeSettingsCategory} categories={visibleCategories} searchQuery={searchQuery} categoryMatchCount={categoryMatchCount} onSelectCategory={openSettings} />}
-          <div className="flex-1 overflow-y-auto bg-[var(--editor-bg-color)] p-6 md:p-8">
-            {mode === 'ui' ? <div className="max-w-3xl flex flex-col gap-2">{renderSection()}</div> : (
-              <JsonSettingsEditor jsonText={jsonText} jsonError={jsonError} onJsonChange={handleJsonChange} onResetAll={(next) => { updateSettings(next); setJsonText(JSON.stringify(next, null, 2)); setJsonError(null); }} />
+    <div className="nm-overlay">
+      <div className="nm-modal nm-modal--wide" role="dialog" aria-modal="true" aria-label="Settings" style={{ height: '85vh', maxHeight: '85vh' }}>
+        <SettingsModalHeader
+          mode={mode}
+          searchQuery={searchQuery}
+          onModeChange={setMode}
+          onSearchChange={setSearchQuery}
+          onClose={() => { closeSettings(); onClose?.(); }}
+        />
+
+        <div className="flex-1 flex gap-4 overflow-hidden w-full px-4 pb-4 min-h-0">
+          {mode === 'ui' && (
+            <SettingsCategorySidebar
+              groups={navGroups}
+              activeCategory={activeCategory}
+              searchQuery={searchQuery}
+              onSelectCategory={openSettings}
+            />
+          )}
+
+          <div className="flex-1 overflow-y-auto min-w-0">
+            {mode === 'ui' ? (
+              <div className="max-w-3xl flex flex-col gap-2 p-2">
+                {activeSpec && (
+                  <header className="mb-2">
+                    <h2 className="nm-modal__title">{activeSpec.label}</h2>
+                    <p className="nm-modal__subtitle">{activeSpec.description}</p>
+                  </header>
+                )}
+                {renderSection()}
+              </div>
+            ) : (
+              <JsonSettingsEditor
+                jsonText={jsonText}
+                jsonError={jsonError}
+                onJsonChange={handleJsonChange}
+                onResetAll={(next) => { updateSettings(next); setJsonText(JSON.stringify(next, null, 2)); setJsonError(null); }}
+              />
             )}
           </div>
         </div>

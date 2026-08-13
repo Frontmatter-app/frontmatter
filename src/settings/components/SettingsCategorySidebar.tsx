@@ -1,64 +1,64 @@
-import type { LucideIcon } from 'lucide-react';
-
-export interface SettingsCategory {
-  id: string;
-  label: string;
-  icon: LucideIcon;
-}
+import React from 'react';
+import type { SettingsGroupSpec } from '../settingsNav';
+import './settingsSidebar.css';
 
 interface SettingsCategorySidebarProps {
-  activeCategory: string;
-  categories: SettingsCategory[];
-  searchQuery: string;
-  categoryMatchCount: (categoryId: string) => number;
+  groups: SettingsGroupSpec[];
+  activeCategory: string | undefined;
   onSelectCategory: (categoryId: string) => void;
+  searchQuery: string;
 }
 
+/**
+ * Grouped settings navigation.
+ *
+ * The panel previously listed every category flat, which gave no indication of
+ * what related to what. Categories are now grouped under headings, and a
+ * search that matches nothing says so rather than rendering an empty rail.
+ */
 export function SettingsCategorySidebar({
+  groups,
   activeCategory,
-  categories,
-  searchQuery,
-  categoryMatchCount,
   onSelectCategory,
+  searchQuery,
 }: SettingsCategorySidebarProps) {
+  if (groups.length === 0) {
+    return (
+      <nav className="settings-nav" aria-label="Settings categories">
+        <p className="settings-nav__empty">
+          Nothing matches “{searchQuery.trim()}”.
+        </p>
+      </nav>
+    );
+  }
+
   return (
-    <div className="w-[200px] border-r border-black/10 dark:border-white/10 flex-shrink-0 flex flex-col p-3 bg-black/5 dark:bg-white/2 select-none overflow-y-auto">
-      <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 px-3 mb-2 block">
-        Categories
-      </span>
-      <div className="flex flex-col gap-1">
-        {categories.map((category) => {
-          const Icon = category.icon;
-          const isActive = activeCategory === category.id;
-          const matchesCount = searchQuery ? categoryMatchCount(category.id) : 0;
-          return (
-            <button
-              key={category.id}
-              onClick={() => onSelectCategory(category.id)}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-xs font-semibold transition cursor-pointer ${
-                isActive
-                  ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
-                  : 'hover:bg-black/5 dark:hover:bg-white/5 opacity-70 hover:opacity-100'
-              }`}
-            >
-              <div className="flex items-center gap-2.5 truncate">
-                <Icon className={`w-4 h-4 ${isActive ? 'text-blue-500' : 'opacity-70'}`} />
-                <span className="truncate">{category.label}</span>
-              </div>
-              {searchQuery && (
-                <span className="text-[9px] bg-black/10 dark:bg-white/10 px-1.5 py-0.5 rounded-full font-mono">
-                  {matchesCount}
-                </span>
-              )}
-            </button>
-          );
-        })}
-        {categories.length === 0 && (
-          <div className="text-[11px] italic opacity-40 px-3 py-2 text-center">
-            No matching categories
-          </div>
-        )}
-      </div>
-    </div>
+    <nav className="settings-nav" aria-label="Settings categories">
+      {groups.map((group) => (
+        <div key={group.id} className="settings-nav__group">
+          <h3 className="settings-nav__heading">{group.label}</h3>
+          <ul className="settings-nav__list">
+            {group.categories.map((category) => {
+              const Icon = category.icon;
+              const isActive = category.id === activeCategory;
+              return (
+                <li key={category.id}>
+                  <button
+                    type="button"
+                    className="settings-nav__item"
+                    data-active={isActive}
+                    aria-current={isActive ? 'page' : undefined}
+                    onClick={() => onSelectCategory(category.id)}
+                  >
+                    <Icon className="settings-nav__icon" aria-hidden="true" />
+                    <span className="settings-nav__label">{category.label}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+    </nav>
   );
 }
