@@ -56,10 +56,11 @@ describe('fake ports', () => {
     const seen = vi.fn();
 
     const unsubscribe = ports.teams.watch('t1', seen);
-    await ports.teams.updateGroups('t1', { g1: { id: 'g1', name: 'Writers', members: [] } });
+    const writers = { name: 'Writers', members: [], permissions: {} as never };
+    await ports.teams.updateGroups('t1', { g1: writers });
 
     expect(seen).toHaveBeenLastCalledWith(
-      expect.objectContaining({ groups: { g1: { id: 'g1', name: 'Writers', members: [] } } }),
+      expect.objectContaining({ groups: { g1: writers } }),
     );
 
     unsubscribe();

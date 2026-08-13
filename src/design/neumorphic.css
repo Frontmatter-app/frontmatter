@@ -1,0 +1,376 @@
+/**
+ * Neumorphic component classes.
+ *
+ * Kept as plain CSS rather than utility classes because the whole system is
+ * built on layered box-shadows that change together across states — expressing
+ * that as utilities produces unreadable markup and drifts out of sync.
+ */
+
+@import './tokens.css';
+
+/* ---------------------------------------------------------------- surfaces */
+
+.nm-surface {
+  background: var(--nm-surface);
+  color: var(--nm-fg);
+  border-radius: var(--nm-radius-md);
+  box-shadow: var(--nm-shadow-raised);
+}
+
+.nm-surface--sunken {
+  background: var(--nm-bg);
+  box-shadow: var(--nm-shadow-inset);
+}
+
+.nm-surface--flat {
+  box-shadow: var(--nm-ring);
+}
+
+/* ----------------------------------------------------------------- buttons */
+
+.nm-button {
+  appearance: none;
+  border: 0;
+  font: inherit;
+  font-family: var(--nm-font);
+  font-size: var(--nm-text-sm);
+  font-weight: 550;
+  line-height: 1;
+  color: var(--nm-fg);
+  background: var(--nm-surface);
+  border-radius: var(--nm-radius-pill);
+  padding: var(--nm-space-3) var(--nm-space-5);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--nm-space-2);
+  cursor: pointer;
+  box-shadow: var(--nm-shadow-raised-sm);
+  transition:
+    box-shadow var(--nm-motion-fast) var(--nm-ease),
+    transform var(--nm-motion-fast) var(--nm-ease),
+    background var(--nm-motion-fast) var(--nm-ease);
+}
+
+.nm-button:hover:not(:disabled) {
+  box-shadow: var(--nm-shadow-raised);
+}
+
+/* Pressing pushes the control into the surface — the core affordance. */
+.nm-button:active:not(:disabled) {
+  box-shadow: var(--nm-shadow-pressed);
+  transform: translateY(1px);
+}
+
+.nm-button:focus-visible {
+  outline: none;
+  box-shadow: var(--nm-shadow-raised-sm), var(--nm-ring-focus);
+}
+
+.nm-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  box-shadow: var(--nm-ring);
+}
+
+.nm-button--primary {
+  background: var(--nm-primary);
+  color: var(--nm-primary-contrast);
+}
+
+.nm-button--danger {
+  background: var(--nm-surface);
+  color: var(--nm-danger);
+}
+
+.nm-button--ghost {
+  background: transparent;
+  box-shadow: none;
+  color: var(--nm-fg-secondary);
+}
+
+.nm-button--ghost:hover:not(:disabled) {
+  background: var(--nm-surface);
+  box-shadow: var(--nm-shadow-raised-sm);
+  color: var(--nm-fg);
+}
+
+.nm-button--icon {
+  padding: var(--nm-space-2);
+  border-radius: var(--nm-radius-pill);
+  aspect-ratio: 1;
+}
+
+.nm-button--sm {
+  font-size: var(--nm-text-xs);
+  padding: var(--nm-space-2) var(--nm-space-3);
+}
+
+/* ------------------------------------------------------------------ inputs */
+
+.nm-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--nm-space-2);
+}
+
+.nm-label {
+  font-size: var(--nm-text-xs);
+  font-weight: 600;
+  color: var(--nm-fg-secondary);
+  letter-spacing: 0.01em;
+}
+
+.nm-input,
+.nm-select,
+.nm-textarea {
+  font: inherit;
+  font-family: var(--nm-font);
+  font-size: var(--nm-text-sm);
+  color: var(--nm-fg);
+  background: var(--nm-bg);
+  border: 0;
+  border-radius: var(--nm-radius-sm);
+  padding: var(--nm-space-3) var(--nm-space-4);
+  /* Inputs are recessed: content goes into the surface, controls come out. */
+  box-shadow: var(--nm-shadow-inset);
+  transition: box-shadow var(--nm-motion-fast) var(--nm-ease);
+  width: 100%;
+}
+
+.nm-textarea {
+  resize: vertical;
+  min-height: 96px;
+  line-height: var(--nm-leading);
+}
+
+.nm-input::placeholder,
+.nm-textarea::placeholder {
+  color: var(--nm-fg-muted);
+}
+
+.nm-input:focus-visible,
+.nm-select:focus-visible,
+.nm-textarea:focus-visible {
+  outline: none;
+  box-shadow: var(--nm-shadow-inset), var(--nm-ring-focus);
+}
+
+.nm-input[aria-invalid='true'],
+.nm-textarea[aria-invalid='true'] {
+  box-shadow: var(--nm-shadow-inset), 0 0 0 2px var(--nm-danger);
+}
+
+.nm-error {
+  font-size: var(--nm-text-xs);
+  color: var(--nm-danger);
+}
+
+.nm-hint {
+  font-size: var(--nm-text-xs);
+  color: var(--nm-fg-muted);
+  line-height: var(--nm-leading);
+}
+
+/* ------------------------------------------------------------------ toggle */
+
+.nm-toggle {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  width: 46px;
+  height: 26px;
+  border-radius: var(--nm-radius-pill);
+  background: var(--nm-bg);
+  box-shadow: var(--nm-shadow-inset);
+  position: relative;
+  transition: background var(--nm-motion-base) var(--nm-ease);
+  flex-shrink: 0;
+}
+
+.nm-toggle::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--nm-radius-pill);
+  background: var(--nm-surface);
+  box-shadow: var(--nm-shadow-raised-sm);
+  transition: transform var(--nm-motion-base) var(--nm-ease);
+}
+
+.nm-toggle[aria-checked='true'] {
+  background: var(--nm-primary);
+}
+
+.nm-toggle[aria-checked='true']::after {
+  transform: translateX(20px);
+}
+
+.nm-toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--nm-shadow-inset), var(--nm-ring-focus);
+}
+
+.nm-toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ------------------------------------------------------------------- modal */
+
+.nm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--nm-space-6);
+  background: color-mix(in srgb, var(--nm-bg) 72%, transparent);
+  backdrop-filter: blur(10px);
+  animation: nm-fade var(--nm-motion-base) var(--nm-ease);
+}
+
+.nm-modal {
+  background: var(--nm-surface);
+  color: var(--nm-fg);
+  border-radius: var(--nm-radius-lg);
+  box-shadow: var(--nm-shadow-raised);
+  width: 100%;
+  max-width: 560px;
+  max-height: min(86vh, 760px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: nm-rise var(--nm-motion-base) var(--nm-ease);
+}
+
+.nm-modal--wide {
+  max-width: 940px;
+}
+
+.nm-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nm-space-4);
+  padding: var(--nm-space-6) var(--nm-space-6) var(--nm-space-4);
+}
+
+.nm-modal__title {
+  margin: 0;
+  font-size: var(--nm-text-lg);
+  font-weight: 650;
+  line-height: var(--nm-leading-tight);
+}
+
+.nm-modal__subtitle {
+  margin: var(--nm-space-1) 0 0;
+  font-size: var(--nm-text-xs);
+  color: var(--nm-fg-muted);
+  line-height: var(--nm-leading);
+}
+
+.nm-modal__body {
+  padding: 0 var(--nm-space-6) var(--nm-space-6);
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.nm-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--nm-space-3);
+  padding: var(--nm-space-4) var(--nm-space-6) var(--nm-space-6);
+}
+
+@keyframes nm-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes nm-rise {
+  from { opacity: 0; transform: translateY(8px) scale(0.99); }
+  to { opacity: 1; transform: none; }
+}
+
+/* -------------------------------------------------------------------- menu */
+
+.nm-menu {
+  background: var(--nm-surface);
+  border-radius: var(--nm-radius-sm);
+  box-shadow: var(--nm-shadow-raised);
+  padding: var(--nm-space-2);
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nm-menu__item {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-family: var(--nm-font);
+  font-size: var(--nm-text-sm);
+  color: var(--nm-fg);
+  text-align: left;
+  padding: var(--nm-space-2) var(--nm-space-3);
+  border-radius: var(--nm-radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--nm-space-3);
+  transition: background var(--nm-motion-fast) var(--nm-ease);
+}
+
+.nm-menu__item:hover:not(:disabled),
+.nm-menu__item[data-active='true'] {
+  background: var(--nm-bg);
+}
+
+.nm-menu__item:active:not(:disabled) {
+  box-shadow: var(--nm-shadow-pressed);
+}
+
+.nm-menu__item:focus-visible {
+  outline: none;
+  box-shadow: var(--nm-ring-focus);
+}
+
+.nm-menu__item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.nm-menu__item--danger {
+  color: var(--nm-danger);
+}
+
+.nm-menu__shortcut {
+  margin-left: auto;
+  font-family: var(--nm-font-mono);
+  font-size: var(--nm-text-xs);
+  color: var(--nm-fg-muted);
+}
+
+.nm-menu__separator {
+  height: 1px;
+  background: var(--nm-border-soft);
+  margin: var(--nm-space-2) var(--nm-space-2);
+  border: 0;
+}
+
+.nm-menu__label {
+  font-size: var(--nm-text-xs);
+  font-weight: 650;
+  color: var(--nm-fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: var(--nm-space-2) var(--nm-space-3) var(--nm-space-1);
+}

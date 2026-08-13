@@ -4,11 +4,13 @@ import { useAuth } from '../../../auth/AuthProvider';
 import { usePlan } from '../../../billing/PlanProvider';
 import { useTeamNames } from '../../../hooks/useTeamNames';
 import { showConfirmDialog, showAlertDialog } from '../../../lib/tauriDialog';
+import { useSettingsStore } from '../../settingsStore';
 
 export function AccountsSection() {
   const { user, logout, signInWithGoogle, sendMagicLink, savedAccounts, switchAccount, logoutAll, removeSavedAccount } = useAuth();
-  const { activeContext, switchWorkspace, isSettingsOpen } = usePlan();
-  const teams = useTeamNames(usePlan().teamMemberships, isSettingsOpen);
+  const { activeContext, switchWorkspace, teamMemberships } = usePlan();
+  const isSettingsOpen = useSettingsStore((state) => state.isSettingsOpen);
+  const teams = useTeamNames(teamMemberships, isSettingsOpen);
 
   const [magicEmail, setMagicEmail] = useState('');
   const [isSigningOut, setIsSigningOut] = useState(false);

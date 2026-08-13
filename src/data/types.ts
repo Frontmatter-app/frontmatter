@@ -6,11 +6,9 @@
  * test against an in-memory fake.
  */
 
-export interface TeamGroup {
-  id: string;
-  name: string;
-  members: string[];
-}
+import type { TeamGroup, TeamGroupsMap } from '../auth/teamPermissions';
+
+export type { TeamGroup, TeamGroupsMap };
 
 export interface TeamDoc {
   id: string;
@@ -18,7 +16,7 @@ export interface TeamDoc {
   description?: string;
   ownerId: string;
   members: string[];
-  groups?: Record<string, TeamGroup>;
+  groups?: TeamGroupsMap;
   agreementDocId?: string;
   agreementVersion?: number;
   createdAt?: string;

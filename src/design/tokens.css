@@ -1,0 +1,175 @@
+/**
+ * Neumorphism design system.
+ *
+ * Values follow the published spec (open-design.ai neumorphism plugin). Two
+ * notes on interpretation:
+ *
+ * 1. The spec pairs a warm cream palette with a #006666 primary. That teal is
+ *    a deliberate complement to the warm surfaces, so it is kept for primary
+ *    actions while --accent stays warm for emphasis and meta text.
+ * 2. The spec defines light only. The dark values below are derived from the
+ *    same neumorphic rule — a shadow away from the light source and a highlight
+ *    toward it — rather than invented, so both themes read as one system.
+ *
+ * Every surface must sit on --surface (or --bg) for the shadows to work: a
+ * neumorphic control is the same colour as its background and is defined
+ * purely by light. Placing one on an unrelated colour breaks the illusion.
+ */
+
+:root {
+  /* -- Surfaces -- */
+  --nm-bg: #f7eee6;
+  --nm-surface: #fff8f1;
+  --nm-surface-warm: #ead6c7;
+
+  /* -- Text -- */
+  --nm-fg: #2b211c;
+  --nm-fg-secondary: #5a4b43;
+  --nm-fg-muted: #8a7a70;
+  --nm-fg-meta: #b46a46;
+
+  /* -- Semantic -- */
+  --nm-primary: #006666;
+  --nm-primary-contrast: #ffffff;
+  --nm-accent: #b46a46;
+  --nm-success: #4d8f5a;
+  --nm-warning: #c88735;
+  --nm-danger: #b84c4c;
+
+  /* -- Borders -- */
+  --nm-border: #dac8b9;
+  --nm-border-soft: #eaded4;
+
+  /* -- Elevation --
+     Raised is the spec value. Inset and pressed invert the same two lights so
+     a control reads as pushed into the surface. */
+  --nm-shadow-raised:
+    8px 10px 24px rgba(128, 92, 70, 0.18),
+    -8px -8px 20px rgba(255, 255, 255, 0.7);
+  --nm-shadow-raised-sm:
+    4px 5px 12px rgba(128, 92, 70, 0.16),
+    -4px -4px 10px rgba(255, 255, 255, 0.66);
+  --nm-shadow-inset:
+    inset 5px 6px 12px rgba(128, 92, 70, 0.2),
+    inset -5px -5px 10px rgba(255, 255, 255, 0.72);
+  --nm-shadow-pressed:
+    inset 3px 4px 8px rgba(128, 92, 70, 0.22),
+    inset -3px -3px 7px rgba(255, 255, 255, 0.6);
+  --nm-ring: 0 0 0 1px var(--nm-border);
+  --nm-ring-focus: 0 0 0 2px var(--nm-bg), 0 0 0 4px var(--nm-primary);
+
+  /* -- Radius -- */
+  --nm-radius-sm: 14px;
+  --nm-radius-md: 22px;
+  --nm-radius-lg: 34px;
+  --nm-radius-pill: 9999px;
+
+  /* -- Spacing -- */
+  --nm-space-1: 4px;
+  --nm-space-2: 8px;
+  --nm-space-3: 12px;
+  --nm-space-4: 16px;
+  --nm-space-5: 20px;
+  --nm-space-6: 24px;
+  --nm-space-7: 32px;
+  --nm-space-8: 48px;
+
+  /* -- Typography -- */
+  --nm-font: Inter, system-ui, -apple-system, sans-serif;
+  --nm-font-mono: 'SF Mono', ui-monospace, Menlo, monospace;
+  --nm-text-xs: 12px;
+  --nm-text-sm: 14px;
+  --nm-text-base: 16px;
+  --nm-text-lg: 18px;
+  --nm-text-xl: 24px;
+  --nm-text-2xl: 36px;
+  --nm-text-3xl: 54px;
+  --nm-text-4xl: 76px;
+  --nm-leading: 1.52;
+  --nm-leading-tight: 1.06;
+
+  /* -- Motion -- */
+  --nm-motion-fast: 150ms;
+  --nm-motion-base: 240ms;
+  --nm-ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/**
+ * Dark theme. Surfaces darken, the shadow deepens, and the highlight becomes a
+ * faint warm white rather than a bright one — a strong highlight on a dark
+ * surface reads as a glow, not as light.
+ */
+:root[data-nm-theme='dark'] {
+  --nm-bg: #221c18;
+  --nm-surface: #2a2320;
+  --nm-surface-warm: #362d28;
+
+  --nm-fg: #f0e7e0;
+  --nm-fg-secondary: #c8b8ae;
+  --nm-fg-muted: #9a8a80;
+  --nm-fg-meta: #d99366;
+
+  --nm-primary: #35a5a5;
+  --nm-primary-contrast: #06201f;
+  --nm-accent: #d99366;
+  --nm-success: #6fb87c;
+  --nm-warning: #e0a45c;
+  --nm-danger: #e07070;
+
+  --nm-border: #453a34;
+  --nm-border-soft: #362d28;
+
+  --nm-shadow-raised:
+    8px 10px 24px rgba(0, 0, 0, 0.45),
+    -8px -8px 20px rgba(255, 244, 236, 0.045);
+  --nm-shadow-raised-sm:
+    4px 5px 12px rgba(0, 0, 0, 0.4),
+    -4px -4px 10px rgba(255, 244, 236, 0.04);
+  --nm-shadow-inset:
+    inset 5px 6px 12px rgba(0, 0, 0, 0.5),
+    inset -5px -5px 10px rgba(255, 244, 236, 0.05);
+  --nm-shadow-pressed:
+    inset 3px 4px 8px rgba(0, 0, 0, 0.55),
+    inset -3px -3px 7px rgba(255, 244, 236, 0.04);
+}
+
+/* Respect the OS when the app has not made an explicit choice. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-nm-theme='light']):not([data-nm-theme='dark']) {
+    --nm-bg: #221c18;
+    --nm-surface: #2a2320;
+    --nm-surface-warm: #362d28;
+    --nm-fg: #f0e7e0;
+    --nm-fg-secondary: #c8b8ae;
+    --nm-fg-muted: #9a8a80;
+    --nm-fg-meta: #d99366;
+    --nm-primary: #35a5a5;
+    --nm-primary-contrast: #06201f;
+    --nm-accent: #d99366;
+    --nm-success: #6fb87c;
+    --nm-warning: #e0a45c;
+    --nm-danger: #e07070;
+    --nm-border: #453a34;
+    --nm-border-soft: #362d28;
+    --nm-shadow-raised:
+      8px 10px 24px rgba(0, 0, 0, 0.45),
+      -8px -8px 20px rgba(255, 244, 236, 0.045);
+    --nm-shadow-raised-sm:
+      4px 5px 12px rgba(0, 0, 0, 0.4),
+      -4px -4px 10px rgba(255, 244, 236, 0.04);
+    --nm-shadow-inset:
+      inset 5px 6px 12px rgba(0, 0, 0, 0.5),
+      inset -5px -5px 10px rgba(255, 244, 236, 0.05);
+    --nm-shadow-pressed:
+      inset 3px 4px 8px rgba(0, 0, 0, 0.55),
+      inset -3px -3px 7px rgba(255, 244, 236, 0.04);
+  }
+}
+
+/* Neumorphism depends on soft shadow transitions; honour reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --nm-motion-fast: 0ms;
+    --nm-motion-base: 0ms;
+  }
+}

@@ -10,6 +10,7 @@ export default defineConfig(() => {
       // The shell manifest imports real React components, which reach DOM APIs
       // at module scope. This is a desktop app; a DOM is the honest baseline.
       environment: 'jsdom',
+      setupFiles: ['./src/test-setup.ts'],
       include: ['src/**/*.{test,spec}.{ts,tsx}'],
       // The registry contract test enumerates feature directories from disk, so
       // tests must run from the repository root.

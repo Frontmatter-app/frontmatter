@@ -143,13 +143,17 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
     ? ownedTeamId === activeContext.teamId
     : plan === 'team' && planStatus === 'active';
 
-  const isAuthor = ((plan === 'author' || plan === 'team' || plan === 'enterprise') &&
-                    (planStatus === 'active' || planStatus === 'completed')) ||
-                   (activeContext.type === 'team');
+  // The billing webhook normalises 'paid'/'completed' to 'active' before it
+  // writes, so 'active' is the only status that grants entitlement.
+  const hasPaidStatus = planStatus === 'active';
 
-  const isTeam = ((plan === 'team' || plan === 'enterprise') &&
-                  (planStatus === 'active' || planStatus === 'completed')) ||
-                 (activeContext.type === 'team');
+  const isAuthor =
+    ((plan === 'author' || plan === 'team' || plan === 'enterprise') && hasPaidStatus) ||
+    activeContext.type === 'team';
+
+  const isTeam =
+    ((plan === 'team' || plan === 'enterprise') && hasPaidStatus) ||
+    activeContext.type === 'team';
 
   // Sync state to Zustand
   useEffect(() => {

@@ -5,7 +5,7 @@ import type {
   FilePermissions,
   InviteDoc,
   TeamDoc,
-  TeamGroup,
+  TeamGroupsMap,
   Unsubscribe,
   UserDoc,
   Watcher,
@@ -24,7 +24,7 @@ export interface TeamsPort {
   get(teamId: string): Promise<TeamDoc | null>;
   watch(teamId: string, onChange: Watcher<TeamDoc>): Unsubscribe;
   create(input: CreateTeamInput): Promise<string>;
-  updateGroups(teamId: string, groups: Record<string, TeamGroup>): Promise<void>;
+  updateGroups(teamId: string, groups: TeamGroupsMap): Promise<void>;
   removeMember(teamId: string, uid: string): Promise<void>;
 }
 
