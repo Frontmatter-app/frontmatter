@@ -1,0 +1,83 @@
+@import '../design/tokens.css';
+
+.theme-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: var(--nm-space-3);
+}
+
+.theme-picker__option {
+  appearance: none;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--nm-font);
+  background: var(--nm-surface);
+  color: var(--nm-fg);
+  border-radius: var(--nm-radius-sm);
+  padding: var(--nm-space-4);
+  min-height: 6.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--nm-space-2);
+  box-shadow: var(--nm-shadow-raised-sm);
+  transition:
+    box-shadow var(--nm-motion-fast) var(--nm-ease),
+    transform var(--nm-motion-fast) var(--nm-ease);
+}
+
+.theme-picker__option:hover:not(:disabled) {
+  box-shadow: var(--nm-shadow-raised);
+}
+
+/* The selected card is pressed into the surface rather than outlined. */
+.theme-picker__option[data-selected='true'] {
+  box-shadow: var(--nm-shadow-pressed);
+}
+
+.theme-picker__option:focus-visible {
+  outline: none;
+  box-shadow: var(--nm-shadow-raised-sm), var(--nm-ring-focus);
+}
+
+.theme-picker__option:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.theme-picker__name {
+  display: flex;
+  align-items: center;
+  gap: var(--nm-space-2);
+  font-size: var(--nm-text-sm);
+  font-weight: 650;
+}
+
+.theme-picker__option[data-selected='true'] .theme-picker__name {
+  color: var(--nm-primary);
+}
+
+.theme-picker__description {
+  font-size: var(--nm-text-xs);
+  color: var(--nm-fg-muted);
+  line-height: var(--nm-leading);
+}
+
+.theme-picker__status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--nm-space-2);
+  padding: var(--nm-space-8) var(--nm-space-4);
+  font-size: var(--nm-text-sm);
+  color: var(--nm-fg-muted);
+  text-align: center;
+}
+
+.theme-picker__status code {
+  font-family: var(--nm-font-mono);
+  font-size: var(--nm-text-xs);
+  background: var(--nm-bg);
+  padding: 0.1em 0.4em;
+  border-radius: 6px;
+}
