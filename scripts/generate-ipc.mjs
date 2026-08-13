@@ -204,19 +204,36 @@ function parseStructs() {
   }
 }
 
-/** Command names registered in `generate_handler![...]`, in order. */
+/**
+ * Command names registered in `generate_handler![...]`, in declaration order.
+ *
+ * The list lives in `commands/handlers.rs`, but it is located by searching so
+ * that moving it again does not silently produce an empty contract.
+ */
 function registeredCommands() {
-  const main = readFileSync(MAIN_RS, 'utf8');
-  const marker = main.indexOf('generate_handler!');
-  if (marker === -1) throw new Error('generate_handler! not found in main.rs');
-  const open = main.indexOf('[', marker);
-  const close = main.indexOf(']', open);
-  return main
-    .slice(open + 1, close)
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((path) => path.split('::').pop());
+  for (const file of rustFiles(RUST_SRC)) {
+    const source = readFileSync(file, 'utf8');
+    // Match the invocation itself, not a mention in a comment.
+    const invocation = /generate_handler!\s*\[/.exec(source);
+    if (!invocation) continue;
+
+    const open = invocation.index + invocation[0].length - 1;
+    const close = source.indexOf(']', open);
+    if (close === -1) continue;
+
+    const names = source
+      .slice(open + 1, close)
+      // Drop `// --- Group ---` comments used to organise the list.
+      .replace(/\/\/[^\n]*/g, '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((path) => path.split('::').pop());
+
+    if (names.length > 0) return names;
+  }
+
+  throw new Error('generate_handler! with a non-empty command list was not found');
 }
 
 /** Every `#[tauri::command]` function found in the tree. */

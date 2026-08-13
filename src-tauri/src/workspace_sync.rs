@@ -1,3 +1,9 @@
+//! Keeps the workspace database in step with what is on disk.
+//!
+//! Lived under `export::discover` while only the watcher and the indexer
+//! called it, which is what made it easy to run destructively from the export
+//! path. Export is now strictly read-only.
+
 use sqlx::{Row, SqlitePool};
 use std::fs;
 use std::path::{Path, PathBuf};

@@ -11,6 +11,7 @@ import { useWorkspacePersistence } from './useWorkspacePersistence';
 import { useFileChangeListener, useManualSave, useCloseHandler } from './useWorkspaceEventListeners';
 import { useWorkspaceOperations } from './useWorkspaceOperations';
 import { useMenuEvents } from './useMenuEvents';
+import { useShallowMemo } from '../lib/useShallowMemo';
 import type { WorkspaceContextType } from './workspaceTypes';
 import type { DocumentMeta } from '../types';
 
@@ -138,21 +139,25 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     createDocument: ops.handleCreateDocument, refreshDirectoryTree,
   });
 
+  // Built inline this object was fresh on every render, so all nine consumers
+  // re-rendered whenever any single piece of workspace state changed.
+  const value = useShallowMemo<WorkspaceContextType>({
+    documents, cloudFolders, openTabs, currentDocumentId, workspacePath,
+    isInitializing, directoryTree, refreshDirectoryTree, openWorkspace: ops.handleOpenWorkspace,
+    openDocument, closeDocument, createDocument: ops.handleCreateDocument,
+    openExternalDocument: ops.handleOpenExternalDocument, deleteDocument: ops.handleDeleteDocument,
+    openFileFromPath: ops.handleOpenFileFromPath, createFileInWorkspace: ops.handleCreateFileInWorkspace,
+    createFolderInWorkspace: ops.handleCreateFolderInWorkspace,
+    deleteFileOrFolderFromWorkspace: ops.handleDeleteFileOrFolder,
+    syncToCloud: ops.handleSyncToCloud, unsyncFromCloud: ops.handleUnsyncFromCloud,
+    setOfflineEnabled: ops.handleSetOfflineEnabled,
+    activeHeading, setActiveHeading, activeVersionId, setActiveVersionId,
+    activeAnnotationId, setActiveAnnotationId, activeSuggestionId, setActiveSuggestionId,
+    showHidden, toggleShowHidden,
+  });
+
   return (
-    <WorkspaceContext.Provider value={{
-      documents, cloudFolders, openTabs, currentDocumentId, workspacePath,
-      isInitializing, directoryTree, refreshDirectoryTree, openWorkspace: ops.handleOpenWorkspace,
-      openDocument, closeDocument, createDocument: ops.handleCreateDocument,
-      openExternalDocument: ops.handleOpenExternalDocument, deleteDocument: ops.handleDeleteDocument,
-      openFileFromPath: ops.handleOpenFileFromPath, createFileInWorkspace: ops.handleCreateFileInWorkspace,
-      createFolderInWorkspace: ops.handleCreateFolderInWorkspace,
-      deleteFileOrFolderFromWorkspace: ops.handleDeleteFileOrFolder,
-      syncToCloud: ops.handleSyncToCloud, unsyncFromCloud: ops.handleUnsyncFromCloud,
-      setOfflineEnabled: ops.handleSetOfflineEnabled,
-      activeHeading, setActiveHeading, activeVersionId, setActiveVersionId,
-      activeAnnotationId, setActiveAnnotationId, activeSuggestionId, setActiveSuggestionId,
-      showHidden, toggleShowHidden,
-    }}>
+    <WorkspaceContext.Provider value={value}>
       {children}
       {overlay}
     </WorkspaceContext.Provider>

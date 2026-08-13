@@ -164,7 +164,7 @@ impl WorkspaceIndexer {
         self.seen_hashes.write().await.clear();
 
         // Sync and reconcile filesystem changes to the database
-        if let Err(e) = crate::export::discover::reconcile_workspace(&self.workspace_path, &self.pool).await {
+        if let Err(e) = crate::workspace_sync::reconcile_workspace(&self.workspace_path, &self.pool).await {
             warn!("Reconciliation failed: {}", e);
         }
 

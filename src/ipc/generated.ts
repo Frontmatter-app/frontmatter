@@ -252,16 +252,20 @@ export interface IpcArgsMap {
   'update_document': { id: string; title: string; content: string; stage: string; focusMode: boolean };
   'get_document': { id: string };
   'delete_document': { id: string };
-  'open_external_file': Record<string, never>;
-  'pick_save_path': { suggestedTitle: string };
+  'update_document_path': { id: string; filePath: string };
+  'sync_draft_nodes': { documentId: string; nodes: DraftNodeRecord[] };
   'open_or_import_file': { filePath: string };
   'create_file_on_disk': { parentDir: string; name: string };
   'create_directory_on_disk': { parentDir: string; name: string };
   'delete_file_or_dir_on_disk': { path: string };
   'move_or_rename_on_disk': { oldPath: string; newPath: string };
   'reveal_in_folder': { path: string };
-  'update_document_path': { id: string; filePath: string };
+  'open_external_file': Record<string, never>;
+  'pick_save_path': { suggestedTitle: string };
+  'pick_folder': { title?: string | null };
   'show_unsaved_dialog': { title: string };
+  'show_confirm_dialog': { title: string; description: string };
+  'show_alert_dialog': { title: string; description: string };
   'set_cloud_sync': { id: string; cloudId: string; cloudPath?: string | null };
   'clear_cloud_sync': { id: string };
   'set_offline_enabled': { id: string; enabled: boolean };
@@ -274,24 +278,19 @@ export interface IpcArgsMap {
   'save_annotation': { annotation: AnnotationRecord };
   'resolve_annotation': { id: string };
   'get_annotations': { documentId: string };
-  'sync_draft_nodes': { documentId: string; nodes: DraftNodeRecord[] };
   'get_metrics_date_range': { args: unknown };
   'save_daily_metrics': { args: unknown };
+  'save_focus_session': { documentId: string; wordsWritten: number; startedAt: string };
   'open_file_in_new_window_command': { workspacePath: string; filePath: string };
   'open_account_window': { accountUid: string; accountToken?: string | null; workspaceContextJson: string; savedAccountsJson?: string | null };
   'start_google_auth': { state: string };
   'open_browser_url': { url: string };
   'open_folder_in_new_window_from_path': { path: string };
-  'show_confirm_dialog': { title: string; description: string };
-  'show_alert_dialog': { title: string; description: string };
   'minimize_window': Record<string, never>;
   'maximize_window': Record<string, never>;
   'restore_window': Record<string, never>;
   'close_window': Record<string, never>;
   'get_window_state': Record<string, never>;
-  'get_system_fonts': Record<string, never>;
-  'save_focus_session': { documentId: string; wordsWritten: number; startedAt: string };
-  'scan_prose': { text: string; filename: string };
   'index_workspace': Record<string, never>;
   'index_file': { filePath: string };
   'index_document_content': { documentId: string; markdown: string };
@@ -304,15 +303,15 @@ export interface IpcArgsMap {
   'get_transclusion_hash': { objectUuid: string };
   'execute_block': { request: ExecutionRequest };
   'get_outputs': { objectUuid: string };
+  'list_runtimes': Record<string, never>;
+  'add_runtime': { language: string; executablePath: string; runtimeType: string };
+  'remove_runtime': { runtimeId: string };
+  'set_default_runtime': { language: string; executablePath: string };
   'convert_md_to_html': { markdown: string };
   'export_file_html': { markdown: string };
   'export_file_pdf': { markdown: string };
   'export_project_zola': { projectType: string; themeName: string };
   'list_theme_options': { projectType: string };
-  'list_runtimes': Record<string, never>;
-  'add_runtime': { language: string; executablePath: string; runtimeType: string };
-  'remove_runtime': { runtimeId: string };
-  'set_default_runtime': { language: string; executablePath: string };
   'git_is_available': Record<string, never>;
   'git_is_repo': { path: string };
   'git_init': { path: string };
@@ -335,13 +334,14 @@ export interface IpcArgsMap {
   'git_add_remote': { path: string; name: string; url: string };
   'git_get_remote_url': { path: string };
   'git_clone': { url: string; destination: string };
-  'pick_folder': { title?: string | null };
   'save_as_document': { id: string };
   'get_auto_save': Record<string, never>;
   'set_auto_save': { enabled: boolean };
   'get_recent_projects': Record<string, never>;
   'add_recent_project': { path: string };
   'clear_recent_projects': Record<string, never>;
+  'scan_prose': { text: string; filename: string };
+  'get_system_fonts': Record<string, never>;
 }
 
 /** Value each command resolves to. */
@@ -358,16 +358,20 @@ export interface IpcResultMap {
   'update_document': SuccessResponse;
   'get_document': DocumentMeta;
   'delete_document': SuccessResponse;
-  'open_external_file': [string, string, string] | null;
-  'pick_save_path': string | null;
+  'update_document_path': SuccessResponse;
+  'sync_draft_nodes': null;
   'open_or_import_file': DocumentMeta;
   'create_file_on_disk': string;
   'create_directory_on_disk': string;
   'delete_file_or_dir_on_disk': null;
   'move_or_rename_on_disk': null;
   'reveal_in_folder': null;
-  'update_document_path': SuccessResponse;
+  'open_external_file': [string, string, string] | null;
+  'pick_save_path': string | null;
+  'pick_folder': string | null;
   'show_unsaved_dialog': string;
+  'show_confirm_dialog': boolean;
+  'show_alert_dialog': null;
   'set_cloud_sync': SuccessResponse;
   'clear_cloud_sync': SuccessResponse;
   'set_offline_enabled': SuccessResponse;
@@ -380,24 +384,19 @@ export interface IpcResultMap {
   'save_annotation': null;
   'resolve_annotation': null;
   'get_annotations': AnnotationRecord[];
-  'sync_draft_nodes': null;
   'get_metrics_date_range': DailyMetricsRow[];
   'save_daily_metrics': null;
+  'save_focus_session': FocusSessionMeta;
   'open_file_in_new_window_command': null;
   'open_account_window': null;
   'start_google_auth': number;
   'open_browser_url': null;
   'open_folder_in_new_window_from_path': null;
-  'show_confirm_dialog': boolean;
-  'show_alert_dialog': null;
   'minimize_window': void;
   'maximize_window': void;
   'restore_window': void;
   'close_window': void;
   'get_window_state': boolean;
-  'get_system_fonts': string[];
-  'save_focus_session': FocusSessionMeta;
-  'scan_prose': unknown;
   'index_workspace': null;
   'index_file': null;
   'index_document_content': null;
@@ -410,15 +409,15 @@ export interface IpcResultMap {
   'get_transclusion_hash': string | null;
   'execute_block': ExecutionResult;
   'get_outputs': OutputQueryResult[];
+  'list_runtimes': RuntimeListItem[];
+  'add_runtime': RuntimeListItem;
+  'remove_runtime': null;
+  'set_default_runtime': null;
   'convert_md_to_html': string;
   'export_file_html': ExportResult;
   'export_file_pdf': ExportResult;
   'export_project_zola': unknown;
   'list_theme_options': ThemeOption[];
-  'list_runtimes': RuntimeListItem[];
-  'add_runtime': RuntimeListItem;
-  'remove_runtime': null;
-  'set_default_runtime': null;
   'git_is_available': boolean;
   'git_is_repo': boolean;
   'git_init': null;
@@ -441,13 +440,14 @@ export interface IpcResultMap {
   'git_add_remote': null;
   'git_get_remote_url': string;
   'git_clone': CloneResult;
-  'pick_folder': string | null;
   'save_as_document': SaveAsResult | null;
   'get_auto_save': boolean;
   'set_auto_save': null;
   'get_recent_projects': string[];
   'add_recent_project': null;
   'clear_recent_projects': null;
+  'scan_prose': unknown;
+  'get_system_fonts': string[];
 }
 
 export type IpcCommand = keyof IpcArgsMap;
@@ -468,16 +468,20 @@ export const IPC_COMMANDS = [
   'update_document',
   'get_document',
   'delete_document',
-  'open_external_file',
-  'pick_save_path',
+  'update_document_path',
+  'sync_draft_nodes',
   'open_or_import_file',
   'create_file_on_disk',
   'create_directory_on_disk',
   'delete_file_or_dir_on_disk',
   'move_or_rename_on_disk',
   'reveal_in_folder',
-  'update_document_path',
+  'open_external_file',
+  'pick_save_path',
+  'pick_folder',
   'show_unsaved_dialog',
+  'show_confirm_dialog',
+  'show_alert_dialog',
   'set_cloud_sync',
   'clear_cloud_sync',
   'set_offline_enabled',
@@ -490,24 +494,19 @@ export const IPC_COMMANDS = [
   'save_annotation',
   'resolve_annotation',
   'get_annotations',
-  'sync_draft_nodes',
   'get_metrics_date_range',
   'save_daily_metrics',
+  'save_focus_session',
   'open_file_in_new_window_command',
   'open_account_window',
   'start_google_auth',
   'open_browser_url',
   'open_folder_in_new_window_from_path',
-  'show_confirm_dialog',
-  'show_alert_dialog',
   'minimize_window',
   'maximize_window',
   'restore_window',
   'close_window',
   'get_window_state',
-  'get_system_fonts',
-  'save_focus_session',
-  'scan_prose',
   'index_workspace',
   'index_file',
   'index_document_content',
@@ -520,15 +519,15 @@ export const IPC_COMMANDS = [
   'get_transclusion_hash',
   'execute_block',
   'get_outputs',
+  'list_runtimes',
+  'add_runtime',
+  'remove_runtime',
+  'set_default_runtime',
   'convert_md_to_html',
   'export_file_html',
   'export_file_pdf',
   'export_project_zola',
   'list_theme_options',
-  'list_runtimes',
-  'add_runtime',
-  'remove_runtime',
-  'set_default_runtime',
   'git_is_available',
   'git_is_repo',
   'git_init',
@@ -551,11 +550,12 @@ export const IPC_COMMANDS = [
   'git_add_remote',
   'git_get_remote_url',
   'git_clone',
-  'pick_folder',
   'save_as_document',
   'get_auto_save',
   'set_auto_save',
   'get_recent_projects',
   'add_recent_project',
   'clear_recent_projects',
+  'scan_prose',
+  'get_system_fonts',
 ] as const;

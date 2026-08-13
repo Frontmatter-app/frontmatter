@@ -59,7 +59,7 @@ pub fn start_workspace_watcher(app: AppHandle, workspace_path: impl AsRef<Path>)
 
                 if let Some(pool) = db_guard.get(&workspace_path_str) {
                     // Trigger sync reconciliation when disk files change
-                    let _ = crate::export::discover::reconcile_workspace(Path::new(&workspace_path_str), pool).await;
+                    let _ = crate::workspace_sync::reconcile_workspace(Path::new(&workspace_path_str), pool).await;
                     let _ = app.emit("workspace-reconciled", ());
 
                     // If file exists in DB and is readable, notify for editor indexing updates
