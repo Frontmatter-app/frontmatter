@@ -12,12 +12,22 @@ import { Stage } from '../types';
 import { useValeLintStore } from '../settings/valeLintStore';
 import { invoke } from '@tauri-apps/api/core';
 import type { ValeAlert } from '../types';
+import { useChromeStore } from './chromeStore';
 
 export function CenterColumn({ className, style }: { className?: string; style?: React.CSSProperties }) {
   const { openTabs, currentDocumentId, activeVersionId, setActiveVersionId, documents, workspacePath } = useWorkspace();
   const [ydoc, setYdoc] = useState<Y.Doc | null>(null);
   const [stage, setStage] = useState<Stage>('write');
   const [title, setTitle] = useState("Untitled Document");
+
+  // The View menu asks for a stage; the document owns the authoritative value,
+  // so apply the request to the Yjs meta map and clear it.
+  const requestedStage = useChromeStore((state) => state.requestedStage);
+  useEffect(() => {
+    if (!requestedStage || !ydoc) return;
+    ydoc.getMap('meta').set('stage', requestedStage);
+    useChromeStore.getState().clearRequestedStage();
+  }, [requestedStage, ydoc]);
 
   useEffect(() => {
     if (!currentDocumentId) {

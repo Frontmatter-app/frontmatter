@@ -16,6 +16,7 @@ import { setAnnotationsEffect } from './extensions/annotationsExtension';
 import { AnnotationManager } from '../yjs/annotations';
 import { setValeAlertsEffect } from './extensions/valeLintExtension';
 import { getThemeConfig, createFontTheme } from './themes/themeConfig';
+import { setActiveEditorView } from './activeEditor';
 import { createRegistry } from '../features/registry';
 import { editorFeatures } from '../features/editorFeatures';
 import * as Y from 'yjs';
@@ -110,11 +111,15 @@ export function createEditor(
     };
   }
 
+  // Menu commands act on whichever editor is live.
+  setActiveEditorView(view);
+
   return {
     view,
     fontCompartment,
     destroy: () => {
       if (unobserveAnnotations) unobserveAnnotations();
+      setActiveEditorView(null);
       view.destroy();
     },
     updateValeAlerts: (alerts: any[]) => {

@@ -8,6 +8,7 @@ import { InviteLandingScreen } from '../components/InviteLandingScreen';
 import { PromptDialog } from '../components/PromptDialog';
 import { useProductivityTracker } from '../settings/metrics/useProductivityTracker';
 import { useGlobalShortcuts } from '../keyboard/useGlobalShortcuts';
+import { useMenuCommands } from '../menu/useMenuCommands';
 import type { FeatureContext, FeatureModule } from './types';
 
 type ShellFeature = FeatureModule<FeatureContext, ReactNode>;
@@ -64,6 +65,7 @@ function headless(hook: () => void): () => null {
 
 const ProductivityTracker = headless(useProductivityTracker);
 const GlobalShortcuts = headless(useGlobalShortcuts);
+const MenuCommands = headless(useMenuCommands);
 
 /**
  * Shell-level features: overlays, modals, and headless background behaviour.
@@ -149,6 +151,16 @@ export const shellFeatures: ShellFeature[] = [
     selfTest: () => {
       if (typeof useProductivityTracker !== 'function') {
         throw new Error('useProductivityTracker missing');
+      }
+    },
+  },
+  {
+    id: 'menu-commands',
+    name: 'Application Menu Commands',
+    surface: () => keyed('menu-commands', <MenuCommands />),
+    selfTest: () => {
+      if (typeof useMenuCommands !== 'function') {
+        throw new Error('useMenuCommands missing');
       }
     },
   },
