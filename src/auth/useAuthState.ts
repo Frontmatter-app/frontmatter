@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { signInWithCustomToken, signInWithPopup, signOut as fbSignOut, GoogleAuthProvider, sendSignInLinkToEmail } from 'firebase/auth';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -8,6 +8,7 @@ import { showPromptDialog } from '../lib/tauriDialog';
 import { mapFirebaseUser, setCachedToken, getCachedToken, removeCachedToken, addOrUpdateSavedAccount, getSavedAccounts, removeSavedAccountFromStorage, clearAllAccounts, SavedAccount } from './authStorage';
 import type { User } from '../types';
 import { useAuthInit } from './useAuthInit';
+import { classifyAuthError, isCancellation } from './authErrors';
 
 export type AuthState = 'initializing' | 'ready' | 'switchingAccount' | 'signingOut';
 
@@ -15,6 +16,15 @@ export interface AuthEvent {
   type: 'error' | 'info';
   message: string;
 }
+
+/**
+ * Mock accounts exist so the app can be exercised without a Firebase project.
+ * They are opt-in: previously any sign-in failure fell through to creating one,
+ * so a network error or a rejected address silently produced a fake local
+ * session that looked signed in but could never sync.
+ */
+const MOCK_AUTH_ENABLED =
+  import.meta.env.DEV && import.meta.env.VITE_ALLOW_MOCK_AUTH === 'true';
 
 export function useAuthState() {
   const [user, setUser] = useState<User | null>(null);
@@ -28,10 +38,29 @@ export function useAuthState() {
     setAuthState(s);
   }, []);
 
+  const dismissTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+
   const addAuthEvent = useCallback((event: AuthEvent) => {
     setAuthEvents(prev => [...prev, event]);
-    setTimeout(() => setAuthEvents(prev => prev.filter(e => e !== event)), 5000);
+    // Errors stay until dismissed; informational notices fade.
+    if (event.type === 'error') return;
+    const timer = setTimeout(() => setAuthEvents(prev => prev.filter(e => e !== event)), 5000);
+    dismissTimers.current.push(timer);
   }, []);
+
+  useEffect(() => () => {
+    dismissTimers.current.forEach(clearTimeout);
+    dismissTimers.current = [];
+  }, []);
+
+  /** Reports a failure to the user unless they simply cancelled. */
+  const reportAuthError = useCallback((error: unknown, context: string) => {
+    const failure = classifyAuthError(error);
+    if (failure.kind === 'cancelled') return failure;
+    console.error(`[auth] ${context}`, failure.code ?? '', error);
+    addAuthEvent({ type: 'error', message: failure.message });
+    return failure;
+  }, [addAuthEvent]);
 
   const clearAuthEvents = useCallback(() => setAuthEvents([]), []);
 
@@ -102,8 +131,10 @@ export function useAuthState() {
         setUser(mapped);
         setSavedAccounts(addOrUpdateSavedAccount(result.user, mapped));
         addAuthEvent({ type: 'info', message: `Signed in as ${mapped.display_name}` });
-      } catch (err) { console.error('Google Sign In Error:', err); throw err; }
-      finally { setAuthStateSafe('ready'); }
+      } catch (err) {
+        reportAuthError(err, 'google sign-in');
+        throw err;
+      } finally { setAuthStateSafe('ready'); }
       return;
     }
     try {
@@ -117,17 +148,15 @@ export function useAuthState() {
         setSavedAccounts(addOrUpdateSavedAccount(result.user, mapped));
         addAuthEvent({ type: 'info', message: `Signed in as ${mapped.display_name}` });
       }
-    } catch (e: any) {
-      const code = e?.code;
-      if (code === 'auth/configuration-not-found' || code === 'auth/operation-not-allowed') {
-        const fallbackName = prompt('Enter your name to simulate Google Sign-in:');
-        if (fallbackName) saveMockUser({
-          id: 'mock-google-' + Date.now(), display_name: fallbackName,
-          email: fallbackName.toLowerCase().replace(/\s+/g, '') + '@gmail.com',
+    } catch (e) {
+      const failure = reportAuthError(e, 'google sign-in');
+      if (failure.kind === 'not-configured' && MOCK_AUTH_ENABLED) {
+        const name = await showPromptDialog('Mock sign-in', 'Enter a display name:');
+        if (name) saveMockUser({
+          id: 'mock-google-' + Date.now(), display_name: name,
+          email: name.toLowerCase().replace(/\s+/g, '') + '@example.test',
           created_at: new Date().toISOString(), last_seen_at: new Date().toISOString(), is_anonymous: false,
         });
-      } else if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
-        console.error('Google Sign In Error:', e);
       }
     } finally { if (authStateRef.current === 'switchingAccount') setAuthStateSafe('ready'); }
   }, [getCustomTokenViaGoogle, saveMockUser]);
@@ -140,26 +169,37 @@ export function useAuthState() {
       });
       window.localStorage.setItem('emailForSignIn', email);
       addAuthEvent({ type: 'info', message: `Magic sign-in link sent to ${email}. Check your inbox!` });
-    } catch {
-      addAuthEvent({ type: 'info', message: `[Dev Mode] Magic link simulated for ${email}. Auto-signing in...` });
-      setTimeout(() => {
+    } catch (e) {
+      const failure = reportAuthError(e, 'magic link');
+      // Only a build explicitly configured for mock auth may simulate success.
+      if (failure.kind === 'not-configured' && MOCK_AUTH_ENABLED) {
+        addAuthEvent({ type: 'info', message: `Mock sign-in as ${email}.` });
         saveMockUser({
           id: 'mock-magic-' + Date.now(), display_name: email.split('@')[0], email,
           created_at: new Date().toISOString(), last_seen_at: new Date().toISOString(), is_anonymous: false,
         });
-        addAuthEvent({ type: 'info', message: `Signed in as ${email.split('@')[0]}` });
-      }, 1000);
+        return;
+      }
+      throw e;
     }
-  }, [saveMockUser, addAuthEvent]);
+  }, [saveMockUser, addAuthEvent, reportAuthError]);
   const logout = useCallback(async () => {
     setAuthStateSafe('signingOut');
     const currentUid = user?.id;
     localStorage.removeItem('marktype_active_mock_id');
-    try { await fbSignOut(auth); } catch (e) { console.error('Sign Out Error:', e); }
-    if (currentUid) removeCachedToken(currentUid);
-    setUser(null);
-    setAuthStateSafe('ready');
-  }, [user?.id]);
+    try {
+      await fbSignOut(auth);
+    } catch (e) {
+      // The local session is cleared regardless: leaving a user apparently
+      // signed in after they asked to leave is worse than a stale server token.
+      console.error('[auth] sign-out', e);
+      addAuthEvent({ type: 'info', message: 'Signed out locally; the server session may persist.' });
+    } finally {
+      if (currentUid) removeCachedToken(currentUid);
+      setUser(null);
+      setAuthStateSafe('ready');
+    }
+  }, [user?.id, addAuthEvent]);
 
   const switchAccount = useCallback(async (uid: string) => {
     let cachedToken = getCachedToken(uid);
@@ -185,7 +225,7 @@ export function useAuthState() {
         addAuthEvent({ type: 'info', message: 'Please re-authenticate in the browser popup...' });
         try { cachedToken = await getCustomTokenViaGoogle(); setCachedToken(uid, cachedToken); }
         catch (err) {
-          addAuthEvent({ type: 'error', message: 'Re-authentication failed or was cancelled.' });
+          if (!isCancellation(err)) reportAuthError(err, 're-authentication');
           setAuthStateSafe('ready'); throw err;
         }
       }
@@ -212,18 +252,18 @@ export function useAuthState() {
         setSavedAccounts(addOrUpdateSavedAccount(result.user, mapped));
         addAuthEvent({ type: 'info', message: `Switched to ${mapped.display_name}` });
       }
-    } catch (e: any) {
-      if (e?.code !== 'auth/popup-closed-by-user' && e?.code !== 'auth/cancelled-popup-request') {
-        addAuthEvent({ type: 'error', message: 'Failed to switch account. Please try again.' });
+    } catch (e) {
+      const failure = reportAuthError(e, 'switch account');
+      if (failure.kind === 'not-configured' && MOCK_AUTH_ENABLED) {
+        const target = getSavedAccounts().find(a => a.uid === uid);
+        if (target) saveMockUser({
+          id: target.uid, display_name: target.displayName,
+          email: target.email, avatar_url: target.photoURL || undefined,
+          created_at: new Date().toISOString(), last_seen_at: new Date().toISOString(), is_anonymous: false,
+        });
       }
-      const target = getSavedAccounts().find(a => a.uid === uid);
-      if (target) saveMockUser({
-        id: target.uid, display_name: target.displayName,
-        email: target.email, avatar_url: target.photoURL || undefined,
-        created_at: new Date().toISOString(), last_seen_at: new Date().toISOString(), is_anonymous: false,
-      });
     } finally { if (authStateRef.current === 'switchingAccount') setAuthStateSafe('ready'); }
-  }, [getCustomTokenViaGoogle, saveMockUser, addAuthEvent]);
+  }, [getCustomTokenViaGoogle, saveMockUser, addAuthEvent, reportAuthError]);
 
   const removeSavedAccount = useCallback(async (uid: string) => {
     const updated = removeSavedAccountFromStorage(uid);
@@ -239,8 +279,15 @@ export function useAuthState() {
       clearAllAccounts();
       setSavedAccounts([]);
       setUser(null);
-    } catch (e) { console.error('Sign out all error:', e); }
-    finally { setAuthStateSafe('ready'); }
+    } catch (e) {
+      console.error('[auth] sign-out all', e);
+    } finally {
+      // Local state is cleared even when the network call fails.
+      clearAllAccounts();
+      setSavedAccounts([]);
+      setUser(null);
+      setAuthStateSafe('ready');
+    }
   }, []);
 
   const loading = authState !== 'ready';
