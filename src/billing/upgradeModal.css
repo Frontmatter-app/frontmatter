@@ -3,70 +3,73 @@
 .plans {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
-  gap: var(--nm-space-4);
+  gap: var(--ds-space-4);
 }
 
 .plans__card {
-  background: var(--nm-surface);
-  border-radius: var(--nm-radius-md);
-  box-shadow: var(--nm-shadow-raised-sm);
-  padding: var(--nm-space-5);
+  background: var(--ds-surface);
+  border-radius: var(--ds-radius-md);
+  -webkit-backdrop-filter: blur(var(--ds-blur-sm)) saturate(var(--ds-saturate));
+  backdrop-filter: blur(var(--ds-blur-sm)) saturate(var(--ds-saturate));
+  box-shadow: var(--ds-ring), var(--ds-sheen);
+  padding: var(--ds-space-5);
   display: flex;
   flex-direction: column;
-  gap: var(--nm-space-4);
-  transition: box-shadow var(--nm-motion-base) var(--nm-ease);
+  gap: var(--ds-space-4);
+  transition: box-shadow var(--ds-motion-base) var(--ds-ease);
 }
 
-/* The plan the user arrived to see sits proud of the surface. */
+/* The plan the user arrived to see is the brighter, lifted pane. */
 .plans__card[data-highlighted='true'] {
-  box-shadow: var(--nm-shadow-raised);
+  background: var(--ds-surface-strong);
+  box-shadow: var(--ds-ring), var(--ds-sheen), var(--ds-shadow-raised);
 }
 
 .plans__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: var(--nm-space-3);
+  gap: var(--ds-space-3);
 }
 
 .plans__name {
   margin: 0;
-  font-family: var(--nm-font);
-  font-size: var(--nm-text-lg);
+  font-family: var(--ds-font);
+  font-size: var(--ds-text-lg);
   font-weight: 650;
-  line-height: var(--nm-leading-tight);
+  line-height: var(--ds-leading-tight);
 }
 
 .plans__tagline {
-  margin: var(--nm-space-1) 0 0;
-  font-size: var(--nm-text-xs);
-  color: var(--nm-fg-muted);
-  line-height: var(--nm-leading);
+  margin: var(--ds-space-1) 0 0;
+  font-size: var(--ds-text-xs);
+  color: var(--ds-fg-muted);
+  line-height: var(--ds-leading);
 }
 
 .plans__badge {
   flex-shrink: 0;
-  font-size: var(--nm-text-xs);
+  font-size: var(--ds-text-xs);
   font-weight: 650;
-  color: var(--nm-fg-meta);
-  background: var(--nm-bg);
-  box-shadow: var(--nm-shadow-inset);
-  border-radius: var(--nm-radius-pill);
-  padding: var(--nm-space-1) var(--nm-space-3);
+  color: var(--ds-fg-meta);
+  background: var(--ds-surface-sunken);
+  box-shadow: var(--ds-ring);
+  border-radius: var(--ds-radius-pill);
+  padding: var(--ds-space-1) var(--ds-space-3);
 }
 
 .plans__price {
   margin: 0;
-  font-family: var(--nm-font);
-  font-size: var(--nm-text-xl);
+  font-family: var(--ds-font);
+  font-size: var(--ds-text-xl);
   font-weight: 700;
-  line-height: var(--nm-leading-tight);
+  line-height: var(--ds-leading-tight);
 }
 
 .plans__period {
-  font-size: var(--nm-text-xs);
+  font-size: var(--ds-text-xs);
   font-weight: 500;
-  color: var(--nm-fg-muted);
+  color: var(--ds-fg-muted);
 }
 
 .plans__features {
@@ -75,30 +78,30 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--nm-space-2);
+  gap: var(--ds-space-2);
   flex: 1;
 }
 
 .plans__feature {
   display: flex;
   align-items: flex-start;
-  gap: var(--nm-space-2);
-  font-family: var(--nm-font);
-  font-size: var(--nm-text-sm);
-  color: var(--nm-fg-secondary);
-  line-height: var(--nm-leading);
+  gap: var(--ds-space-2);
+  font-family: var(--ds-font);
+  font-size: var(--ds-text-sm);
+  color: var(--ds-fg-secondary);
+  line-height: var(--ds-leading);
 }
 
 .plans__feature[data-included='true'] svg {
-  color: var(--nm-success);
+  color: var(--ds-success);
   flex-shrink: 0;
 }
 
 .plans__feature[data-included='false'] {
-  color: var(--nm-fg-muted);
+  color: var(--ds-fg-muted);
 }
 
 .plans__feature[data-included='false'] svg {
-  color: var(--nm-fg-muted);
+  color: var(--ds-fg-muted);
   flex-shrink: 0;
 }

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Check, X } from 'lucide-react';
 import { usePlan } from './PlanProvider';
 import { PLANS, planAction, type PlanId } from './plans';
-import { NmButton, NmModal } from '../design/components';
+import { DsButton, DsModal } from '../design/components';
 import './upgradeModal.css';
 
 export function UpgradeModal() {
@@ -38,7 +38,7 @@ export function UpgradeModal() {
   };
 
   return (
-    <NmModal
+    <DsModal
       open={isOpen}
       onClose={() => setIsOpen(false)}
       title="Choose your plan"
@@ -47,7 +47,7 @@ export function UpgradeModal() {
       dismissable={pending === null}
     >
       {error && (
-        <p className="nm-error" role="alert" style={{ marginBottom: 'var(--nm-space-4)' }}>
+        <p className="ds-error" role="alert" style={{ marginBottom: 'var(--ds-space-4)' }}>
           {error}
         </p>
       )}
@@ -96,17 +96,17 @@ export function UpgradeModal() {
                 ))}
               </ul>
 
-              <NmButton
+              <DsButton
                 variant={highlighted === spec.id ? 'primary' : 'default'}
                 disabled={action.disabled || pending !== null}
                 onClick={() => upgrade(spec.id)}
               >
                 {isPending ? 'Starting checkout…' : action.label}
-              </NmButton>
+              </DsButton>
             </section>
           );
         })}
       </div>
-    </NmModal>
+    </DsModal>
   );
 }

@@ -1,14 +1,14 @@
 @import '../design/tokens.css';
 
 .permissions__section {
-  margin-bottom: var(--nm-space-6);
+  margin-bottom: var(--ds-space-6);
 }
 
 .permissions__section-header {
   display: flex;
   align-items: flex-start;
-  gap: var(--nm-space-3);
-  margin-bottom: var(--nm-space-3);
+  gap: var(--ds-space-3);
+  margin-bottom: var(--ds-space-3);
 }
 
 .permissions__section-icon {
@@ -18,26 +18,26 @@
   width: 32px;
   height: 32px;
   flex-shrink: 0;
-  border-radius: var(--nm-radius-sm);
-  background: var(--nm-bg);
-  box-shadow: var(--nm-shadow-inset);
-  color: var(--nm-fg-meta);
+  border-radius: var(--ds-radius-sm);
+  background: var(--ds-surface-sunken);
+  box-shadow: var(--ds-ring);
+  color: var(--ds-fg-meta);
 }
 
 .permissions__section-title {
   margin: 0;
-  font-family: var(--nm-font);
-  font-size: var(--nm-text-sm);
+  font-family: var(--ds-font);
+  font-size: var(--ds-text-sm);
   font-weight: 650;
-  color: var(--nm-fg);
+  color: var(--ds-fg);
 }
 
 .permissions__section-description {
   margin: 2px 0 0;
-  font-family: var(--nm-font);
-  font-size: var(--nm-text-xs);
-  color: var(--nm-fg-muted);
-  line-height: var(--nm-leading);
+  font-family: var(--ds-font);
+  font-size: var(--ds-text-xs);
+  color: var(--ds-fg-muted);
+  line-height: var(--ds-leading);
 }
 
 .permissions__groups {
@@ -53,26 +53,26 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--nm-space-4);
-  padding: var(--nm-space-2) var(--nm-space-3);
-  border-radius: var(--nm-radius-sm);
+  gap: var(--ds-space-4);
+  padding: var(--ds-space-2) var(--ds-space-3);
+  border-radius: var(--ds-radius-sm);
 }
 
 .permissions__group:nth-child(odd) {
-  background: var(--nm-bg);
+  background: var(--ds-surface-sunken);
 }
 
 .permissions__group-name {
-  font-family: var(--nm-font);
-  font-size: var(--nm-text-sm);
-  color: var(--nm-fg-secondary);
+  font-family: var(--ds-font);
+  font-size: var(--ds-text-sm);
+  color: var(--ds-fg-secondary);
 }
 
 .permissions__empty {
   margin: 0;
-  padding: var(--nm-space-4);
-  font-family: var(--nm-font);
-  font-size: var(--nm-text-xs);
-  color: var(--nm-fg-muted);
+  padding: var(--ds-space-4);
+  font-family: var(--ds-font);
+  font-size: var(--ds-text-xs);
+  color: var(--ds-fg-muted);
   text-align: center;
 }

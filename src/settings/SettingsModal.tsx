@@ -8,7 +8,7 @@ import {
   searchSettingsNav,
   visibleSettingsNav,
 } from './settingsNav';
-import '../design/neumorphic.css';
+import '../design/system.css';
 import { usePlan } from '../billing/PlanProvider';
 import { JsonSettingsEditor } from './components/JsonSettingsEditor';
 import { SettingsCategorySidebar } from './components/SettingsCategorySidebar';
@@ -102,8 +102,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
   };
 
   return (
-    <div className="nm-overlay">
-      <div className="nm-modal nm-modal--wide" role="dialog" aria-modal="true" aria-label="Settings" style={{ height: '85vh', maxHeight: '85vh' }}>
+    <div className="ds-overlay">
+      <div className="ds-modal ds-modal--wide" role="dialog" aria-modal="true" aria-label="Settings" style={{ height: '85vh', maxHeight: '85vh' }}>
         <SettingsModalHeader
           mode={mode}
           searchQuery={searchQuery}
@@ -127,8 +127,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
               <div className="max-w-3xl flex flex-col gap-2 p-2">
                 {activeSpec && (
                   <header className="mb-2">
-                    <h2 className="nm-modal__title">{activeSpec.label}</h2>
-                    <p className="nm-modal__subtitle">{activeSpec.description}</p>
+                    <h2 className="ds-modal__title">{activeSpec.label}</h2>
+                    <p className="ds-modal__subtitle">{activeSpec.description}</p>
                   </header>
                 )}
                 {renderSection()}

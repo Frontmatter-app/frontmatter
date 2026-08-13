@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useId, useRef } from 'react';
-import './neumorphic.css';
+import './system.css';
 
 /**
- * Neumorphic primitives.
+ * Design-system primitives.
  *
  * Every modal and menu in the app is built from these, so behaviour that is
  * easy to forget — focus trapping, Escape to close, `aria-checked` on a custom
@@ -11,25 +11,25 @@ import './neumorphic.css';
 
 type ButtonVariant = 'default' | 'primary' | 'danger' | 'ghost';
 
-export interface NmButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+export interface DsButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: 'sm' | 'md';
   iconOnly?: boolean;
 }
 
-export function NmButton({
+export function DsButton({
   variant = 'default',
   size = 'md',
   iconOnly = false,
   className = '',
   type = 'button',
   ...rest
-}: NmButtonProps) {
+}: DsButtonProps) {
   const classes = [
-    'nm-button',
-    variant !== 'default' && `nm-button--${variant}`,
-    size === 'sm' && 'nm-button--sm',
-    iconOnly && 'nm-button--icon',
+    'ds-button',
+    variant !== 'default' && `ds-button--${variant}`,
+    size === 'sm' && 'ds-button--sm',
+    iconOnly && 'ds-button--icon',
     className,
   ]
     .filter(Boolean)
@@ -38,7 +38,7 @@ export function NmButton({
   return <button type={type} className={classes} {...rest} />;
 }
 
-export interface NmFieldProps {
+export interface DsFieldProps {
   label: string;
   hint?: string;
   error?: string;
@@ -46,14 +46,14 @@ export interface NmFieldProps {
 }
 
 /** Label, control, and message wired together for screen readers. */
-export function NmField({ label, hint, error, children }: NmFieldProps) {
+export function DsField({ label, hint, error, children }: DsFieldProps) {
   const id = useId();
   const messageId = `${id}-message`;
   const message = error ?? hint;
 
   return (
-    <div className="nm-field">
-      <label className="nm-label" htmlFor={id}>
+    <div className="ds-field">
+      <label className="ds-label" htmlFor={id}>
         {label}
       </label>
       {children({
@@ -62,7 +62,7 @@ export function NmField({ label, hint, error, children }: NmFieldProps) {
         'aria-describedby': message ? messageId : undefined,
       })}
       {message && (
-        <span id={messageId} className={error ? 'nm-error' : 'nm-hint'}>
+        <span id={messageId} className={error ? 'ds-error' : 'ds-hint'}>
           {message}
         </span>
       )}
@@ -70,20 +70,20 @@ export function NmField({ label, hint, error, children }: NmFieldProps) {
   );
 }
 
-export const NmInput = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
-  function NmInput({ className = '', ...rest }, ref) {
-    return <input ref={ref} className={`nm-input ${className}`.trim()} {...rest} />;
+export const DsInput = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
+  function DsInput({ className = '', ...rest }, ref) {
+    return <input ref={ref} className={`ds-input ${className}`.trim()} {...rest} />;
   },
 );
 
-export const NmTextarea = React.forwardRef<
+export const DsTextarea = React.forwardRef<
   HTMLTextAreaElement,
   React.TextareaHTMLAttributes<HTMLTextAreaElement>
->(function NmTextarea({ className = '', ...rest }, ref) {
-  return <textarea ref={ref} className={`nm-textarea ${className}`.trim()} {...rest} />;
+>(function DsTextarea({ className = '', ...rest }, ref) {
+  return <textarea ref={ref} className={`ds-textarea ${className}`.trim()} {...rest} />;
 });
 
-export interface NmToggleProps {
+export interface DsToggleProps {
   checked: boolean;
   onChange: (checked: boolean) => void;
   disabled?: boolean;
@@ -94,7 +94,7 @@ export interface NmToggleProps {
  * A switch, not a checkbox: `role="switch"` with `aria-checked`, so assistive
  * technology announces on/off rather than checked/unchecked.
  */
-export function NmToggle({ checked, onChange, disabled, label }: NmToggleProps) {
+export function DsToggle({ checked, onChange, disabled, label }: DsToggleProps) {
   return (
     <button
       type="button"
@@ -102,22 +102,22 @@ export function NmToggle({ checked, onChange, disabled, label }: NmToggleProps) 
       aria-checked={checked}
       aria-label={label}
       disabled={disabled}
-      className="nm-toggle"
+      className="ds-toggle"
       onClick={() => onChange(!checked)}
     />
   );
 }
 
-export function NmSurface({
+export function DsSurface({
   variant = 'raised',
   className = '',
   ...rest
 }: React.HTMLAttributes<HTMLDivElement> & { variant?: 'raised' | 'sunken' | 'flat' }) {
-  const modifier = variant === 'raised' ? '' : `nm-surface--${variant}`;
-  return <div className={`nm-surface ${modifier} ${className}`.trim()} {...rest} />;
+  const modifier = variant === 'raised' ? '' : `ds-surface--${variant}`;
+  return <div className={`ds-surface ${modifier} ${className}`.trim()} {...rest} />;
 }
 
-export interface NmModalProps {
+export interface DsModalProps {
   open: boolean;
   onClose: () => void;
   title: string;
@@ -135,7 +135,7 @@ export interface NmModalProps {
  * Closes on Escape and on backdrop click, restores focus to whatever was
  * focused before it opened, and keeps Tab inside the panel while it is open.
  */
-export function NmModal({
+export function DsModal({
   open,
   onClose,
   title,
@@ -144,7 +144,7 @@ export function NmModal({
   footer,
   children,
   dismissable = true,
-}: NmModalProps) {
+}: DsModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
   const titleId = useId();
@@ -195,7 +195,7 @@ export function NmModal({
 
   return (
     <div
-      className="nm-overlay"
+      className="ds-overlay"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) requestClose();
       }}
@@ -206,63 +206,63 @@ export function NmModal({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className={`nm-modal ${wide ? 'nm-modal--wide' : ''}`.trim()}
+        className={`ds-modal ${wide ? 'ds-modal--wide' : ''}`.trim()}
       >
-        <header className="nm-modal__header">
+        <header className="ds-modal__header">
           <div>
-            <h2 id={titleId} className="nm-modal__title">
+            <h2 id={titleId} className="ds-modal__title">
               {title}
             </h2>
-            {subtitle && <p className="nm-modal__subtitle">{subtitle}</p>}
+            {subtitle && <p className="ds-modal__subtitle">{subtitle}</p>}
           </div>
           {dismissable && (
-            <NmButton variant="ghost" iconOnly aria-label="Close" onClick={onClose}>
+            <DsButton variant="ghost" iconOnly aria-label="Close" onClick={onClose}>
               ✕
-            </NmButton>
+            </DsButton>
           )}
         </header>
 
-        <div className="nm-modal__body">{children}</div>
+        <div className="ds-modal__body">{children}</div>
 
-        {footer && <footer className="nm-modal__footer">{footer}</footer>}
+        {footer && <footer className="ds-modal__footer">{footer}</footer>}
       </div>
     </div>
   );
 }
 
-export function NmMenu({ className = '', ...rest }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div role="menu" className={`nm-menu ${className}`.trim()} {...rest} />;
+export function DsMenu({ className = '', ...rest }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div role="menu" className={`ds-menu ${className}`.trim()} {...rest} />;
 }
 
-export interface NmMenuItemProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+export interface DsMenuItemProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   shortcut?: string;
   danger?: boolean;
 }
 
-export function NmMenuItem({
+export function DsMenuItem({
   shortcut,
   danger,
   children,
   className = '',
   ...rest
-}: NmMenuItemProps) {
+}: DsMenuItemProps) {
   return (
     <button
       type="button"
       role="menuitem"
-      className={`nm-menu__item ${danger ? 'nm-menu__item--danger' : ''} ${className}`.trim()}
+      className={`ds-menu__item ${danger ? 'ds-menu__item--danger' : ''} ${className}`.trim()}
       {...rest}
     >
       {children}
-      {shortcut && <span className="nm-menu__shortcut">{shortcut}</span>}
+      {shortcut && <span className="ds-menu__shortcut">{shortcut}</span>}
     </button>
   );
 }
 
-export function NmMenuSeparator() {
-  return <hr className="nm-menu__separator" />;
+export function DsMenuSeparator() {
+  return <hr className="ds-menu__separator" />;
 }
 
-export function NmMenuLabel({ children }: { children: React.ReactNode }) {
-  return <div className="nm-menu__label">{children}</div>;
+export function DsMenuLabel({ children }: { children: React.ReactNode }) {
+  return <div className="ds-menu__label">{children}</div>;
 }

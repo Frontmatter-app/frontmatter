@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { getShortcutGroups } from '../keyboard/shortcuts';
-import { NmInput, NmModal } from '../design/components';
+import { DsInput, DsModal } from '../design/components';
 import './keyboardShortcutsModal.css';
 
 interface KeyboardShortcutsModalProps {
@@ -35,7 +35,7 @@ export function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsMod
   const groups = useMemo(() => filterShortcutGroups(allGroups, query), [allGroups, query]);
 
   return (
-    <NmModal
+    <DsModal
       open={isOpen}
       onClose={onClose}
       title="Keyboard Shortcuts"
@@ -43,7 +43,7 @@ export function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsMod
       wide
     >
       <div className="shortcuts__search">
-        <NmInput
+        <DsInput
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -78,6 +78,6 @@ export function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsMod
           ))}
         </div>
       )}
-    </NmModal>
+    </DsModal>
   );
 }

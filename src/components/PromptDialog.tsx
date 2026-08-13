@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { NmButton, NmField, NmInput, NmModal } from '../design/components';
+import { DsButton, DsField, DsInput, DsModal } from '../design/components';
 
 interface PromptState {
   title: string;
@@ -69,17 +69,17 @@ export function PromptDialog() {
   if (!state) return null;
 
   return (
-    <NmModal
+    <DsModal
       open
       onClose={() => close(null)}
       title={state.title}
       subtitle={state.description}
       footer={
         <>
-          <NmButton onClick={() => close(null)}>Cancel</NmButton>
-          <NmButton variant="primary" onClick={submit} disabled={!value.trim()}>
+          <DsButton onClick={() => close(null)}>Cancel</DsButton>
+          <DsButton variant="primary" onClick={submit} disabled={!value.trim()}>
             {state.confirmLabel ?? 'Continue'}
-          </NmButton>
+          </DsButton>
         </>
       }
     >
@@ -89,9 +89,9 @@ export function PromptDialog() {
           if (value.trim()) submit();
         }}
       >
-        <NmField label={state.description}>
+        <DsField label={state.description}>
           {(props) => (
-            <NmInput
+            <DsInput
               {...props}
               ref={inputRef}
               value={value}
@@ -100,10 +100,10 @@ export function PromptDialog() {
               spellCheck={false}
             />
           )}
-        </NmField>
+        </DsField>
         {/* Lets Enter submit without a visible duplicate button. */}
         <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
       </form>
-    </NmModal>
+    </DsModal>
   );
 }

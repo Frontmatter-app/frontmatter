@@ -1,0 +1,436 @@
+/**
+ * Glassmorphic component classes.
+ *
+ * Plain CSS rather than utility classes: a glass surface is a coordinated set
+ * of background alpha, backdrop blur, hairline border and sheen that change
+ * together across states. Expressing that as utilities is unreadable and
+ * drifts out of sync.
+ *
+ * State is carried by *material* rather than relief: hover brightens the pane,
+ * active presses it back, and selection raises its opacity. There is no
+ * pressed-into-the-surface affordance — glass does not deform.
+ */
+
+@import './tokens.css';
+
+/* ------------------------------------------------------------------- glass */
+
+/**
+ * The material itself. `backdrop-filter` needs something behind it, so this is
+ * only meaningful over `--ds-backdrop` or another translucent layer.
+ */
+.ds-glass {
+  background: var(--ds-surface);
+  -webkit-backdrop-filter: blur(var(--ds-blur)) saturate(var(--ds-saturate));
+  backdrop-filter: blur(var(--ds-blur)) saturate(var(--ds-saturate));
+  box-shadow: var(--ds-ring), var(--ds-sheen), var(--ds-shadow-raised);
+}
+
+/** Field the chrome floats over; gives the blur something to sample. */
+.ds-backdrop {
+  background: var(--ds-backdrop);
+  background-attachment: fixed;
+}
+
+/* ---------------------------------------------------------------- surfaces */
+
+.ds-surface {
+  background: var(--ds-surface);
+  color: var(--ds-fg);
+  border-radius: var(--ds-radius-md);
+  -webkit-backdrop-filter: blur(var(--ds-blur-sm)) saturate(var(--ds-saturate));
+  backdrop-filter: blur(var(--ds-blur-sm)) saturate(var(--ds-saturate));
+  box-shadow: var(--ds-ring), var(--ds-sheen), var(--ds-shadow-raised-sm);
+}
+
+/* A well: content sits below the surrounding pane rather than on it. */
+.ds-surface--sunken {
+  background: var(--ds-surface-sunken);
+  box-shadow: var(--ds-ring);
+}
+
+.ds-surface--flat {
+  background: transparent;
+  box-shadow: var(--ds-ring);
+}
+
+/* ----------------------------------------------------------------- buttons */
+
+.ds-button {
+  appearance: none;
+  border: 0;
+  font: inherit;
+  font-family: var(--ds-font);
+  font-size: var(--ds-text-sm);
+  font-weight: 550;
+  line-height: 1;
+  color: var(--ds-fg);
+  background: var(--ds-surface);
+  border-radius: var(--ds-radius-pill);
+  padding: var(--ds-space-3) var(--ds-space-5);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ds-space-2);
+  cursor: pointer;
+  -webkit-backdrop-filter: blur(var(--ds-blur-sm)) saturate(var(--ds-saturate));
+  backdrop-filter: blur(var(--ds-blur-sm)) saturate(var(--ds-saturate));
+  box-shadow: var(--ds-ring), var(--ds-sheen);
+  transition:
+    background var(--ds-motion-fast) var(--ds-ease),
+    box-shadow var(--ds-motion-fast) var(--ds-ease),
+    transform var(--ds-motion-fast) var(--ds-ease);
+}
+
+.ds-button:hover:not(:disabled) {
+  background: var(--ds-surface-strong);
+  box-shadow: var(--ds-ring), var(--ds-sheen), var(--ds-shadow-raised-sm);
+}
+
+.ds-button:active:not(:disabled) {
+  transform: translateY(1px) scale(0.995);
+  box-shadow: var(--ds-ring);
+}
+
+.ds-button:focus-visible {
+  outline: none;
+  box-shadow: var(--ds-ring), var(--ds-sheen), var(--ds-ring-focus);
+}
+
+.ds-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  box-shadow: var(--ds-ring);
+}
+
+.ds-button--primary {
+  background: var(--ds-primary);
+  color: var(--ds-primary-contrast);
+  box-shadow: var(--ds-sheen), var(--ds-shadow-raised-sm);
+}
+
+.ds-button--primary:hover:not(:disabled) {
+  background: var(--ds-primary-hover);
+}
+
+.ds-button--primary:active:not(:disabled) {
+  background: var(--ds-primary-active);
+}
+
+.ds-button--danger {
+  background: var(--ds-surface);
+  color: var(--ds-danger);
+}
+
+.ds-button--ghost {
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  color: var(--ds-fg-secondary);
+}
+
+.ds-button--ghost:hover:not(:disabled) {
+  background: var(--ds-surface);
+  box-shadow: var(--ds-ring);
+  color: var(--ds-fg);
+}
+
+.ds-button--icon {
+  padding: var(--ds-space-2);
+  border-radius: var(--ds-radius-pill);
+  aspect-ratio: 1;
+}
+
+.ds-button--sm {
+  font-size: var(--ds-text-xs);
+  padding: var(--ds-space-2) var(--ds-space-3);
+}
+
+/* ------------------------------------------------------------------ inputs */
+
+.ds-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-2);
+}
+
+.ds-label {
+  font-size: var(--ds-text-xs);
+  font-weight: 600;
+  color: var(--ds-fg-secondary);
+}
+
+.ds-input,
+.ds-select,
+.ds-textarea {
+  font: inherit;
+  font-family: var(--ds-font);
+  font-size: var(--ds-text-sm);
+  color: var(--ds-fg);
+  /* Inputs are wells: lower opacity than the pane they sit in. */
+  background: var(--ds-surface-sunken);
+  border: 0;
+  border-radius: var(--ds-radius-sm);
+  padding: var(--ds-space-3) var(--ds-space-4);
+  box-shadow: var(--ds-ring);
+  transition:
+    background var(--ds-motion-fast) var(--ds-ease),
+    box-shadow var(--ds-motion-fast) var(--ds-ease);
+  width: 100%;
+}
+
+.ds-textarea {
+  resize: vertical;
+  min-height: 96px;
+  line-height: var(--ds-leading);
+}
+
+.ds-input::placeholder,
+.ds-textarea::placeholder {
+  color: var(--ds-fg-muted);
+}
+
+.ds-input:focus-visible,
+.ds-select:focus-visible,
+.ds-textarea:focus-visible {
+  outline: none;
+  background: var(--ds-surface);
+  box-shadow: var(--ds-ring), var(--ds-ring-focus);
+}
+
+.ds-input[aria-invalid='true'],
+.ds-textarea[aria-invalid='true'] {
+  box-shadow: inset 0 0 0 1px var(--ds-danger);
+}
+
+.ds-error {
+  font-size: var(--ds-text-xs);
+  color: var(--ds-danger);
+}
+
+.ds-hint {
+  font-size: var(--ds-text-xs);
+  color: var(--ds-fg-muted);
+  line-height: var(--ds-leading);
+}
+
+/* ------------------------------------------------------------------ toggle */
+
+.ds-toggle {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  width: 46px;
+  height: 26px;
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-surface-sunken);
+  box-shadow: var(--ds-ring);
+  position: relative;
+  transition: background var(--ds-motion-base) var(--ds-ease);
+  flex-shrink: 0;
+}
+
+.ds-toggle::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--ds-radius-pill);
+  background: #fff;
+  box-shadow: var(--ds-shadow-raised-sm);
+  transition: transform var(--ds-motion-base) var(--ds-ease);
+}
+
+.ds-toggle[aria-checked='true'] {
+  background: var(--ds-primary);
+}
+
+.ds-toggle[aria-checked='true']::after {
+  transform: translateX(20px);
+}
+
+.ds-toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--ds-ring), var(--ds-ring-focus);
+}
+
+.ds-toggle:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ------------------------------------------------------------------- modal */
+
+.ds-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ds-space-6);
+  /* Dim and blur what is behind, so the panel has glass to be glass against. */
+  background: color-mix(in srgb, var(--ds-bg) 42%, transparent);
+  -webkit-backdrop-filter: blur(var(--ds-blur-sm)) saturate(1.1);
+  backdrop-filter: blur(var(--ds-blur-sm)) saturate(1.1);
+  animation: ds-fade var(--ds-motion-base) var(--ds-ease);
+}
+
+.ds-modal {
+  background: var(--ds-surface);
+  color: var(--ds-fg);
+  border-radius: var(--ds-radius-lg);
+  -webkit-backdrop-filter: blur(var(--ds-blur)) saturate(var(--ds-saturate));
+  backdrop-filter: blur(var(--ds-blur)) saturate(var(--ds-saturate));
+  box-shadow: var(--ds-ring), var(--ds-sheen), var(--ds-shadow-raised);
+  width: 100%;
+  max-width: 560px;
+  max-height: min(86vh, 760px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: ds-rise var(--ds-motion-base) var(--ds-ease);
+}
+
+.ds-modal--wide {
+  max-width: 940px;
+}
+
+.ds-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ds-space-4);
+  padding: var(--ds-space-6) var(--ds-space-6) var(--ds-space-4);
+}
+
+.ds-modal__title {
+  margin: 0;
+  font-size: var(--ds-text-lg);
+  font-weight: 650;
+  line-height: var(--ds-leading-tight);
+  letter-spacing: var(--ds-tracking-display);
+}
+
+.ds-modal__subtitle {
+  margin: var(--ds-space-1) 0 0;
+  font-size: var(--ds-text-xs);
+  color: var(--ds-fg-muted);
+  line-height: var(--ds-leading);
+}
+
+.ds-modal__body {
+  padding: 0 var(--ds-space-6) var(--ds-space-6);
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.ds-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--ds-space-3);
+  padding: var(--ds-space-4) var(--ds-space-6) var(--ds-space-6);
+  border-top: 1px solid var(--ds-border-soft);
+}
+
+@keyframes ds-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes ds-rise {
+  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+
+/* -------------------------------------------------------------------- menu */
+
+.ds-menu {
+  background: var(--ds-surface);
+  border-radius: var(--ds-radius-sm);
+  -webkit-backdrop-filter: blur(var(--ds-blur)) saturate(var(--ds-saturate));
+  backdrop-filter: blur(var(--ds-blur)) saturate(var(--ds-saturate));
+  box-shadow: var(--ds-ring), var(--ds-sheen), var(--ds-shadow-raised);
+  padding: var(--ds-space-2);
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ds-menu__item {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-family: var(--ds-font);
+  font-size: var(--ds-text-sm);
+  color: var(--ds-fg);
+  text-align: left;
+  padding: var(--ds-space-2) var(--ds-space-3);
+  border-radius: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-3);
+  transition:
+    background var(--ds-motion-fast) var(--ds-ease),
+    color var(--ds-motion-fast) var(--ds-ease);
+}
+
+.ds-menu__item:hover:not(:disabled),
+.ds-menu__item[data-active='true'] {
+  background: var(--ds-primary);
+  color: var(--ds-primary-contrast);
+}
+
+.ds-menu__item:hover:not(:disabled) .ds-menu__shortcut {
+  color: var(--ds-primary-contrast);
+  opacity: 0.75;
+}
+
+.ds-menu__item:focus-visible {
+  outline: none;
+  box-shadow: var(--ds-ring-focus);
+}
+
+.ds-menu__item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ds-menu__item--danger {
+  color: var(--ds-danger);
+}
+
+.ds-menu__item--danger:hover:not(:disabled) {
+  background: var(--ds-danger);
+  color: #fff;
+}
+
+.ds-menu__shortcut {
+  margin-left: auto;
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-xs);
+  color: var(--ds-fg-muted);
+}
+
+.ds-menu__separator {
+  height: 1px;
+  background: var(--ds-border-soft);
+  margin: var(--ds-space-2);
+  border: 0;
+}
+
+.ds-menu__label {
+  font-size: var(--ds-text-xs);
+  font-weight: 650;
+  color: var(--ds-fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: var(--ds-space-2) var(--ds-space-3) var(--ds-space-1);
+}

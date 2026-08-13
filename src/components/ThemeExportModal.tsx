@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { BookOpen, FileText, LayoutGrid, Loader2, Presentation } from 'lucide-react';
 import { invoke } from '../filesystem/tauriCommands';
-import { NmButton, NmModal } from '../design/components';
+import { DsButton, DsModal } from '../design/components';
 import './themeExportModal.css';
 
 export type ExportProjectType = 'blog' | 'docs' | 'slide' | 'book';
@@ -82,7 +82,7 @@ export function ThemeExportModal({ type, onClose, onExport }: ThemeExportModalPr
   };
 
   return (
-    <NmModal
+    <DsModal
       open
       onClose={onClose}
       title={`Publish as a ${TYPE_LABEL[type]}`}
@@ -90,10 +90,10 @@ export function ThemeExportModal({ type, onClose, onExport }: ThemeExportModalPr
       dismissable={!exporting}
       footer={
         <>
-          <NmButton onClick={onClose} disabled={exporting}>
+          <DsButton onClick={onClose} disabled={exporting}>
             Cancel
-          </NmButton>
-          <NmButton
+          </DsButton>
+          <DsButton
             variant="primary"
             onClick={handleExport}
             disabled={exporting || loading || !selected}
@@ -105,12 +105,12 @@ export function ThemeExportModal({ type, onClose, onExport }: ThemeExportModalPr
             ) : (
               'Publish'
             )}
-          </NmButton>
+          </DsButton>
         </>
       }
     >
       {error && (
-        <p className="nm-error" role="alert" style={{ marginBottom: 'var(--nm-space-4)' }}>
+        <p className="ds-error" role="alert" style={{ marginBottom: 'var(--ds-space-4)' }}>
           {error}
         </p>
       )}
@@ -151,6 +151,6 @@ export function ThemeExportModal({ type, onClose, onExport }: ThemeExportModalPr
           })}
         </div>
       )}
-    </NmModal>
+    </DsModal>
   );
 }

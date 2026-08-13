@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Edit3, Eye, Shield } from 'lucide-react';
 import { useData } from '../data/DataProvider';
 import { usePlan } from '../billing/PlanProvider';
-import { NmButton, NmModal, NmToggle } from '../design/components';
+import { DsButton, DsModal, DsToggle } from '../design/components';
 import type { TeamGroupsMap } from '../auth/teamPermissions';
 import './filePermissionsModal.css';
 
@@ -68,7 +68,7 @@ function GroupToggles({
           {entries.map(([id, group]) => (
             <li key={id} className="permissions__group">
               <span className="permissions__group-name">{group.name}</span>
-              <NmToggle
+              <DsToggle
                 checked={selected.includes(id)}
                 onChange={() => onChange(toggle(selected, id))}
                 label={`${group.name} — ${title}`}
@@ -140,7 +140,7 @@ export function FilePermissionsModal({
   };
 
   return (
-    <NmModal
+    <DsModal
       open={isOpen}
       onClose={onClose}
       title="File permissions"
@@ -148,12 +148,12 @@ export function FilePermissionsModal({
       dismissable={!saving}
       footer={
         <>
-          <NmButton onClick={onClose} disabled={saving}>
+          <DsButton onClick={onClose} disabled={saving}>
             Cancel
-          </NmButton>
-          <NmButton variant="primary" onClick={handleSave} disabled={saving || !loaded}>
+          </DsButton>
+          <DsButton variant="primary" onClick={handleSave} disabled={saving || !loaded}>
             {saving ? 'Saving…' : 'Save permissions'}
-          </NmButton>
+          </DsButton>
         </>
       }
     >
@@ -161,7 +161,7 @@ export function FilePermissionsModal({
         <p className="permissions__empty">Loading permissions…</p>
       ) : (
         <>
-          <p className="nm-hint" style={{ marginBottom: 'var(--nm-space-5)' }}>
+          <p className="ds-hint" style={{ marginBottom: 'var(--ds-space-5)' }}>
             {isUnrestricted(perms)
               ? 'Everyone on the team can see and edit this file. Enable a group below to restrict it.'
               : 'Only the groups enabled below have access.'}
@@ -193,12 +193,12 @@ export function FilePermissionsModal({
           />
 
           {error && (
-            <p className="nm-error" role="alert">
+            <p className="ds-error" role="alert">
               {error}
             </p>
           )}
         </>
       )}
-    </NmModal>
+    </DsModal>
   );
 }

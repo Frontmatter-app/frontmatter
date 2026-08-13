@@ -3,32 +3,32 @@
 .settings-nav {
   width: 220px;
   flex-shrink: 0;
-  padding: var(--nm-space-4) var(--nm-space-3);
+  padding: var(--ds-space-4) var(--ds-space-3);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: var(--nm-space-5);
-  background: var(--nm-bg);
-  box-shadow: var(--nm-shadow-inset);
-  border-radius: var(--nm-radius-md);
+  gap: var(--ds-space-5);
+  background: var(--ds-surface-sunken);
+  box-shadow: var(--ds-ring);
+  border-radius: var(--ds-radius-md);
   user-select: none;
 }
 
 .settings-nav__group {
   display: flex;
   flex-direction: column;
-  gap: var(--nm-space-1);
+  gap: var(--ds-space-1);
 }
 
 .settings-nav__heading {
-  margin: 0 0 var(--nm-space-1);
-  padding: 0 var(--nm-space-3);
-  font-family: var(--nm-font);
-  font-size: var(--nm-text-xs);
+  margin: 0 0 var(--ds-space-1);
+  padding: 0 var(--ds-space-3);
+  font-family: var(--ds-font);
+  font-size: var(--ds-text-xs);
   font-weight: 700;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  color: var(--nm-fg-muted);
+  color: var(--ds-fg-muted);
 }
 
 .settings-nav__list {
@@ -45,37 +45,42 @@
   appearance: none;
   border: 0;
   background: transparent;
-  font-family: var(--nm-font);
-  font-size: var(--nm-text-sm);
+  font-family: var(--ds-font);
+  font-size: var(--ds-text-sm);
   font-weight: 550;
-  color: var(--nm-fg-secondary);
+  color: var(--ds-fg-secondary);
   text-align: left;
-  padding: var(--nm-space-2) var(--nm-space-3);
-  border-radius: var(--nm-radius-sm);
+  padding: var(--ds-space-2) var(--ds-space-3);
+  border-radius: var(--ds-radius-sm);
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: var(--nm-space-3);
+  gap: var(--ds-space-3);
   transition:
-    background var(--nm-motion-fast) var(--nm-ease),
-    color var(--nm-motion-fast) var(--nm-ease),
-    box-shadow var(--nm-motion-fast) var(--nm-ease);
+    background var(--ds-motion-fast) var(--ds-ease),
+    color var(--ds-motion-fast) var(--ds-ease),
+    box-shadow var(--ds-motion-fast) var(--ds-ease);
 }
 
 .settings-nav__item:hover {
-  color: var(--nm-fg);
-  background: var(--nm-surface);
+  color: var(--ds-fg);
+  background: var(--ds-surface);
 }
 
+.settings-nav__item[data-active='true']:hover {
+  background: var(--ds-surface-strong);
+}
+
+/* The active item is the brightest pane in the rail. */
 .settings-nav__item[data-active='true'] {
-  color: var(--nm-fg);
-  background: var(--nm-surface);
-  box-shadow: var(--nm-shadow-raised-sm);
+  color: var(--ds-fg);
+  background: var(--ds-surface-strong);
+  box-shadow: var(--ds-ring), var(--ds-sheen);
 }
 
 .settings-nav__item:focus-visible {
   outline: none;
-  box-shadow: var(--nm-ring-focus);
+  box-shadow: var(--ds-ring-focus);
 }
 
 .settings-nav__icon {
@@ -87,7 +92,7 @@
 
 .settings-nav__item[data-active='true'] .settings-nav__icon {
   opacity: 1;
-  color: var(--nm-primary);
+  color: var(--ds-primary);
 }
 
 .settings-nav__label {
@@ -98,10 +103,10 @@
 
 .settings-nav__empty {
   margin: 0;
-  padding: var(--nm-space-4) var(--nm-space-3);
-  font-family: var(--nm-font);
-  font-size: var(--nm-text-xs);
-  color: var(--nm-fg-muted);
-  line-height: var(--nm-leading);
+  padding: var(--ds-space-4) var(--ds-space-3);
+  font-family: var(--ds-font);
+  font-size: var(--ds-text-xs);
+  color: var(--ds-fg-muted);
+  line-height: var(--ds-leading);
   text-align: center;
 }
