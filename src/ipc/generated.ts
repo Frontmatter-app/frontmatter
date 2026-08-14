@@ -2,7 +2,7 @@
 // Produced by scripts/generate-ipc.mjs from the #[tauri::command] definitions
 // in src-tauri/src. Run `npm run ipc:gen` after changing a command.
 //
-// 102 commands registered in main.rs.
+// 103 commands registered in main.rs.
 //
 // `unknown` means the Rust type is not a serialisable struct this generator
 // could resolve; narrow it with a cast at the call site.
@@ -331,6 +331,7 @@ export interface IpcArgsMap {
   'git_read_gitignore': { path: string };
   'git_write_gitignore': { path: string; patterns: string[] };
   'git_show_file': { path: string; commit: string; filePath: string };
+  'git_ensure_ignores': { path: string };
   'git_add_remote': { path: string; name: string; url: string };
   'git_get_remote_url': { path: string };
   'git_clone': { url: string; destination: string };
@@ -437,6 +438,7 @@ export interface IpcResultMap {
   'git_read_gitignore': string[];
   'git_write_gitignore': null;
   'git_show_file': string;
+  'git_ensure_ignores': null;
   'git_add_remote': null;
   'git_get_remote_url': string;
   'git_clone': CloneResult;
@@ -547,6 +549,7 @@ export const IPC_COMMANDS = [
   'git_read_gitignore',
   'git_write_gitignore',
   'git_show_file',
+  'git_ensure_ignores',
   'git_add_remote',
   'git_get_remote_url',
   'git_clone',

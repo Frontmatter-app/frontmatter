@@ -23,6 +23,8 @@ export interface WorkspaceContextType {
   isInitializing: boolean;
   directoryTree: FileNode | null;
   refreshDirectoryTree: () => Promise<void>;
+  /** Re-reads the workspace's documents from the local database. */
+  refreshDocuments: () => Promise<unknown>;
   openWorkspace: () => void;
   openDocument: (id: string) => void;
   closeDocument: (id: string) => void;

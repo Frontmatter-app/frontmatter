@@ -38,22 +38,38 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
     localDocuments, setLocalDocuments, cloudDocuments, cloudFolders, documents,
   } = useWorkspaceDocuments({ user, isAuthor, teamId, isTeamOwner, teamDoc, activeContext });
 
+  /**
+   * Closes the previous user's cloud documents when the account changes.
+   *
+   * This used to read `cloudDocuments` at the moment the id changed — but the
+   * subscription has already reset it to `[]` by then, so the filter matched
+   * nothing and the outgoing user's documents stayed open, with their content
+   * still cached locally. Tracking the ids in a ref means the set is the one
+   * that was live *before* the switch.
+   */
   const prevUserIdRef = useRef<string | null>(null);
+  const cloudIdsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    if (prevUserIdRef.current !== (user?.id || null)) {
-      const oldId = prevUserIdRef.current;
-      prevUserIdRef.current = user?.id || null;
-      if (oldId !== null) {
-        setOpenTabs(prevTabs => {
-          const cloudIds = new Set(cloudDocuments.map(d => d.id));
-          const filtered = prevTabs.filter(id => !cloudIds.has(id));
-          if (filtered.length === 0) setCurrentDocumentId(null);
-          else if (currentDocumentId && cloudIds.has(currentDocumentId)) setCurrentDocumentId(filtered[0]);
-          return filtered;
-        });
-      }
+    if (cloudDocuments.length > 0) {
+      cloudIdsRef.current = new Set(cloudDocuments.map(d => d.id));
     }
-  }, [user?.id, cloudDocuments, currentDocumentId]);
+  }, [cloudDocuments]);
+
+  useEffect(() => {
+    const nextUserId = user?.id || null;
+    if (prevUserIdRef.current === nextUserId) return;
+
+    const previousUserId = prevUserIdRef.current;
+    prevUserIdRef.current = nextUserId;
+    if (previousUserId === null) return;
+
+    const staleIds = cloudIdsRef.current;
+    cloudIdsRef.current = new Set();
+    if (staleIds.size === 0) return;
+
+    setOpenTabs(prevTabs => prevTabs.filter(id => !staleIds.has(id)));
+    setCurrentDocumentId(prev => (prev && staleIds.has(prev) ? null : prev));
+  }, [user?.id]);
 
   const fetchDocs = useCallback(async () => {
     try {
@@ -116,20 +132,18 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   useWorkspaceInit({ activeContext, setWorkspacePath, setIsInitializing, fetchDocs, openDocument });
 
   useWorkspaceTabRestore({
-    workspacePath, setOpenTabs, setCurrentDocumentId, fetchDocs, refreshDirectoryTree,
+    workspacePath, documents, setOpenTabs, setCurrentDocumentId,
+    refreshDocuments: fetchDocs, refreshDirectoryTree,
   });
 
-  useWorkspacePersistence({
-    workspacePath, openTabs, currentDocumentId, activeContext,
-    cloudDocuments, setWorkspacePath, fetchDocs, refreshDirectoryTree,
-  });
+  useWorkspacePersistence({ workspacePath, openTabs, currentDocumentId, activeContext });
 
   useFileChangeListener(workspacePath);
   useManualSave(currentDocumentId);
   useCloseHandler({ currentDocumentId, documents, workspacePath });
 
   const ops = useWorkspaceOperations(
-    { user, isAuthor, isTeamContext, teamPerms, teamId, workspacePath, currentDocumentId, documents },
+    { user, isAuthor, isTeamContext, teamPerms, teamId, workspacePath, currentDocumentId, documents, openTabs },
     { setWorkspacePath, setLocalDocuments, fetchDocs, refreshDirectoryTree, openDocument, closeDocument },
   );
 
@@ -143,7 +157,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   // re-rendered whenever any single piece of workspace state changed.
   const value = useShallowMemo<WorkspaceContextType>({
     documents, cloudFolders, openTabs, currentDocumentId, workspacePath,
-    isInitializing, directoryTree, refreshDirectoryTree, openWorkspace: ops.handleOpenWorkspace,
+    isInitializing, directoryTree, refreshDirectoryTree, refreshDocuments: fetchDocs,
+    openWorkspace: ops.handleOpenWorkspace,
     openDocument, closeDocument, createDocument: ops.handleCreateDocument,
     openExternalDocument: ops.handleOpenExternalDocument, deleteDocument: ops.handleDeleteDocument,
     openFileFromPath: ops.handleOpenFileFromPath, createFileInWorkspace: ops.handleCreateFileInWorkspace,

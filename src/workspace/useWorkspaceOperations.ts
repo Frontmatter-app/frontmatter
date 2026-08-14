@@ -1,18 +1,13 @@
 import React, { useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { invoke } from '../filesystem/tauriCommands';
-import { pushCloudDocument, deleteCloudDocument } from '../cloud/firestoreSync';
+import { pushCloudDocument, deleteCloudDocument, fetchCloudDocument } from '../cloud/firestoreSync';
 import { registry } from '../yjs/DocumentRegistry';
 import { generateDraftFromMarkdown } from '../yjs/draftUtils';
 import type { DocumentMeta } from '../types';
 import type { EffectiveTeamPermissions } from '../auth/teamPermissions';
 import { canCreateInCurrentContext, canOpenLocalInCurrentContext, canAddLocalToCurrentTeam } from './workspacePermissionGuards';
-
-const isPathInside = (parent: string, child: string) => {
-  const pn = parent.replace(/\/+$/, '');
-  const cn = child.replace(/\/+$/, '');
-  return cn === pn || cn.startsWith(pn + '/');
-};
+import { isPathInside } from './workspaceTypes';
 
 interface OpsCtx {
   user: { id: string } | null;
@@ -23,6 +18,7 @@ interface OpsCtx {
   workspacePath: string | null;
   currentDocumentId: string | null;
   documents: DocumentMeta[];
+  openTabs: string[];
 }
 
 export function useWorkspaceOperations(
@@ -36,7 +32,7 @@ export function useWorkspaceOperations(
     closeDocument: (id: string) => void;
   },
 ) {
-  const { user, isAuthor, isTeamContext, teamPerms, teamId, workspacePath, currentDocumentId, documents } = ctx;
+  const { user, isAuthor, isTeamContext, teamPerms, teamId, workspacePath, currentDocumentId, documents, openTabs } = ctx;
 
   const handleCreateDocument = useCallback(async (title?: string) => {
     if (!(await canCreateInCurrentContext(isTeamContext, user, teamPerms))) return;
@@ -159,10 +155,63 @@ export function useWorkspaceOperations(
     await setters.fetchDocs();
   }, [setters]);
 
+  /**
+   * Pins a cloud document for offline use, or releases it.
+   *
+   * The flag used to be stored and read back for the menu checkmark and
+   * nothing else — "Make Available Offline" changed a boolean and no bytes.
+   * Enabling now pulls the current content into the workspace database so the
+   * document opens without a network; disabling evicts that cached copy, which
+   * is the half that matters on a shared machine.
+   */
   const handleSetOfflineEnabled = useCallback(async (docId: string, enabled: boolean) => {
-    await invoke('set_offline_enabled', { id: docId, enabled });
+    const document = documents.find(d => d.id === docId);
+
+    if (enabled) {
+      const cloudDocument = await fetchCloudDocument(docId);
+      if (cloudDocument) {
+        try {
+          if (document && !document.is_cloud) {
+            await invoke('update_document', {
+              id: docId,
+              title: cloudDocument.title,
+              content: cloudDocument.content,
+              stage: cloudDocument.stage,
+              focusMode: cloudDocument.focus_mode,
+            });
+          } else {
+            await invoke('create_document', {
+              id: docId,
+              title: cloudDocument.title,
+              content: cloudDocument.content,
+              filePath: null,
+            });
+          }
+        } catch (e) {
+          // A row may already exist from a previous open; the flag below is
+          // still the meaningful part of the operation.
+          console.warn('Offline cache write skipped:', e);
+        }
+      }
+      await invoke('set_offline_enabled', { id: docId, enabled: true });
+      await setters.fetchDocs();
+      return;
+    }
+
+    await invoke('set_offline_enabled', { id: docId, enabled: false });
+
+    // Only a cloud-only document has a cached copy to drop, and only when it
+    // is not currently open in a tab.
+    const isCloudOnly = !document?.file_path;
+    if (isCloudOnly && !openTabs.includes(docId)) {
+      try {
+        await invoke('delete_document', { id: docId });
+      } catch (e) {
+        console.warn('Could not evict offline copy:', e);
+      }
+    }
     await setters.fetchDocs();
-  }, [setters]);
+  }, [documents, openTabs, setters]);
 
   const handleOpenWorkspace = useCallback(async () => {
     if (!(await canOpenLocalInCurrentContext(isTeamContext, user, teamPerms))) return;

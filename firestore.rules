@@ -79,6 +79,42 @@ service cloud.firestore {
              (groupIds.size() > 9 && isUserInGroup(teamId, groupIds[9]));
     }
 
+    // ── readableBy: the query index ───────────────────────────────────────────
+    //
+    // Firestore cannot express "documents visible to me", so each document
+    // carries a flat array a single `array-contains-any` query can match:
+    // the group ids in `filePermissions.visibleTo`, or the sentinel '*' when
+    // unrestricted, plus the owner's uid.
+    //
+    // It is deliberately NOT the authorization check — `canReadDocumentData`
+    // below still decides access from the real permissions, so a forged index
+    // cannot widen anyone's access. These rules only keep it *honest*, so that
+    // a document cannot be made to disappear from, or wrongly appear in, other
+    // members' listeners.
+    function expectedReadableBy(data) {
+      let visibleTo = getFilePermissionsVisibleTo(data);
+      let owner = data.get('ownerId', null);
+      let base = visibleTo.size() == 0 ? ['*'] : visibleTo;
+      return owner == null ? base : base.concat([owner]);
+    }
+
+    function readableByMatchesPermissions(data) {
+      let expected = expectedReadableBy(data);
+      let actual = data.get('readableBy', []);
+      return actual.hasAll(expected) && actual.hasOnly(expected);
+    }
+
+    // Documents written before the index existed have no `readableBy`. They
+    // stay writable as long as the write does not introduce one, so a backfill
+    // can trail a deploy without locking anyone out of their own documents.
+    function readableByIsValid(prevResource, nextData) {
+      let hadIndex = prevResource != null && 'readableBy' in prevResource.data;
+      let hasIndex = 'readableBy' in nextData;
+      return hasIndex
+        ? readableByMatchesPermissions(nextData)
+        : !hadIndex;
+    }
+
     function canReadDocumentData(docData) {
       let docTeamId = docData.get('teamId', null);
       let visibleTo = getFilePermissionsVisibleTo(docData);
@@ -205,11 +241,17 @@ service cloud.firestore {
     match /cloud_documents/{docId} {
       // Allow read/write based on group checks
       allow read: if resource != null && canReadDocumentData(resource.data);
-      allow update, delete: if canWriteDocumentResource(resource, request.resource);
+
+      allow update: if canWriteDocumentResource(resource, request.resource) &&
+                       readableByIsValid(resource, request.resource.data);
+      allow delete: if canWriteDocumentResource(resource, request.resource);
 
       // New document creation — must be signed in with Author+ plan,
-      // OR belong to a team that the user is a member of
-      allow create: if isSignedIn() && (
+      // OR belong to a team that the user is a member of.
+      // A new document must carry a correct query index; there is no legacy
+      // case to accommodate on create.
+      allow create: if isSignedIn() &&
+        readableByMatchesPermissions(request.resource.data) && (
         (hasActivePlan() && request.resource.data.get('ownerId', null) == request.auth.uid) ||
         (request.resource.data.get('teamId', null) != null && isTeamMember(request.resource.data.get('teamId', null)))
       );

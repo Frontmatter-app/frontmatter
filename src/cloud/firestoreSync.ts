@@ -12,6 +12,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../auth/firebase';
 import { CloudFolderMeta, DocumentMeta } from '../types';
+import { batchReaderTokens, deriveReadableBy } from './readableBy';
 
 export const CLOUD_DOCUMENTS_COL = 'cloud_documents';
 export const CLOUD_FOLDERS_COL = 'cloud_folders';
@@ -80,9 +81,25 @@ export async function ensureCloudDocumentExists(docId: string, uid: string, team
       content: '',
       stage: 'write',
       focusMode: false,
+      // A new document carries no restrictions, so it is readable by the whole
+      // team. The security rules reject a create whose index disagrees with its
+      // permissions.
+      readableBy: deriveReadableBy(uid, null),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
+    return;
+  }
+
+  // Documents written before the index existed are repaired on next touch, so a
+  // missed backfill row heals itself rather than staying invisible to queries.
+  const data = currentDoc.data();
+  if (!Array.isArray(data?.readableBy)) {
+    await setDoc(
+      docRef,
+      { readableBy: deriveReadableBy(data?.ownerId ?? uid, data?.filePermissions?.visibleTo) },
+      { merge: true },
+    );
   }
 }
 
@@ -136,6 +153,38 @@ export async function createCloudFolder(
   }, { merge: true });
 }
 
+/** The folder record's id is derived from its path, so a move is a delete plus a create. */
+export function cloudFolderId(path: string, uid: string, teamId?: string | null): string {
+  const normalizedPath = path.replace(/\/+/g, '/').replace(/^\/+|\/+$/g, '');
+  return `${teamId || uid}:${encodeURIComponent(normalizedPath)}`;
+}
+
+export async function deleteCloudFolder(
+  path: string,
+  uid: string,
+  teamId?: string | null,
+): Promise<void> {
+  const normalizedPath = path.replace(/\/+/g, '/').replace(/^\/+|\/+$/g, '');
+  if (!normalizedPath) return;
+  await deleteDoc(doc(db, CLOUD_FOLDERS_COL, cloudFolderId(normalizedPath, uid, teamId)));
+}
+
+/**
+ * Repoints a cloud document without rewriting its body.
+ *
+ * Renames used to round-trip the whole document through `pushCloudDocument`,
+ * which meant a rename raced any in-flight edit and could republish stale
+ * content over it.
+ */
+export async function moveCloudDocument(docId: string, newPath: string): Promise<void> {
+  const normalizedPath = newPath.replace(/\/+/g, '/').replace(/^\/+|\/+$/g, '');
+  await setDoc(
+    doc(db, CLOUD_DOCUMENTS_COL, docId),
+    { path: normalizedPath, updatedAt: serverTimestamp() },
+    { merge: true },
+  );
+}
+
 // Hard-delete a cloud document (removes from Firestore entirely)
 export async function deleteCloudDocument(docId: string): Promise<void> {
   try {
@@ -182,23 +231,17 @@ export function subscribeToCloudDocuments(
       // Team owners can read the whole team workspace.
       attachListener(query(collRef, where('teamId', '==', teamId)));
     } else {
-      // Members can only listen to docs they can actually read.
-      attachListener(query(collRef, where('teamId', '==', teamId), where('ownerId', '==', uid)));
-      attachListener(query(collRef, where('teamId', '==', teamId), where('filePermissions.visibleTo', '==', null)));
-      attachListener(query(collRef, where('teamId', '==', teamId), where('filePermissions.visibleTo', '==', [])));
-
-      const groupIds = (options.myGroupIds || []).filter(Boolean);
-      for (let i = 0; i < groupIds.length; i += 10) {
-        const batch = groupIds.slice(i, i + 10);
-        if (batch.length > 0) {
-          attachListener(
-            query(
-              collRef,
-              where('teamId', '==', teamId),
-              where('filePermissions.visibleTo', 'array-contains-any', batch),
-            ),
-          );
-        }
+      // One listener covers unrestricted documents, the member's own, and
+      // everything shared with a group they belong to. A second only appears
+      // for a member in more than 28 groups.
+      for (const tokens of batchReaderTokens(uid, options.myGroupIds || [])) {
+        attachListener(
+          query(
+            collRef,
+            where('teamId', '==', teamId),
+            where('readableBy', 'array-contains-any', tokens),
+          ),
+        );
       }
     }
   } else {

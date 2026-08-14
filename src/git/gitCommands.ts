@@ -21,6 +21,11 @@ export async function initRepo(path: string): Promise<void> {
   await invoke('git_init', { path });
 }
 
+/** Makes sure the workspace's own storage is ignored by an existing repository. */
+export async function ensureGitIgnores(path: string): Promise<void> {
+  await invoke('git_ensure_ignores', { path });
+}
+
 export async function getGitStatus(path: string): Promise<GitStatus> {
   return invoke('git_status', { path });
 }

@@ -12,6 +12,7 @@ import {
   where,
 } from 'firebase/firestore';
 import { db } from '../../auth/firebase';
+import { deriveReadableBy } from '../../cloud/readableBy';
 import { unwrapContent } from '../fakes';
 import type {
   AgreementsPort,
@@ -137,10 +138,16 @@ const cloudDocuments: CloudDocumentsPort = {
   },
 
   async setFilePermissions(documentId, permissions) {
+    const record = await readDoc<CloudDocumentDoc>(CLOUD_DOCUMENTS, documentId);
     await updateDoc(doc(db, CLOUD_DOCUMENTS, documentId), {
       // deleteField() removes the key entirely, which is what "unrestricted"
       // means to the security rules.
       filePermissions: permissions ?? deleteField(),
+      // The query index has to move with the permissions in the same write:
+      // the rules reject an update whose index disagrees with its file
+      // permissions, and a lagging index would drop the document out of every
+      // member's listener.
+      readableBy: deriveReadableBy(record?.ownerId, permissions?.visibleTo),
     });
   },
 };

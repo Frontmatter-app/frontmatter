@@ -118,7 +118,7 @@ pub fn get_recent_projects() -> Vec<String> {
 }
 
 #[tauri::command]
-pub fn add_recent_project(path: String) -> Result<(), String> {
+pub fn add_recent_project(app: tauri::AppHandle, path: String) -> Result<(), String> {
     let home = dirs::home_dir().ok_or("Could not determine home directory")?;
     let config_dir = home.join("MarkType").join(".app");
     if !config_dir.exists() {
@@ -131,6 +131,12 @@ pub fn add_recent_project(path: String) -> Result<(), String> {
         .and_then(|c| serde_json::from_str(&c).ok())
         .unwrap_or_default();
 
+    // Nothing changes if this is already the most recent entry; skipping the
+    // write avoids rebuilding the menu on every workspace refresh.
+    if items.first().map(|first| first == &path).unwrap_or(false) {
+        return Ok(());
+    }
+
     items.retain(|p| p != &path);
     items.insert(0, path);
     items.truncate(10);
@@ -138,13 +144,18 @@ pub fn add_recent_project(path: String) -> Result<(), String> {
     std::fs::write(&config_path, serde_json::to_string_pretty(&items).map_err(|e| e.to_string())?)
         .map_err(|e| e.to_string())?;
 
+    crate::menu::refresh_recent_menu(&app);
     Ok(())
 }
 
 #[tauri::command]
-pub fn clear_recent_projects() -> Result<(), String> {
+pub fn clear_recent_projects(app: tauri::AppHandle) -> Result<(), String> {
     let home = dirs::home_dir().ok_or("Could not determine home directory")?;
-    let config_path = home.join("MarkType").join(".app").join("recent.json");
-    std::fs::write(&config_path, "[]").map_err(|e| e.to_string())?;
+    let config_dir = home.join("MarkType").join(".app");
+    if !config_dir.exists() {
+        std::fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(config_dir.join("recent.json"), "[]").map_err(|e| e.to_string())?;
+    crate::menu::refresh_recent_menu(&app);
     Ok(())
 }

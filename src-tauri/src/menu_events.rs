@@ -106,7 +106,7 @@ pub fn handle(app: &tauri::AppHandle, event: tauri::menu::MenuEvent) {
 
     match id {
         "clear_recent" => {
-            let _ = commands::project::clear_recent_projects();
+            let _ = commands::project::clear_recent_projects(app.clone());
         }
         "new_window" => {
             let app_handle = app.clone();

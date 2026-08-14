@@ -40,6 +40,40 @@ pub async fn init_workspace_db(path: &Path, label: &str, app: &tauri::AppHandle)
     Ok(pool)
 }
 
+/// Drops a workspace's watcher and database pool once no window is showing it.
+///
+/// Both maps used to be insert-only, so every workspace a session ever touched
+/// kept a pool and a recursive watcher alive until the app quit.
+pub async fn release_workspace_if_unused(app: &tauri::AppHandle, workspace_path: &str) {
+    let state = app.state::<crate::AppState>();
+
+    let still_in_use = {
+        let windows = state.window_workspaces.lock().await;
+        windows.values().any(|path| path == workspace_path)
+    };
+    if still_in_use {
+        return;
+    }
+
+    crate::watcher::stop_workspace_watcher(app, workspace_path).await;
+
+    let pool = state.dbs.lock().await.remove(workspace_path);
+    if let Some(pool) = pool {
+        pool.close().await;
+    }
+}
+
+/// Forgets a window and releases whatever it was the last holder of.
+pub async fn release_window(app: &tauri::AppHandle, label: &str) {
+    let state = app.state::<crate::AppState>();
+    let previous = state.window_workspaces.lock().await.remove(label);
+    state.pending_imports.lock().await.remove(label);
+
+    if let Some(path) = previous {
+        release_workspace_if_unused(app, &path).await;
+    }
+}
+
 pub fn build_window(app: &tauri::AppHandle, label: &str, url: WebviewUrl) -> Result<tauri::WebviewWindow, String> {
     let (win_width, win_height) = crate::commands::window::get_current_window_size(app);
     let builder = WebviewWindowBuilder::new(app, label, url)

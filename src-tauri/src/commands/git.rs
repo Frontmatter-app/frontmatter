@@ -3,138 +3,317 @@ use std::path::Path;
 use std::process::Command;
 
 #[derive(Debug, Serialize)]
-pub struct GitStatusEntry { pub path: String, pub staged: bool, pub status: String, }
+pub struct GitStatusEntry {
+    pub path: String,
+    pub staged: bool,
+    pub status: String,
+}
 
 #[derive(Debug, Serialize)]
-pub struct GitStatus { pub branch: String, pub ahead: u32, pub behind: u32, pub dirty: bool, pub entries: Vec<GitStatusEntry>, }
+pub struct GitStatus {
+    pub branch: String,
+    pub ahead: u32,
+    pub behind: u32,
+    pub dirty: bool,
+    pub entries: Vec<GitStatusEntry>,
+}
 
 // The history panel reads `shortHash`; without this rename serde emits
 // `short_hash` and the abbreviated hash silently never renders.
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GitCommit { pub hash: String, pub short_hash: String, pub message: String, pub author: String, pub date: String, }
+pub struct GitCommit {
+    pub hash: String,
+    pub short_hash: String,
+    pub message: String,
+    pub author: String,
+    pub date: String,
+}
 
 #[derive(Debug, Serialize)]
-pub struct GitBranch { pub name: String, pub current: bool, }
+pub struct GitBranch {
+    pub name: String,
+    pub current: bool,
+}
 
-fn run_git(args: &[&str], cwd: &str) -> Result<String, String> {
-    let output = Command::new("git").args(args).current_dir(cwd)
-        .env("GIT_TERMINAL_PROMPT", "0").output().map_err(|e| e.to_string())?;
+fn run_git_blocking(args: &[String], cwd: &str) -> Result<String, String> {
+    let output = Command::new("git")
+        .args(args)
+        .current_dir(cwd)
+        .env("GIT_TERMINAL_PROMPT", "0")
+        // Quoted paths turn non-ASCII filenames into C-style escapes that no
+        // later `git add` can match, so ask for raw bytes instead.
+        .env("GIT_OPTIONAL_LOCKS", "0")
+        .output()
+        .map_err(|e| e.to_string())?;
+
     if !output.status.success() {
         return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
     }
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
+/// Runs git off the async runtime.
+///
+/// `Command::output` blocks until the process exits. Called directly from an
+/// async command it parked a Tokio worker for the duration — which for
+/// `git fetch` over a slow network meant seconds at a time.
+async fn git(args: Vec<String>, cwd: String) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || run_git_blocking(&args, &cwd))
+        .await
+        .map_err(|e| format!("git task failed: {e}"))?
+}
+
+macro_rules! args {
+    ($($arg:expr),* $(,)?) => { vec![$($arg.to_string()),*] };
+}
+
+/// Resolves the repository root containing `path`.
+///
+/// Every other call runs from this directory. `git status` reports paths
+/// relative to the repository root while a plain `git add <path>` resolves
+/// relative to the working directory, so opening a *subfolder* of a repository
+/// produced a status list whose entries could never be staged — the failure
+/// surfaced as "pathspec did not match any files".
+async fn repo_root(path: &str) -> Result<String, String> {
+    let out = git(args!["rev-parse", "--show-toplevel"], path.to_string()).await?;
+    let root = out.trim().to_string();
+    if root.is_empty() {
+        return Err("Not inside a git repository".to_string());
+    }
+    Ok(root)
+}
+
 #[tauri::command]
 pub async fn git_is_available() -> Result<bool, String> {
-    Ok(run_git(&["--version"], ".").is_ok())
+    Ok(git(args!["--version"], ".".to_string()).await.is_ok())
 }
 
 #[tauri::command]
 pub async fn git_is_repo(path: String) -> Result<bool, String> {
-    Ok(run_git(&["rev-parse", "--is-inside-work-tree"], &path).is_ok())
+    Ok(git(args!["rev-parse", "--is-inside-work-tree"], path)
+        .await
+        .map(|out| out.trim() == "true")
+        .unwrap_or(false))
+}
+
+/// Makes sure the workspace's own storage is never committed.
+///
+/// `.app` holds the workspace SQLite database and its write-ahead log. Only
+/// freshly initialised repositories got an ignore entry, so opening a folder
+/// that was *already* a repository committed a churning binary on every save.
+fn ensure_gitignore_entries(root: &str) -> Result<(), String> {
+    let ignore_path = Path::new(root).join(".gitignore");
+    let existing = std::fs::read_to_string(&ignore_path).unwrap_or_default();
+
+    let required = [".app/", ".DS_Store"];
+    let missing: Vec<&str> = required
+        .iter()
+        .filter(|entry| !existing.lines().any(|line| line.trim() == **entry))
+        .copied()
+        .collect();
+
+    if missing.is_empty() {
+        return Ok(());
+    }
+
+    let mut next = existing;
+    if !next.is_empty() && !next.ends_with('\n') {
+        next.push('\n');
+    }
+    for entry in missing {
+        next.push_str(entry);
+        next.push('\n');
+    }
+    std::fs::write(&ignore_path, next).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn git_init(path: String) -> Result<(), String> {
-    run_git(&["init"], &path)?;
-    let gitignore_path = Path::new(&path).join(".gitignore");
-    if !gitignore_path.exists() {
-        let content = ".DS_Store\n*.app\nnode_modules/\n";
-        std::fs::write(&gitignore_path, content).map_err(|e| e.to_string())?;
-    }
-    Ok(())
+    git(args!["init"], path.clone()).await?;
+    let root = repo_root(&path).await.unwrap_or(path);
+    ensure_gitignore_entries(&root)
 }
 
+/// Adds the workspace's ignore entries to an existing repository.
 #[tauri::command]
-pub async fn git_status(path: String) -> Result<GitStatus, String> {
-    let raw = run_git(&["status", "--porcelain", "-b"], &path)?;
+pub async fn git_ensure_ignores(path: String) -> Result<(), String> {
+    let root = repo_root(&path).await?;
+    ensure_gitignore_entries(&root)
+}
+
+/// Splits `git status --porcelain -z` output into its NUL-separated records.
+fn parse_status_records(raw: &str) -> Vec<String> {
+    raw.split('\0')
+        .filter(|record| !record.is_empty())
+        .map(|record| record.to_string())
+        .collect()
+}
+
+fn parse_status(raw: &str) -> GitStatus {
+    let records = parse_status_records(raw);
     let mut entries = Vec::new();
     let mut branch = String::new();
     let mut ahead = 0u32;
     let mut behind = 0u32;
-    for line in raw.lines() {
-        if let Some(rest) = line.strip_prefix("## ") {
-            let parts: Vec<&str> = rest.split(',').collect();
-            let branch_raw = parts[0].split('.').next().unwrap_or("").to_string();
-            branch = branch_raw.strip_prefix("No commits yet on ").unwrap_or(&branch_raw).to_string();
-            for p in parts.iter().skip(1) {
-                let p = p.trim();
-                if let Some(a) = p.strip_prefix("ahead ") { ahead = a.parse().unwrap_or(0); }
-                if let Some(b) = p.strip_prefix("behind ") { behind = b.parse().unwrap_or(0); }
+
+    let mut index = 0usize;
+    while index < records.len() {
+        let record = &records[index];
+        index += 1;
+
+        if let Some(rest) = record.strip_prefix("## ") {
+            // `## main...origin/main [ahead 2, behind 3]` — the tracking counts
+            // live in the bracketed tail, not in the comma-split head. Reading
+            // them positionally meant `ahead` was only ever parsed when it was
+            // the *second* field, so it always came back as zero.
+            let (head, tracking) = match rest.split_once('[') {
+                Some((head, tail)) => (head, tail.trim_end_matches(']')),
+                None => (rest, ""),
+            };
+
+            let branch_raw = head.split("...").next().unwrap_or("").trim().to_string();
+            branch = branch_raw
+                .strip_prefix("No commits yet on ")
+                .unwrap_or(&branch_raw)
+                .trim()
+                .to_string();
+
+            for part in tracking.split(',') {
+                let part = part.trim();
+                if let Some(value) = part.strip_prefix("ahead ") {
+                    ahead = value.trim().parse().unwrap_or(0);
+                }
+                if let Some(value) = part.strip_prefix("behind ") {
+                    behind = value.trim().parse().unwrap_or(0);
+                }
             }
             continue;
         }
-        if line.len() >= 4 {
-            let status_x = &line[0..1];
-            let status_y = &line[1..2];
-            let file_path = line[3..].to_string();
-            if status_x != " " && status_x != "?" {
-                entries.push(GitStatusEntry { path: file_path.clone(), staged: true, status: format!("{}{}", status_x, status_y) });
-            } else {
-                entries.push(GitStatusEntry { path: file_path, staged: false, status: status_y.to_string() });
-            }
+
+        if record.len() < 4 {
+            continue;
+        }
+
+        let status_x = &record[0..1];
+        let status_y = &record[1..2];
+        let file_path = record[3..].to_string();
+
+        // A rename or copy is reported as two records: the new path, then the
+        // old one. Reading only the first record left the entry holding the
+        // literal text "old -> new", which never matched a real file.
+        if status_x == "R" || status_x == "C" {
+            index += 1;
+        }
+
+        if status_x != " " && status_x != "?" {
+            entries.push(GitStatusEntry {
+                path: file_path.clone(),
+                staged: true,
+                status: format!("{status_x}{status_y}"),
+            });
+        }
+        if status_y != " " {
+            entries.push(GitStatusEntry {
+                path: file_path,
+                staged: false,
+                status: status_y.to_string(),
+            });
         }
     }
-    Ok(GitStatus { branch, ahead, behind, dirty: !entries.is_empty(), entries })
+
+    GitStatus {
+        branch,
+        ahead,
+        behind,
+        dirty: !entries.is_empty(),
+        entries,
+    }
+}
+
+#[tauri::command]
+pub async fn git_status(path: String) -> Result<GitStatus, String> {
+    let root = repo_root(&path).await?;
+    let raw = git(args!["status", "--porcelain=v1", "-z", "-b"], root).await?;
+    Ok(parse_status(&raw))
 }
 
 #[tauri::command]
 pub async fn git_add(path: String, files: Vec<String>) -> Result<(), String> {
+    let root = repo_root(&path).await?;
     if files.is_empty() {
-        run_git(&["add", "-A"], &path)?;
+        git(args!["add", "-A"], root).await?;
     } else {
-        for f in files { run_git(&["add", &f], &path)?; }
+        // One process for the whole set rather than one per file.
+        let mut command = args!["add", "--"];
+        command.extend(files);
+        git(command, root).await?;
     }
     Ok(())
 }
 
 #[tauri::command]
 pub async fn git_unstage(path: String, files: Vec<String>) -> Result<(), String> {
-    if files.is_empty() {
-        if run_git(&["restore", "--staged", "."], &path).is_err() {
-            run_git(&["rm", "--cached", "-r", "."], &path)?;
-        }
+    let root = repo_root(&path).await?;
+
+    let (restore, remove) = if files.is_empty() {
+        (args!["restore", "--staged", "."], args!["rm", "--cached", "-r", "."])
     } else {
-        for f in files {
-            if run_git(&["restore", "--staged", &f], &path).is_err() {
-                run_git(&["rm", "--cached", "-r", &f], &path)?;
-            }
-        }
+        let mut restore = args!["restore", "--staged", "--"];
+        restore.extend(files.clone());
+        let mut remove = args!["rm", "--cached", "-r", "--"];
+        remove.extend(files);
+        (restore, remove)
+    };
+
+    // `restore --staged` fails before the first commit, where there is no HEAD
+    // to restore from; `rm --cached` is the pre-commit equivalent.
+    if git(restore, root.clone()).await.is_err() {
+        git(remove, root).await?;
     }
     Ok(())
 }
 
 #[tauri::command]
 pub async fn git_commit(path: String, message: String) -> Result<String, String> {
-    let output = run_git(&["commit", "-m", &message], &path)?;
+    let root = repo_root(&path).await?;
+    let output = git(args!["commit", "-m", message], root).await?;
     Ok(output.lines().last().unwrap_or("").to_string())
 }
 
 #[tauri::command]
 pub async fn git_push(path: String) -> Result<(), String> {
-    run_git(&["push"], &path)?;
+    let root = repo_root(&path).await?;
+    git(args!["push"], root).await?;
     Ok(())
 }
 
 #[tauri::command]
 pub async fn git_pull(path: String) -> Result<(), String> {
-    run_git(&["pull"], &path)?;
+    let root = repo_root(&path).await?;
+    git(args!["pull"], root).await?;
     Ok(())
 }
 
 #[tauri::command]
 pub async fn git_log(path: String, file_path: Option<String>) -> Result<Vec<GitCommit>, String> {
-    let mut args = vec!["log", "--format=%H|%h|%s|%an|%ai", "--date=short"];
-    if let Some(ref f) = file_path { args.push("--"); args.push(f); }
-    let raw = match run_git(&args, &path) {
+    let root = repo_root(&path).await?;
+    let mut command = args!["log", "--format=%H|%h|%s|%an|%ai", "--date=short"];
+    if let Some(file) = file_path {
+        command.push("--".to_string());
+        command.push(file);
+    }
+
+    let raw = match git(command, root).await {
         Ok(out) => out,
         Err(_) => return Ok(vec![]),
     };
+
     let mut commits = Vec::new();
     for line in raw.lines() {
-        let parts: Vec<&str> = line.split('|').collect();
+        // The subject can contain the separator, so bound the split and keep
+        // the remainder intact.
+        let parts: Vec<&str> = line.splitn(5, '|').collect();
         if parts.len() >= 5 {
             commits.push(GitCommit {
                 hash: parts[0].to_string(),
@@ -150,18 +329,25 @@ pub async fn git_log(path: String, file_path: Option<String>) -> Result<Vec<GitC
 
 #[tauri::command]
 pub async fn git_branches(path: String) -> Result<Vec<GitBranch>, String> {
-    let raw = run_git(&["branch", "--list"], &path)?;
+    let root = repo_root(&path).await?;
+    let raw = git(args!["branch", "--list"], root).await?;
     let mut branches = Vec::new();
     for line in raw.lines() {
+        let current = line.starts_with('*');
         let name = line.trim_start_matches("* ").trim().to_string();
-        branches.push(GitBranch { name, current: line.starts_with("*") });
+        if !name.is_empty() {
+            branches.push(GitBranch { name, current });
+        }
     }
     Ok(branches)
 }
 
 #[tauri::command]
 pub async fn git_current_branch(path: String) -> Result<String, String> {
-    let out = match run_git(&["rev-parse", "--abbrev-ref", "HEAD"], &path) {
+    let Ok(root) = repo_root(&path).await else {
+        return Ok("main".to_string());
+    };
+    let out = match git(args!["rev-parse", "--abbrev-ref", "HEAD"], root).await {
         Ok(out) => out.trim().to_string(),
         Err(_) => return Ok("main".to_string()),
     };
@@ -170,60 +356,159 @@ pub async fn git_current_branch(path: String) -> Result<String, String> {
 
 #[tauri::command]
 pub async fn git_checkout(path: String, branch: String) -> Result<(), String> {
-    run_git(&["checkout", &branch], &path)?;
+    let root = repo_root(&path).await?;
+    git(args!["checkout", branch], root).await?;
     Ok(())
 }
 
 #[tauri::command]
 pub async fn git_create_branch(path: String, name: String) -> Result<(), String> {
-    run_git(&["branch", &name], &path)?;
+    let root = repo_root(&path).await?;
+    git(args!["branch", name], root).await?;
     Ok(())
 }
 
+/// Fetches, then compares HEAD with its upstream.
+///
+/// This performs network I/O, so it is deliberately separate from `git_status`
+/// and is called on its own slow cadence rather than on every refresh.
 #[tauri::command]
 pub async fn git_has_remote_changes(path: String) -> Result<bool, String> {
-    let result = run_git(&["fetch"], &path);
-    if result.is_err() { return Ok(false); }
-    let local = match run_git(&["rev-parse", "@"], &path) {
+    let root = repo_root(&path).await?;
+    if git(args!["fetch"], root.clone()).await.is_err() {
+        return Ok(false);
+    }
+    let local = match git(args!["rev-parse", "@"], root.clone()).await {
         Ok(out) => out.trim().to_string(),
         Err(_) => return Ok(false),
     };
-    let remote = run_git(&["rev-parse", "@{u}"], &path);
+    let remote = git(args!["rev-parse", "@{u}"], root).await;
     Ok(remote.map(|r| r.trim() != local).unwrap_or(false))
 }
 
 #[tauri::command]
 pub async fn git_has_remote(path: String) -> Result<bool, String> {
-    let out = run_git(&["remote"], &path)?;
+    let root = repo_root(&path).await?;
+    let out = git(args!["remote"], root).await?;
     Ok(!out.trim().is_empty())
 }
 
 #[tauri::command]
 pub async fn git_read_gitignore(path: String) -> Result<Vec<String>, String> {
-    let ignore_path = std::path::Path::new(&path).join(".gitignore");
-    if !ignore_path.exists() { return Ok(vec![]); }
+    let root = repo_root(&path).await.unwrap_or(path);
+    let ignore_path = Path::new(&root).join(".gitignore");
+    if !ignore_path.exists() {
+        return Ok(vec![]);
+    }
     let content = std::fs::read_to_string(&ignore_path).map_err(|e| e.to_string())?;
     Ok(content.lines().map(|l| l.to_string()).collect())
 }
 
 #[tauri::command]
 pub async fn git_write_gitignore(path: String, patterns: Vec<String>) -> Result<(), String> {
-    let ignore_path = std::path::Path::new(&path).join(".gitignore");
-    std::fs::write(&ignore_path, patterns.join("\n") + "\n").map_err(|e| e.to_string())?;
-    Ok(())
+    let root = repo_root(&path).await.unwrap_or(path);
+    let ignore_path = Path::new(&root).join(".gitignore");
+    std::fs::write(&ignore_path, patterns.join("\n") + "\n").map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn git_show_file(path: String, commit: String, file_path: String) -> Result<String, String> {
-    run_git(&["show", &format!("{}:{}", commit, file_path)], &path)
+    let root = repo_root(&path).await?;
+    git(args!["show", format!("{commit}:{file_path}")], root).await
 }
 
 #[tauri::command]
 pub async fn git_add_remote(path: String, name: String, url: String) -> Result<(), String> {
-    run_git(&["remote", "add", &name, &url], &path)?; Ok(())
+    let root = repo_root(&path).await?;
+    git(args!["remote", "add", name, url], root).await?;
+    Ok(())
 }
 
 #[tauri::command]
 pub async fn git_get_remote_url(path: String) -> Result<String, String> {
-    Ok(run_git(&["remote", "get-url", "origin"], &path).unwrap_or_default().trim().to_string())
+    let Ok(root) = repo_root(&path).await else {
+        return Ok(String::new());
+    };
+    Ok(git(args!["remote", "get-url", "origin"], root)
+        .await
+        .unwrap_or_default()
+        .trim()
+        .to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_branch_and_tracking_counts() {
+        let raw = "## main...origin/main [ahead 2, behind 3]\0";
+        let status = parse_status(raw);
+        assert_eq!(status.branch, "main");
+        assert_eq!(status.ahead, 2);
+        assert_eq!(status.behind, 3);
+    }
+
+    #[test]
+    fn parses_branch_before_first_commit() {
+        let raw = "## No commits yet on main\0?? notes.md\0";
+        let status = parse_status(raw);
+        assert_eq!(status.branch, "main");
+        assert_eq!(status.entries.len(), 1);
+        assert!(!status.entries[0].staged);
+    }
+
+    #[test]
+    fn keeps_non_ascii_paths_intact() {
+        let raw = "## main\0 M caf\u{e9}.md\0";
+        let status = parse_status(raw);
+        assert_eq!(status.entries[0].path, "caf\u{e9}.md");
+    }
+
+    #[test]
+    fn reads_rename_records_as_the_new_path() {
+        // A rename emits the new path, then the old path as a separate record.
+        let raw = "## main\0R  new.md\0old.md\0 M other.md\0";
+        let status = parse_status(raw);
+        let paths: Vec<&str> = status.entries.iter().map(|e| e.path.as_str()).collect();
+        assert_eq!(paths, vec!["new.md", "other.md"]);
+        assert!(status.entries[0].staged);
+    }
+
+    #[test]
+    fn reports_a_file_staged_and_modified_twice() {
+        let raw = "## main\0MM chapter.md\0";
+        let status = parse_status(raw);
+        assert_eq!(status.entries.len(), 2);
+        assert!(status.entries.iter().any(|e| e.staged));
+        assert!(status.entries.iter().any(|e| !e.staged));
+    }
+
+    #[test]
+    fn adds_missing_ignore_entries_without_dropping_existing_ones() {
+        let dir = std::env::temp_dir().join(format!("marktype_gitignore_{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join(".gitignore"), "node_modules/\n").unwrap();
+
+        ensure_gitignore_entries(&dir.to_string_lossy()).unwrap();
+
+        let content = std::fs::read_to_string(dir.join(".gitignore")).unwrap();
+        assert!(content.contains("node_modules/"));
+        assert!(content.contains(".app/"));
+        assert!(content.contains(".DS_Store"));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn does_not_duplicate_existing_ignore_entries() {
+        let dir = std::env::temp_dir().join(format!("marktype_gitignore2_{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join(".gitignore"), ".app/\n.DS_Store\n").unwrap();
+
+        ensure_gitignore_entries(&dir.to_string_lossy()).unwrap();
+
+        let content = std::fs::read_to_string(dir.join(".gitignore")).unwrap();
+        assert_eq!(content.matches(".app/").count(), 1);
+        std::fs::remove_dir_all(&dir).ok();
+    }
 }

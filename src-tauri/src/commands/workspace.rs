@@ -102,7 +102,19 @@ pub async fn open_workspace(
     let workspace_path_clone = resolved_path.clone();
 
     state.dbs.lock().await.insert(path_str.clone(), pool);
-    state.window_workspaces.lock().await.insert(label.clone(), path_str.clone());
+    let previous = state
+        .window_workspaces
+        .lock()
+        .await
+        .insert(label.clone(), path_str.clone());
+
+    // Switching a window to another workspace used to leave the old one's
+    // watcher and pool running for the rest of the session.
+    if let Some(previous) = previous {
+        if previous != path_str {
+            crate::window_ops::release_workspace_if_unused(&app, &previous).await;
+        }
+    }
 
     let path_str_clone = path_str.clone();
     let app_handle = app.clone();

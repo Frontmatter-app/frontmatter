@@ -1,44 +1,58 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { useGitStore } from './gitStore';
-import { checkGitAvailable, checkIsRepo, getGitStatus, hasRemoteChanges, getCurrentBranch, getGitLog } from './gitCommands';
+import {
+  checkGitAvailable, checkIsRepo, ensureGitIgnores, getGitLog, getGitStatus, hasRemoteChanges,
+} from './gitCommands';
+
+/** Coalesces the bursts of file events a single save produces. */
+const STATUS_DEBOUNCE_MS = 500;
+
+/**
+ * How often to ask the remote whether it has moved on. This runs `git fetch`,
+ * so it is deliberately rare and deliberately separate from reading status —
+ * the two used to be one call, which put a network round trip on the path of
+ * every workspace change and every commit.
+ */
+const REMOTE_POLL_MS = 5 * 60 * 1000;
 
 export function useGitStatus(workspacePath: string | null, currentDocumentPath: string | null) {
-  const store = useGitStore();
   const workspacePathRef = useRef(workspacePath);
   const currentDocumentPathRef = useRef(currentDocumentPath);
 
   useEffect(() => { workspacePathRef.current = workspacePath; }, [workspacePath]);
   useEffect(() => { currentDocumentPathRef.current = currentDocumentPath; }, [currentDocumentPath]);
 
+  // Reading through `getState` keeps these callbacks stable without capturing
+  // a render's snapshot of the store.
   const refresh = useCallback(async () => {
     const path = workspacePathRef.current;
-    const docPath = currentDocumentPathRef.current;
+    const documentPath = currentDocumentPathRef.current;
+    const store = useGitStore.getState();
     if (!path) return;
 
     store.setRepoStatus('checking');
     try {
-      const available = await checkGitAvailable();
-      if (!available) {
+      if (!(await checkGitAvailable())) {
         store.setRepoStatus('git-not-found');
+        store.setStatus(null);
         return;
       }
-      const isRepo = await checkIsRepo(path);
-      if (!isRepo) {
+      if (!(await checkIsRepo(path))) {
         store.setRepoStatus('not-repo');
         store.setStatus(null);
         return;
       }
-      const status = await getGitStatus(path);
-      store.setStatus(status);
+
+      store.setStatus(await getGitStatus(path));
       store.setRepoStatus('repo');
       store.setError(null);
 
-      try { store.setCommits(await getGitLog(path, docPath || undefined)); } catch {}
-      try {
-        const remoteChanges = await hasRemoteChanges(path);
-        if (remoteChanges) store.setError('Remote has updates');
-      } catch {}
+      // The workspace database lives inside the workspace folder, so a
+      // repository that predates the app would otherwise commit it.
+      ensureGitIgnores(path).catch(() => {});
+
+      try { store.setCommits(await getGitLog(path, documentPath || undefined)); } catch { /* history is optional */ }
     } catch (e) {
       store.setRepoStatus('repo');
       store.setError(e instanceof Error ? e.message : 'Unknown error');
@@ -47,31 +61,48 @@ export function useGitStatus(workspacePath: string | null, currentDocumentPath: 
 
   const refreshStatusOnly = useCallback(async () => {
     const path = workspacePathRef.current;
-    const currentStatus = useGitStore.getState().repoStatus;
-    if (!path || currentStatus !== 'repo') return;
+    const store = useGitStore.getState();
+    if (!path || store.repoStatus !== 'repo') return;
     try {
-      const status = await getGitStatus(path);
-      useGitStore.getState().setStatus(status);
-      useGitStore.getState().setError(null);
-    } catch {}
+      store.setStatus(await getGitStatus(path));
+    } catch { /* transient; the next event refreshes again */ }
   }, []);
 
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const checkRemote = useCallback(async () => {
+    const path = workspacePathRef.current;
+    const store = useGitStore.getState();
+    if (!path || store.repoStatus !== 'repo') return;
+    try {
+      store.setBehindRemote(await hasRemoteChanges(path));
+    } catch { /* offline, or no upstream */ }
+  }, []);
 
   useEffect(() => {
     if (!workspacePath) return;
-    store.setWorkspacePath(workspacePath);
-    refresh();
-    let unlisten: (() => void) | undefined;
-    listen('file-changed', () => {
-      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-      debounceTimerRef.current = setTimeout(refreshStatusOnly, 500);
-    }).then(fn => { unlisten = fn; });
-    return () => {
-      if (unlisten) unlisten();
-      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    };
-  }, [workspacePath, refresh, refreshStatusOnly]);
+    useGitStore.getState().setWorkspacePath(workspacePath);
+    void refresh();
 
-  return { refresh };
+    const debounce = { timer: null as ReturnType<typeof setTimeout> | null };
+    const scheduleStatus = () => {
+      if (debounce.timer) clearTimeout(debounce.timer);
+      debounce.timer = setTimeout(refreshStatusOnly, STATUS_DEBOUNCE_MS);
+    };
+
+    const unlisteners: Array<() => void> = [];
+    // `file-changed` only fires for files the workspace database already knows
+    // about, so new, untracked, and non-markdown files never moved the status.
+    // `workspace-reconciled` covers everything structural.
+    listen('file-changed', scheduleStatus).then(fn => unlisteners.push(fn));
+    listen('workspace-reconciled', scheduleStatus).then(fn => unlisteners.push(fn));
+
+    const remoteTimer = setInterval(checkRemote, REMOTE_POLL_MS);
+
+    return () => {
+      unlisteners.forEach(fn => fn());
+      if (debounce.timer) clearTimeout(debounce.timer);
+      clearInterval(remoteTimer);
+    };
+  }, [workspacePath, refresh, refreshStatusOnly, checkRemote]);
+
+  return { refresh, checkRemote };
 }

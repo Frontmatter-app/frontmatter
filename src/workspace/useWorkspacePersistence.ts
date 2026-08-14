@@ -1,44 +1,54 @@
 import { useEffect, useRef } from 'react';
 import { invoke } from '../filesystem/tauriCommands';
 import type { ActiveContextType } from '../billing/PlanProvider';
-import { DocumentMeta } from '../types';
+import { activeStorageKey, tabsStorageKey } from './useWorkspaceTabRestore';
 
 interface UseWorkspacePersistenceOptions {
   workspacePath: string | null;
   openTabs: string[];
   currentDocumentId: string | null;
   activeContext: ActiveContextType;
-  cloudDocuments: DocumentMeta[];
-  setWorkspacePath: (path: string | null) => void;
-  fetchDocs: () => Promise<unknown>;
-  refreshDirectoryTree: () => Promise<void>;
 }
 
 export function useWorkspacePersistence(opts: UseWorkspacePersistenceOptions) {
-  const prevUserIdRef = useRef<string | null>(null);
+  const { workspacePath, openTabs, currentDocumentId, activeContext } = opts;
+
+  /**
+   * The render on which `workspacePath` changes still carries the previous
+   * workspace's tabs — the reset in `useWorkspaceTabRestore` has not been
+   * committed yet. Writing then would stamp the old tab list onto the new
+   * workspace's key, so the first pass after a switch only records the path.
+   */
+  const persistedPathRef = useRef<string | null>(null);
+  const isFreshWorkspace = persistedPathRef.current !== workspacePath;
 
   useEffect(() => {
-    if (opts.workspacePath) {
-      localStorage.setItem(`marktype_tabs_${opts.workspacePath}`, JSON.stringify(opts.openTabs));
+    if (!workspacePath) return;
+    if (persistedPathRef.current !== workspacePath) {
+      persistedPathRef.current = workspacePath;
+      return;
     }
-  }, [opts.openTabs, opts.workspacePath]);
+    localStorage.setItem(tabsStorageKey(workspacePath), JSON.stringify(openTabs));
+  }, [openTabs, workspacePath]);
 
   useEffect(() => {
-    if (opts.currentDocumentId) {
-      localStorage.setItem(`marktype_active_${opts.workspacePath}`, opts.currentDocumentId);
+    if (!workspacePath || isFreshWorkspace) return;
+    if (currentDocumentId) {
+      localStorage.setItem(activeStorageKey(workspacePath), currentDocumentId);
     } else {
-      localStorage.removeItem(`marktype_active_${opts.workspacePath}`);
+      localStorage.removeItem(activeStorageKey(workspacePath));
     }
-  }, [opts.currentDocumentId, opts.workspacePath]);
+  }, [currentDocumentId, workspacePath, isFreshWorkspace]);
 
   useEffect(() => {
-    if (opts.workspacePath) {
-      invoke('save_last_workspace', {
-        workspaceContextJson: JSON.stringify(opts.activeContext),
-        path: opts.workspacePath,
-      }).catch(console.error);
-    }
-  }, [opts.workspacePath, opts.activeContext]);
+    if (!workspacePath) return;
+    invoke('save_last_workspace', {
+      workspaceContextJson: JSON.stringify(activeContext),
+      path: workspacePath,
+    }).catch(console.error);
 
-  return { prevUserIdRef };
+    // The Open Recent menu was only ever written to after a clone, so for most
+    // users it read "No Recent Projects" permanently.
+    invoke('add_recent_project', { path: workspacePath }).catch(console.error);
+  }, [workspacePath, activeContext]);
 }

@@ -4,6 +4,7 @@ use tauri::Runtime;
 pub struct MenuBundle<R: Runtime> {
     pub menu: Menu<R>,
     pub auto_save_item: CheckMenuItem<R>,
+    pub recent_submenu: Submenu<R>,
 }
 
 /// Builds the application menu.
@@ -231,34 +232,70 @@ pub fn create_menu<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<MenuB
     menu_items.push(&help_menu);
 
     let menu = Menu::with_items(app, &menu_items)?;
-    Ok(MenuBundle { menu, auto_save_item })
+    Ok(MenuBundle { menu, auto_save_item, recent_submenu })
 }
 
 fn build_recent_submenu<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<Submenu<R>> {
+    let submenu = Submenu::new(app, "Open Recent", true)?;
+    fill_recent_submenu(app, &submenu)?;
+    Ok(submenu)
+}
+
+/// Replaces the submenu's entries with the current recent list.
+///
+/// The menu is built once at startup, so without this the list only ever
+/// reflected what was on disk when the app launched.
+pub fn fill_recent_submenu<R: Runtime>(
+    app: &tauri::AppHandle<R>,
+    submenu: &Submenu<R>,
+) -> tauri::Result<()> {
+    for item in submenu.items()? {
+        let _ = submenu.remove(&item);
+    }
+
     let items = load_recent_projects();
-
     if items.is_empty() {
-        return Submenu::with_items(
-            app,
-            "Open Recent",
-            true,
-            &[&MenuItem::with_id(app, "open_recent_none", "No Recent Projects", false, None::<&str>)?],
-        );
+        let empty = MenuItem::with_id(app, "open_recent_none", "No Recent Projects", false, None::<&str>)?;
+        submenu.append(&empty)?;
+        return Ok(());
     }
 
-    let mut entries: Vec<MenuItem<R>> = Vec::new();
-    for (index, name) in items.iter().enumerate() {
-        entries.push(MenuItem::with_id(app, &format!("open_recent_{index}"), name, true, None::<&str>)?);
+    for (index, path) in items.iter().enumerate() {
+        // The full path is unreadable in a menu; the folder name is what the
+        // user recognises, with the path kept as the tooltip-ish suffix only
+        // when two entries would otherwise look identical.
+        let label = display_name(path, &items);
+        let entry = MenuItem::with_id(app, &format!("open_recent_{index}"), &label, true, None::<&str>)?;
+        submenu.append(&entry)?;
     }
 
-    let separator = PredefinedMenuItem::separator(app)?;
-    let clear = MenuItem::with_id(app, "clear_recent", "Clear Menu", true, None::<&str>)?;
+    submenu.append(&PredefinedMenuItem::separator(app)?)?;
+    submenu.append(&MenuItem::with_id(app, "clear_recent", "Clear Menu", true, None::<&str>)?)?;
+    Ok(())
+}
 
-    let mut refs: Vec<&dyn tauri::menu::IsMenuItem<R>> =
-        entries.iter().map(|m| m as &dyn tauri::menu::IsMenuItem<R>).collect();
-    refs.push(&separator);
-    refs.push(&clear);
-    Submenu::with_items(app, "Open Recent", true, &refs)
+fn display_name(path: &str, all: &[String]) -> String {
+    let name = path.rsplit('/').find(|part| !part.is_empty()).unwrap_or(path);
+    let ambiguous = all
+        .iter()
+        .filter(|other| other.rsplit('/').find(|part| !part.is_empty()).unwrap_or(other) == name)
+        .count()
+        > 1;
+    if ambiguous { path.to_string() } else { name.to_string() }
+}
+
+/// Rebuilds the "Open Recent" submenu from the managed handle, if there is one.
+pub fn refresh_recent_menu(app: &tauri::AppHandle) {
+    use tauri::Manager;
+    if app.try_state::<crate::RecentSubmenu>().is_none() {
+        return;
+    }
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let state = app.state::<crate::RecentSubmenu>();
+        let submenu = state.0.lock().await;
+        let _ = fill_recent_submenu(&app, &submenu);
+    });
 }
 
 pub fn load_recent_projects() -> Vec<String> {

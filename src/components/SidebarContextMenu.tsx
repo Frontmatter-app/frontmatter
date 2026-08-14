@@ -1,61 +1,38 @@
 import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  Plus, FolderPlus, Edit2, Trash2, FolderOpen, ExternalLink,
-  Cloud, CloudOff, WifiOff, WifiHigh, UserPlus, Shield,
-} from 'lucide-react';
+
+/**
+ * A positioned context menu.
+ *
+ * It used to take one optional callback per possible action plus eight booleans
+ * describing the clicked node, and decide internally which combination to
+ * render — so adding an action meant touching both the menu and every caller,
+ * and the folder and file branches drifted apart. It now renders the items it
+ * is handed; deciding which items exist is the caller's job.
+ */
+
+export interface ContextMenuItem {
+  id: string;
+  label: string;
+  icon?: React.ReactNode;
+  onSelect: () => void;
+  danger?: boolean;
+  muted?: boolean;
+  accent?: string;
+}
+
+export type ContextMenuEntry = ContextMenuItem | { id: string; divider: true };
+
+const isDivider = (entry: ContextMenuEntry): entry is { id: string; divider: true } =>
+  'divider' in entry;
 
 interface SidebarContextMenuProps {
   position: { x: number; y: number } | null;
-  isFolder: boolean;
-  isSynced?: boolean;        // local file already synced to cloud
-  isCloudOnly?: boolean;     // no local copy, cloud only
-  isOfflineEnabled?: boolean;// already available offline
-  canSync?: boolean;         // author+ plan and not already synced
-  canMakeOffline?: boolean;  // group has offlineAccess permission
-  canAddToTeam?: boolean;    // group has addToTeam permission (local file in team context)
-  showManagePerms?: boolean; // team owner can manage per-file permissions
-  isCloudFolder?: boolean;   // virtual cloud folder (can create cloud-only docs inside)
+  items: ContextMenuEntry[];
   onClose: () => void;
-  onCreateFile?: () => void;
-  onCreateFolder?: () => void;
-  onRename?: () => void;
-  onDelete?: () => void;
-  onRevealInFolder?: () => void;
-  onOpen?: () => void;
-  onSyncToCloud?: () => void;
-  onUnsyncFromCloud?: () => void;
-  onMakeOffline?: () => void;
-  onRemoveOffline?: () => void;
-  onAddToTeam?: () => void;
-  onManagePermissions?: () => void;
 }
 
-export function SidebarContextMenu({
-  position,
-  isFolder,
-  isSynced = false,
-  isCloudOnly = false,
-  isOfflineEnabled = false,
-  canSync = false,
-  canMakeOffline = true,
-  canAddToTeam = false,
-  showManagePerms = false,
-  isCloudFolder = false,
-  onClose,
-  onCreateFile,
-  onCreateFolder,
-  onRename,
-  onDelete,
-  onRevealInFolder,
-  onOpen,
-  onSyncToCloud,
-  onUnsyncFromCloud,
-  onMakeOffline,
-  onRemoveOffline,
-  onAddToTeam,
-  onManagePermissions,
-}: SidebarContextMenuProps) {
+export function SidebarContextMenu({ position, items, onClose }: SidebarContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close on Escape key or clicking outside
@@ -80,13 +57,26 @@ export function SidebarContextMenu({
 
   if (!position) return null;
 
+  // Drop leading, trailing, and doubled dividers so callers can emit them
+  // unconditionally around optional groups.
+  const entries = items.filter((entry, index) => {
+    if (!isDivider(entry)) return true;
+    const before = items.slice(0, index).filter(e => !isDivider(e)).length;
+    const after = items.slice(index + 1).filter(e => !isDivider(e)).length;
+    if (before === 0 || after === 0) return false;
+    return !isDivider(items[index - 1]);
+  });
+
+  if (entries.length === 0) return null;
+
   const MENU_W = 220;
+  const estimatedHeight = entries.length * 34 + 8;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   let x = position.x + 4;
   let y = position.y + 4;
   if (x + MENU_W > vw - 12) x = position.x - MENU_W - 4;
-  if (y + 400 > vh - 12) y = Math.max(8, position.y - 300);
+  if (y + estimatedHeight > vh - 12) y = Math.max(8, vh - estimatedHeight - 12);
   x = Math.max(8, x);
   y = Math.max(8, y);
 
@@ -114,7 +104,7 @@ export function SidebarContextMenu({
     margin: '4px 0',
   };
 
-  const itemStyle = (danger = false, muted = false, accent?: string): React.CSSProperties => ({
+  const itemStyle = (item: ContextMenuItem): React.CSSProperties => ({
     display: 'flex',
     alignItems: 'center',
     gap: 10,
@@ -122,11 +112,11 @@ export function SidebarContextMenu({
     padding: '8px 12px',
     fontSize: 13,
     fontWeight: 500,
-    color: danger
+    color: item.danger
       ? 'var(--editor-error, #e11d48)'
-      : accent
-        ? accent
-        : muted
+      : item.accent
+        ? item.accent
+        : item.muted
           ? 'color-mix(in srgb, var(--editor-text-color, #111827) 55%, transparent)'
           : 'var(--editor-text-color, #111827)',
     cursor: 'pointer',
@@ -143,66 +133,23 @@ export function SidebarContextMenu({
     e.currentTarget.style.background = 'transparent';
   };
 
-  const btn = (
-    label: string,
-    icon: React.ReactNode,
-    handler?: () => void,
-    danger = false,
-    muted = false,
-    accent?: string,
-  ) => handler ? (
-    <button
-      style={itemStyle(danger, muted, accent)}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-      onClick={() => { handler(); onClose(); }}
-    >
-      {icon}
-      {label}
-    </button>
-  ) : null;
-
-  const ic = (color: string) => ({ width: 14, height: 14, opacity: 0.75, color });
-
-  const showCloudSection = canSync || isSynced || isCloudOnly || canAddToTeam;
-  const showOfflineToggle = canMakeOffline && (isSynced || isCloudOnly);
-
   return createPortal(
-    <div ref={menuRef} style={menuStyle}>
-      {isFolder ? (
-        <>
-          {btn('New File', <Plus style={ic('currentColor')} />, onCreateFile)}
-          {btn('New Folder', <FolderPlus style={ic('currentColor')} />, onCreateFolder)}
-          <div style={dividerStyle} />
-          {btn('Rename', <Edit2 style={ic('currentColor')} />, onRename)}
-          {!isCloudFolder && btn('Reveal in Finder', <FolderOpen style={ic('currentColor')} />, onRevealInFolder)}
-          {showCloudSection && <div style={dividerStyle} />}
-          {canSync && !isSynced && btn('Sync to Cloud', <Cloud style={ic('var(--editor-info, #3b82f6)')} />, onSyncToCloud)}
-          {isSynced && btn('Remove Cloud Sync', <CloudOff style={ic('var(--editor-muted, #6b7280)')} />, onUnsyncFromCloud, false, true)}
-          {showOfflineToggle && !isOfflineEnabled && btn('Make Available Offline', <WifiHigh style={ic('var(--editor-accent, #8b5cf6)')} />, onMakeOffline)}
-          {showOfflineToggle && isOfflineEnabled && btn('Remove Offline Access', <WifiOff style={ic('var(--editor-muted, #6b7280)')} />, onRemoveOffline, false, true)}
-          {canAddToTeam && btn('Add to Team', <UserPlus style={ic('var(--editor-warning, #f97316)')} />, onAddToTeam, false, false)}
-          {showManagePerms && <div style={dividerStyle} />}
-          {showManagePerms && btn('Manage Permissions', <Shield style={ic('var(--editor-accent, #a855f7)')} />, onManagePermissions, false, false, 'var(--editor-accent, #a855f7)')}
-          <div style={dividerStyle} />
-          {btn('Delete', <Trash2 style={{ width: 14, height: 14, opacity: 0.8 }} />, onDelete, true)}
-        </>
+    <div ref={menuRef} style={menuStyle} role="menu">
+      {entries.map(entry => isDivider(entry) ? (
+        <div key={entry.id} style={dividerStyle} />
       ) : (
-        <>
-          {!isCloudOnly && btn('Open', <ExternalLink style={ic('currentColor')} />, onOpen)}
-          {!isCloudOnly && btn('Rename', <Edit2 style={ic('currentColor')} />, onRename)}
-          {showCloudSection && <div style={dividerStyle} />}
-          {canSync && !isSynced && !isCloudOnly && btn('Sync to Cloud', <Cloud style={ic('var(--editor-info, #3b82f6)')} />, onSyncToCloud)}
-          {(isSynced || isCloudOnly) && btn('Remove Cloud Sync', <CloudOff style={ic('var(--editor-muted, #6b7280)')} />, onUnsyncFromCloud, false, true)}
-          {showOfflineToggle && !isOfflineEnabled && btn('Make Available Offline', <WifiHigh style={ic('var(--editor-accent, #8b5cf6)')} />, onMakeOffline)}
-          {showOfflineToggle && isOfflineEnabled && btn('Remove Offline Access', <WifiOff style={ic('var(--editor-muted, #6b7280)')} />, onRemoveOffline, false, true)}
-          {canAddToTeam && !isSynced && !isCloudOnly && btn('Add to Team', <UserPlus style={ic('var(--editor-warning, #f97316)')} />, onAddToTeam, false, false)}
-          {showManagePerms && <div style={dividerStyle} />}
-          {showManagePerms && btn('Manage Permissions', <Shield style={ic('var(--editor-accent, #a855f7)')} />, onManagePermissions, false, false, 'var(--editor-accent, #a855f7)')}
-          <div style={dividerStyle} />
-          {btn('Delete', <Trash2 style={{ width: 14, height: 14, opacity: 0.8 }} />, onDelete, true)}
-        </>
-      )}
+        <button
+          key={entry.id}
+          role="menuitem"
+          style={itemStyle(entry)}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+          onClick={() => { entry.onSelect(); onClose(); }}
+        >
+          {entry.icon}
+          {entry.label}
+        </button>
+      ))}
     </div>,
     document.body
   );

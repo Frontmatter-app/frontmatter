@@ -22,6 +22,14 @@ interface GitStore {
   
   error: string | null;
   setError: (e: string | null) => void;
+
+  /**
+   * Whether the upstream has commits this branch does not. Kept apart from
+   * `error` — "the remote moved on" is ordinary news, and rendering it as an
+   * error meant a routine fetch result looked like a failure.
+   */
+  behindRemote: boolean;
+  setBehindRemote: (v: boolean) => void;
   
   branchMenuOpen: boolean;
   setBranchMenuOpen: (v: boolean) => void;
@@ -50,6 +58,9 @@ export const useGitStore = create<GitStore>((set) => ({
   
   error: null,
   setError: (error) => set({ error }),
+
+  behindRemote: false,
+  setBehindRemote: (behindRemote) => set({ behindRemote }),
   
   branchMenuOpen: false,
   setBranchMenuOpen: (branchMenuOpen) => set({ branchMenuOpen }),

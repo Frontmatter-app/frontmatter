@@ -28,7 +28,7 @@ export function GitPanel() {
   const currentDoc = documents.find(d => d.id === currentDocumentId);
   const { settings } = useSettingsStore();
   const vc = settings.versionControl;
-  const { refresh } = useGitStatus(workspacePath, currentDoc?.file_path || null);
+  const { refresh, checkRemote } = useGitStatus(workspacePath, currentDoc?.file_path || null);
   const teamPerms = useTeamPermissions();
   const isTeamOwner = teamPerms.isTeamOwner;
   const isTeamContext = teamPerms.isTeamContext;
@@ -67,6 +67,10 @@ export function GitPanel() {
 
   useEffect(() => { loadGitInfo(); }, [loadGitInfo, store.status]);
 
+  // Opening the section is the one moment the remote check is worth its
+  // latency, so it runs then rather than on every status refresh.
+  useEffect(() => { if (gitOpen) void checkRemote(); }, [gitOpen, checkRemote]);
+
   const stageFile = useCallback(async (fp: string) => {
     if (!workspacePath) return;
     try { await stageFiles(workspacePath, [fp]); store.setError(null); refresh(); }
@@ -102,6 +106,7 @@ export function GitPanel() {
       if (commitAction === 'commit_push' && remoteExists && canPush) {
         store.setIsPushing(true);
         await pushChanges(workspacePath);
+        store.setBehindRemote(false);
       }
       refresh();
     } catch (e) { reportGitError(commitAction === 'commit' ? 'Commit' : 'Commit & Push', e); }
@@ -111,7 +116,7 @@ export function GitPanel() {
   const push = async () => {
     if (!workspacePath || !canPush) return;
     store.setIsPushing(true);
-    try { await pushChanges(workspacePath); store.setError(null); refresh(); }
+    try { await pushChanges(workspacePath); store.setError(null); store.setBehindRemote(false); refresh(); }
     catch (e) { reportGitError('Push', e); }
     finally { store.setIsPushing(false); }
   };
@@ -119,7 +124,12 @@ export function GitPanel() {
   const pull = async () => {
     if (!workspacePath || !canPull) return;
     store.setIsPulling(true);
-    try { await pullChanges(workspacePath); store.setError(null); refresh(); }
+    try {
+      await pullChanges(workspacePath);
+      store.setError(null);
+      store.setBehindRemote(false);
+      refresh();
+    }
     catch (e) { reportGitError('Pull', e); }
     finally { store.setIsPulling(false); }
   };
@@ -149,11 +159,35 @@ export function GitPanel() {
 
   if (!vc.enabled) return null;
 
-  if (store.repoStatus === 'git-not-found' || store.repoStatus === 'not-repo') {
+  // Git tracks the folder on disk, so there is nothing to offer without one.
+  if (!workspacePath) return null;
+
+  // Offering "Initialize" when git is missing produced a button that failed
+  // silently, since the error was swallowed and no repository ever appeared.
+  if (store.repoStatus === 'git-not-found') {
+    return (
+      <div className="border-t border-gray-200/80 pt-4 mt-4 flex-shrink-0">
+        <p className="px-3 py-2 text-[11px] text-gray-400">
+          Git is not installed, so version control is unavailable.
+        </p>
+      </div>
+    );
+  }
+
+  if (store.repoStatus === 'not-repo') {
     if (isTeamContext && !isTeamOwner && !canInit) return null;
     return (
       <div className="border-t border-gray-200/80 pt-4 mt-4 flex-shrink-0">
-        <button onClick={async () => { if (!workspacePath) return; try { await initRepo(workspacePath); store.setRepoStatus('checking'); refresh(); } catch {} }}
+        <button
+          onClick={async () => {
+            try {
+              await initRepo(workspacePath);
+              store.setRepoStatus('checking');
+              refresh();
+            } catch (e) {
+              reportGitError('Initialize Repository', e);
+            }
+          }}
           className="flex items-center gap-2 w-full px-3 py-2 text-xs font-medium text-gray-500 rounded-lg hover:bg-black/5 transition cursor-pointer">
           <span>Initialize Git Repository</span>
         </button>
@@ -171,7 +205,7 @@ export function GitPanel() {
   const hasStaged = staged.length > 0;
   const aheadCount = status?.ahead ?? 0;
   const behindCount = status?.behind ?? 0;
-  const needsPull = behindCount > 0;
+  const needsPull = behindCount > 0 || store.behindRemote;
   const needsPush = aheadCount > 0;
 
   return (
