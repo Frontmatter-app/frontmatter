@@ -239,7 +239,13 @@ export function InviteLandingScreen() {
               To accept this invitation, please authenticate first. Sign in with the email address: <strong>{inviteData.invitedEmail}</strong>.
             </p>
             <button
-              onClick={() => signInWithGoogle()}
+              onClick={() => {
+                // Not setErrorMsg: that state replaces the whole screen with
+                // "this invite is invalid", which a failed sign-in does not mean.
+                void signInWithGoogle().catch((e) =>
+                  showAlertDialog('Sign-in failed', e instanceof Error ? e.message : 'Please try again.'),
+                );
+              }}
               className="py-2.5 px-6 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold text-xs rounded-xl shadow-lg transition cursor-pointer"
             >
               Sign In with Google

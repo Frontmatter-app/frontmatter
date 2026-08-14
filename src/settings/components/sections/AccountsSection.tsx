@@ -21,6 +21,25 @@ export function AccountsSection() {
 
   const anyActionInFlight = isSigningOut || isSigningOutAll || !!accountActionUid || !!workspaceSwitchingId;
 
+  // Both of these reject on failure. Called bare from an event handler the
+  // rejection is unhandled, so the user sees nothing at all go wrong.
+  const handleSignIn = () => {
+    void signInWithGoogle().catch((e) =>
+      showAlertDialog('Sign-in failed', e instanceof Error ? e.message : 'Please try again.'),
+    );
+  };
+
+  const handleSendMagicLink = (e: React.FormEvent) => {
+    e.preventDefault();
+    const address = magicEmail.trim();
+    if (!address) return;
+    void sendMagicLink(address)
+      .then(() => setMagicEmail(''))
+      .catch((err) =>
+        showAlertDialog('Could not send link', err instanceof Error ? err.message : 'Please try again.'),
+      );
+  };
+
   return (
     <div>
       <h3 className="text-base font-bold mb-4 flex items-center gap-2">
@@ -56,10 +75,10 @@ export function AccountsSection() {
           </button>
         ) : (
           <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
-            <button onClick={signInWithGoogle} className="py-1.5 px-4 bg-white text-gray-900 border border-gray-200 shadow-sm hover:bg-gray-50 rounded-xl font-bold text-xs transition cursor-pointer active:scale-95 text-center">
+            <button onClick={handleSignIn} className="py-1.5 px-4 bg-white text-gray-900 border border-gray-200 shadow-sm hover:bg-gray-50 rounded-xl font-bold text-xs transition cursor-pointer active:scale-95 text-center">
               Sign In with Google
             </button>
-            <form onSubmit={(e) => { e.preventDefault(); if (!magicEmail.trim()) return; sendMagicLink(magicEmail.trim()); setMagicEmail(''); }} className="flex gap-1.5">
+            <form onSubmit={handleSendMagicLink} className="flex gap-1.5">
               <input type="email" placeholder="Magic link email" value={magicEmail} onChange={(e) => setMagicEmail(e.target.value)} className="px-3 py-1.5 text-xs bg-[var(--editor-bg-color)] border border-black/10 dark:border-white/10 rounded-xl outline-none" />
               <button type="submit" className="px-3 py-1.5 bg-blue-500 text-white rounded-xl text-xs font-semibold cursor-pointer hover:bg-blue-600 active:scale-95">Send</button>
             </form>
@@ -126,7 +145,7 @@ export function AccountsSection() {
         </div>
         <div className="mt-5 pt-4 border-t border-black/5 dark:border-white/5 flex flex-col gap-2">
           {savedAccounts.length < 3 ? (
-            <button disabled={anyActionInFlight} onClick={signInWithGoogle} className="w-full flex items-center justify-center gap-2 py-2 px-4 border border-black/10 dark:border-white/10 hover:border-black/20 dark:hover:border-white/20 bg-black/5 dark:bg-white/5 text-[var(--editor-text-color)] text-xs font-bold rounded-xl transition cursor-pointer hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed">
+            <button disabled={anyActionInFlight} onClick={handleSignIn} className="w-full flex items-center justify-center gap-2 py-2 px-4 border border-black/10 dark:border-white/10 hover:border-black/20 dark:hover:border-white/20 bg-black/5 dark:bg-white/5 text-[var(--editor-text-color)] text-xs font-bold rounded-xl transition cursor-pointer hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-50 disabled:cursor-not-allowed">
               <Plus className="w-3.5 h-3.5" /> Add Another Account
             </button>
           ) : (

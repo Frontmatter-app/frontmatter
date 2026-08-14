@@ -36,19 +36,32 @@ const NOT_CONFIGURED = new Set([
   'auth/operation-not-allowed',
   'auth/invalid-api-key',
   'auth/api-key-not-valid',
+  // The build is running on a host, or pointing at a continue URL, that the
+  // Firebase project does not list. Nothing the user can do about it.
+  'auth/unauthorized-domain',
+  'auth/unauthorized-continue-uri',
+  'auth/invalid-continue-uri',
+  'auth/operation-not-supported-in-this-environment',
 ]);
 
 const REJECTED = new Map<string, string>([
   ['auth/invalid-email', 'That email address is not valid.'],
+  ['auth/missing-email', 'Enter an email address.'],
   ['auth/user-disabled', 'This account has been disabled.'],
   ['auth/user-not-found', 'No account matches that email address.'],
   ['auth/invalid-action-code', 'That sign-in link has expired. Request a new one.'],
   ['auth/expired-action-code', 'That sign-in link has expired. Request a new one.'],
+  ['auth/invalid-credential', 'Those sign-in details were not accepted. Try again.'],
   ['auth/invalid-custom-token', 'Your saved session is no longer valid. Sign in again.'],
   ['auth/custom-token-mismatch', 'Your saved session is no longer valid. Sign in again.'],
   ['auth/account-exists-with-different-credential',
     'An account already exists with this email using a different sign-in method.'],
   ['auth/too-many-requests', 'Too many attempts. Wait a few minutes and try again.'],
+  ['auth/quota-exceeded', 'Sign-in is temporarily unavailable. Try again later.'],
+  // Distinct from a closed popup: the user never got the chance to answer.
+  ['auth/popup-blocked', 'Your browser blocked the sign-in window. Allow pop-ups and try again.'],
+  ['auth/web-storage-unsupported',
+    'This browser blocks the storage sign-in needs. Turn off private browsing and try again.'],
 ]);
 
 const UNAVAILABLE = new Set([

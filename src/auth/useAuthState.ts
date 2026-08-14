@@ -9,6 +9,8 @@ import { mapFirebaseUser, setCachedToken, getCachedToken, removeCachedToken, add
 import type { User } from '../types';
 import { useAuthInit } from './useAuthInit';
 import { classifyAuthError, isCancellation } from './authErrors';
+import { MOCK_AUTH_ENABLED, ACTIVE_MOCK_KEY } from './mockAuth';
+import { magicLinkContinueUrl, isProbablyEmail } from './magicLink';
 
 export type AuthState = 'initializing' | 'ready' | 'switchingAccount' | 'signingOut';
 
@@ -16,15 +18,6 @@ export interface AuthEvent {
   type: 'error' | 'info';
   message: string;
 }
-
-/**
- * Mock accounts exist so the app can be exercised without a Firebase project.
- * They are opt-in: previously any sign-in failure fell through to creating one,
- * so a network error or a rejected address silently produced a fake local
- * session that looked signed in but could never sync.
- */
-const MOCK_AUTH_ENABLED =
-  import.meta.env.DEV && import.meta.env.VITE_ALLOW_MOCK_AUTH === 'true';
 
 export function useAuthState() {
   const [user, setUser] = useState<User | null>(null);
@@ -65,7 +58,7 @@ export function useAuthState() {
   const clearAuthEvents = useCallback(() => setAuthEvents([]), []);
 
   const saveMockUser = useCallback((mockUser: User) => {
-    localStorage.setItem('marktype_active_mock_id', mockUser.id);
+    localStorage.setItem(ACTIVE_MOCK_KEY, mockUser.id);
     setUser(mockUser);
     let list = getSavedAccounts();
     const filtered = list.filter(a => a.uid !== mockUser.id);
@@ -80,44 +73,72 @@ export function useAuthState() {
     setSavedAccounts(filtered);
   }, []);
 
-  useAuthInit({ setUser, setSavedAccounts, setAuthState: setAuthStateSafe, addAuthEvent, authStateRef });
-
+  /**
+   * Runs the desktop OAuth round trip and returns a Firebase custom token.
+   *
+   * The listener is registered *before* the browser opens and torn down on
+   * every exit path. Previously it was registered concurrently with the browser
+   * launch and only unlistened on the success path, so a cancelled or timed-out
+   * attempt left a live listener behind; the next attempt's callback was then
+   * delivered to both, and the stale one raced the live one to redeem a
+   * single-use authorisation code.
+   */
   const getCustomTokenViaGoogle = useCallback(async (): Promise<string> => {
     if (!isTauri) throw new Error('This action is only supported inside the desktop app.');
     const state = Array.from(crypto.getRandomValues(new Uint8Array(16)))
       .map(b => b.toString(16).padStart(2, '0')).join('');
     const port = await invoke<number>('start_google_auth', { state });
-    return new Promise<string>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Authentication timed out.')), 300000);
-      let unlisten: (() => void) | null = null;
-      listen<{ code: string; state: string }>('auth-google-callback', async (event) => {
-        clearTimeout(timeout);
-        if (event.payload.state !== state) { reject(new Error('Security verification failed.')); return; }
-        if (unlisten) unlisten();
-        try {
-          const redirectUri = `http://127.0.0.1:${port}/callback`;
-          const backendUrl = import.meta.env.VITE_MODAL_BASE_URL || 'https://iamspruce--marktype-backend-fastapi-app.modal.run';
-          const res = await fetch(`${backendUrl}/exchange-google-code`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code: event.payload.code, redirectUri }),
-          });
-          if (!res.ok) throw new Error('Failed to exchange code');
-          const payload = await res.json() as { customToken: string; uid: string; displayName: string | null; email: string | null; photoURL: string | null };
-          resolve(payload.customToken);
-        } catch (err) {
-          reject(err instanceof Error ? err : new Error('Sign-in failed.'));
-        }
-      }).then(fn => { unlisten = fn; }).catch(err => { clearTimeout(timeout); reject(err); });
-      invoke('open_browser_url', {
-        url: `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams({
-          client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
-          redirect_uri: `http://127.0.0.1:${port}/callback`,
-          response_type: 'code', scope: 'openid email profile', state,
-          access_type: 'online', prompt: 'select_account',
-        }).toString()}`,
-      }).catch(err => { clearTimeout(timeout); reject(err); });
-    });
+
+    let unlisten: (() => void) | null = null;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+
+    try {
+      return await new Promise<string>((resolve, reject) => {
+        timeout = setTimeout(() => reject(new Error('Authentication timed out.')), 300000);
+
+        listen<{ code: string; state: string }>('auth-google-callback', async (event) => {
+          // A callback carrying someone else's state is not ours to answer.
+          if (event.payload.state !== state) return;
+          try {
+            const redirectUri = `http://127.0.0.1:${port}/callback`;
+            const backendUrl = import.meta.env.VITE_MODAL_BASE_URL || 'https://iamspruce--marktype-backend-fastapi-app.modal.run';
+            const res = await fetch(`${backendUrl}/exchange-google-code`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ code: event.payload.code, redirectUri }),
+            });
+            if (!res.ok) throw new Error('Could not complete sign-in with Google. Please try again.');
+            const payload = await res.json() as { customToken: string };
+            if (!payload?.customToken) throw new Error('Sign-in service returned no session.');
+            resolve(payload.customToken);
+          } catch (err) {
+            reject(err instanceof Error ? err : new Error('Sign-in failed.'));
+          }
+        })
+          .then(fn => {
+            unlisten = fn;
+            // Only now is it safe to send the user to Google: an emit that
+            // arrives before this point is dropped.
+            return invoke('open_browser_url', {
+              url: `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams({
+                client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
+                redirect_uri: `http://127.0.0.1:${port}/callback`,
+                response_type: 'code', scope: 'openid email profile', state,
+                access_type: 'online', prompt: 'select_account',
+              }).toString()}`,
+            });
+          })
+          .catch(reject);
+      });
+    } finally {
+      if (timeout) clearTimeout(timeout);
+      unlisten?.();
+    }
   }, []);
+
+  useAuthInit({
+    setUser, setSavedAccounts, setAuthState: setAuthStateSafe,
+    addAuthEvent, authStateRef, getCustomTokenViaGoogle,
+  });
 
   const signInWithGoogle = useCallback(async (): Promise<void> => {
     setAuthStateSafe('switchingAccount');
@@ -126,14 +147,16 @@ export function useAuthState() {
         const customToken = await getCustomTokenViaGoogle();
         const result = await signInWithCustomToken(auth, customToken);
         setCachedToken(result.user.uid, customToken);
-        localStorage.removeItem('marktype_active_mock_id');
+        localStorage.removeItem(ACTIVE_MOCK_KEY);
         const mapped = mapFirebaseUser(result.user);
         setUser(mapped);
         setSavedAccounts(addOrUpdateSavedAccount(result.user, mapped));
         addAuthEvent({ type: 'info', message: `Signed in as ${mapped.display_name}` });
       } catch (err) {
-        reportAuthError(err, 'google sign-in');
-        throw err;
+        const failure = reportAuthError(err, 'google sign-in');
+        // Backing out of the browser prompt is not an error to raise at the
+        // caller, which would show it in an alert dialog.
+        if (failure.kind !== 'cancelled') throw err;
       } finally { setAuthStateSafe('ready'); }
       return;
     }
@@ -142,7 +165,7 @@ export function useAuthState() {
       provider.addScope('email'); provider.addScope('profile');
       const result = await signInWithPopup(auth, provider);
       if (result?.user) {
-        localStorage.removeItem('marktype_active_mock_id');
+        localStorage.removeItem(ACTIVE_MOCK_KEY);
         const mapped = mapFirebaseUser(result.user);
         setUser(mapped);
         setSavedAccounts(addOrUpdateSavedAccount(result.user, mapped));
@@ -162,20 +185,36 @@ export function useAuthState() {
   }, [getCustomTokenViaGoogle, saveMockUser]);
 
   const sendMagicLink = useCallback(async (email: string) => {
+    const address = email.trim();
+    if (!isProbablyEmail(address)) {
+      const message = 'Enter a valid email address.';
+      addAuthEvent({ type: 'error', message });
+      throw new Error(message);
+    }
+
+    const continueUrl = magicLinkContinueUrl();
+    if (!continueUrl) {
+      // Better to say this than to send a link whose landing page the desktop
+      // build cannot be reached at.
+      const message = 'Email sign-in is not available in the desktop app. Continue with Google instead.';
+      addAuthEvent({ type: 'error', message });
+      throw new Error(message);
+    }
+
     try {
-      await sendSignInLinkToEmail(auth, email, {
-        url: window.location.href.replace(window.location.search, ''),
+      await sendSignInLinkToEmail(auth, address, {
+        url: continueUrl,
         handleCodeInApp: true,
       });
-      window.localStorage.setItem('emailForSignIn', email);
-      addAuthEvent({ type: 'info', message: `Magic sign-in link sent to ${email}. Check your inbox!` });
+      window.localStorage.setItem('emailForSignIn', address);
+      addAuthEvent({ type: 'info', message: `Sign-in link sent to ${address}. Check your inbox.` });
     } catch (e) {
       const failure = reportAuthError(e, 'magic link');
       // Only a build explicitly configured for mock auth may simulate success.
       if (failure.kind === 'not-configured' && MOCK_AUTH_ENABLED) {
-        addAuthEvent({ type: 'info', message: `Mock sign-in as ${email}.` });
+        addAuthEvent({ type: 'info', message: `Mock sign-in as ${address}.` });
         saveMockUser({
-          id: 'mock-magic-' + Date.now(), display_name: email.split('@')[0], email,
+          id: 'mock-magic-' + Date.now(), display_name: address.split('@')[0], email: address,
           created_at: new Date().toISOString(), last_seen_at: new Date().toISOString(), is_anonymous: false,
         });
         return;
@@ -186,7 +225,7 @@ export function useAuthState() {
   const logout = useCallback(async () => {
     setAuthStateSafe('signingOut');
     const currentUid = user?.id;
-    localStorage.removeItem('marktype_active_mock_id');
+    localStorage.removeItem(ACTIVE_MOCK_KEY);
     try {
       await fbSignOut(auth);
     } catch (e) {
@@ -208,7 +247,7 @@ export function useAuthState() {
       try {
         const result = await signInWithCustomToken(auth, cachedToken);
         const mapped = mapFirebaseUser(result.user);
-        localStorage.removeItem('marktype_active_mock_id');
+        localStorage.removeItem(ACTIVE_MOCK_KEY);
         setUser(mapped);
         setSavedAccounts(addOrUpdateSavedAccount(result.user, mapped));
         addAuthEvent({ type: 'info', message: `Switched to ${mapped.display_name}` });
@@ -246,7 +285,7 @@ export function useAuthState() {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       if (result?.user) {
-        localStorage.removeItem('marktype_active_mock_id');
+        localStorage.removeItem(ACTIVE_MOCK_KEY);
         const mapped = mapFirebaseUser(result.user);
         setUser(mapped);
         setSavedAccounts(addOrUpdateSavedAccount(result.user, mapped));
@@ -273,7 +312,7 @@ export function useAuthState() {
 
   const logoutAll = useCallback(async () => {
     setAuthStateSafe('signingOut');
-    localStorage.removeItem('marktype_active_mock_id');
+    localStorage.removeItem(ACTIVE_MOCK_KEY);
     try {
       await fbSignOut(auth);
       clearAllAccounts();

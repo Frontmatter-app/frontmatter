@@ -42,11 +42,33 @@ describe('classifyAuthError', () => {
     expect(failure.message).toMatch(/start the sign-in again/i);
   });
 
+  it('separates a blocked popup from one the user closed', () => {
+    const blocked = classifyAuthError(fbError('auth/popup-blocked'));
+    expect(blocked.kind).toBe('rejected');
+    expect(blocked.message).toMatch(/pop-ups/i);
+    expect(isCancellation(fbError('auth/popup-blocked'))).toBe(false);
+  });
+
+  it('treats an unauthorised domain or continue URL as a configuration fault', () => {
+    // Nothing the user can do; the project has to list the domain.
+    expect(classifyAuthError(fbError('auth/unauthorized-domain')).kind).toBe('not-configured');
+    expect(classifyAuthError(fbError('auth/unauthorized-continue-uri')).kind).toBe('not-configured');
+  });
+
+  it('explains storage-blocked browsers rather than saying "try again"', () => {
+    const failure = classifyAuthError(fbError('auth/web-storage-unsupported'));
+    expect(failure.kind).toBe('rejected');
+    expect(failure.message).toMatch(/private browsing/i);
+  });
+
   it('never leaks an error code into the user-facing message', () => {
     for (const code of [
       'auth/invalid-email',
       'auth/network-request-failed',
       'auth/internal-error',
+      'auth/popup-blocked',
+      'auth/unauthorized-domain',
+      'auth/quota-exceeded',
       'auth/some-code-we-have-never-seen',
     ]) {
       expect(classifyAuthError(fbError(code)).message).not.toMatch(/auth\//);

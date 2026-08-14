@@ -1,8 +1,10 @@
 import { useEffect } from 'react';
-import { onAuthStateChanged, signInWithCustomToken, signInWithEmailLink, isSignInWithEmailLink, signInWithPopup, signOut as fbSignOut, GoogleAuthProvider } from 'firebase/auth';
+import { onAuthStateChanged, signInWithCustomToken, signInWithEmailLink, isSignInWithEmailLink, signInWithPopup, signOut as fbSignOut, GoogleAuthProvider, type User as FirebaseUser } from 'firebase/auth';
 import { auth } from './firebase';
 import { mapFirebaseUser, setCachedToken, removeCachedToken, addOrUpdateSavedAccount, getSavedAccounts, ensureUserDocumentExists, SavedAccount } from './authStorage';
 import { showPromptDialog } from '../lib/tauriDialog';
+import { isTauri } from '../lib/env';
+import { ACTIVE_MOCK_KEY, clearStaleMockSession } from './mockAuth';
 import type { User } from '../types';
 
 interface UseAuthInitCallbacks {
@@ -11,16 +13,39 @@ interface UseAuthInitCallbacks {
   setAuthState: (s: string) => void;
   addAuthEvent: (e: { type: 'error' | 'info'; message: string }) => void;
   authStateRef: { current: string };
+  /** Desktop OAuth round trip; `signInWithPopup` does not work in the webview. */
+  getCustomTokenViaGoogle: () => Promise<string>;
 }
 
-export function useAuthInit({ setUser, setSavedAccounts, setAuthState, addAuthEvent, authStateRef }: UseAuthInitCallbacks) {
+export function useAuthInit({ setUser, setSavedAccounts, setAuthState, addAuthEvent, authStateRef, getCustomTokenViaGoogle }: UseAuthInitCallbacks) {
   useEffect(() => {
     let initDone = false;
     const raw = localStorage.getItem('marktype_saved_accounts');
     let list: SavedAccount[] = [];
     try { list = raw ? JSON.parse(raw) : []; setSavedAccounts(list); } catch (_) {}
 
-    const activeMockId = localStorage.getItem('marktype_active_mock_id');
+    // A mock session written by a dev build must not survive into one where
+    // mock auth is off, or the app comes up signed in as a user that cannot sync.
+    clearStaleMockSession();
+
+    /**
+     * Re-establishes a session interactively. In the desktop webview a Firebase
+     * popup cannot open at all, so the system-browser flow is the only one that
+     * can succeed there.
+     */
+    const reauthenticate = async () => {
+      if (isTauri) {
+        const token = await getCustomTokenViaGoogle();
+        const result = await signInWithCustomToken(auth, token);
+        // Keep it, so the next switch to this account does not prompt again.
+        setCachedToken(result.user.uid, token);
+        return result;
+      }
+      const provider = new GoogleAuthProvider();
+      return signInWithPopup(auth, provider);
+    };
+
+    const activeMockId = localStorage.getItem(ACTIVE_MOCK_KEY);
     if (activeMockId) {
       const target = list.find(a => a.uid === activeMockId);
       if (target) setUser({
@@ -52,7 +77,7 @@ export function useAuthInit({ setUser, setSavedAccounts, setAuthState, addAuthEv
           if (fbUser && fbUser.uid === accountUid) {
             const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
             window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
-            localStorage.removeItem('marktype_active_mock_id');
+            localStorage.removeItem(ACTIVE_MOCK_KEY);
             const mapped = mapFirebaseUser(fbUser);
             setUser(mapped);
             setSavedAccounts(addOrUpdateSavedAccount(fbUser, mapped));
@@ -62,38 +87,36 @@ export function useAuthInit({ setUser, setSavedAccounts, setAuthState, addAuthEv
           }
           setAuthState('switchingAccount');
           try { await fbSignOut(auth); } catch {}
+          const adopt = (fbUser: FirebaseUser) => {
+            const mapped = mapFirebaseUser(fbUser);
+            setUser(mapped);
+            setSavedAccounts(addOrUpdateSavedAccount(fbUser, mapped));
+            ensureUserDocumentExists(fbUser);
+          };
+
+          let restored = false;
           if (accountToken) {
             try {
               const result = await signInWithCustomToken(auth, accountToken);
               removeCachedToken(accountUid);
               setCachedToken(result.user.uid, accountToken);
-              const mapped = mapFirebaseUser(result.user);
-              setUser(mapped);
-              setSavedAccounts(addOrUpdateSavedAccount(result.user, mapped));
-              ensureUserDocumentExists(result.user);
+              adopt(result.user);
+              restored = true;
             } catch {
+              // A custom token lasts an hour; past that the window has to ask.
               removeCachedToken(accountUid);
-              addAuthEvent({ type: 'info', message: 'Session expired. Re-authenticating...' });
-              try {
-                const provider = new GoogleAuthProvider();
-                const result = await signInWithPopup(auth, provider);
-                if (result?.user) {
-                  const mapped = mapFirebaseUser(result.user);
-                  setUser(mapped);
-                  setSavedAccounts(addOrUpdateSavedAccount(result.user, mapped));
-                }
-              } catch { addAuthEvent({ type: 'error', message: 'Please sign in to continue.' }); }
             }
-          } else {
-            addAuthEvent({ type: 'info', message: 'Session expired. Re-authenticating...' });
+          }
+
+          if (!restored) {
+            addAuthEvent({ type: 'info', message: 'Session expired. Re-authenticating…' });
             try {
-              const provider = new GoogleAuthProvider();
-              const result = await signInWithPopup(auth, provider);
-              if (result?.user) {
-                setUser(mapFirebaseUser(result.user));
-                setSavedAccounts(addOrUpdateSavedAccount(result.user, mapFirebaseUser(result.user)));
-              }
-            } catch { addAuthEvent({ type: 'error', message: 'Please sign in to continue.' }); }
+              const result = await reauthenticate();
+              if (result?.user) adopt(result.user);
+            } catch (e) {
+              console.error('[auth] re-authentication', e);
+              addAuthEvent({ type: 'error', message: 'Please sign in to continue.' });
+            }
           }
           const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
           window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
@@ -102,13 +125,13 @@ export function useAuthInit({ setUser, setSavedAccounts, setAuthState, addAuthEv
         }
       }
       if (fbUser) {
-        localStorage.removeItem('marktype_active_mock_id');
+        localStorage.removeItem(ACTIVE_MOCK_KEY);
         const mapped = mapFirebaseUser(fbUser);
         setUser(mapped);
         setSavedAccounts(addOrUpdateSavedAccount(fbUser, mapped));
         ensureUserDocumentExists(fbUser);
       } else {
-        if (!localStorage.getItem('marktype_active_mock_id')) setUser(null);
+        if (!localStorage.getItem(ACTIVE_MOCK_KEY)) setUser(null);
         setSavedAccounts(getSavedAccounts());
       }
       if (!initDone) { initDone = true; setAuthState('ready'); }
@@ -121,7 +144,7 @@ export function useAuthInit({ setUser, setSavedAccounts, setAuthState, addAuthEv
           const payload = event.data.payload;
           const result = await signInWithCustomToken(auth, payload.customToken);
           setCachedToken(result.user.uid, payload.customToken);
-          localStorage.removeItem('marktype_active_mock_id');
+          localStorage.removeItem(ACTIVE_MOCK_KEY);
           setUser(mapFirebaseUser(result.user));
           setSavedAccounts(addOrUpdateSavedAccount(result.user, mapFirebaseUser(result.user)));
         } catch (err) {

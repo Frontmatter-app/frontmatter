@@ -1,0 +1,336 @@
+@import '../design/tokens.css';
+
+/**
+ * Account modal.
+ *
+ * Laid out as grouped lists — a titled group of rows, each row a target with a
+ * leading glyph, a two-line label and a trailing state — which is the shape a
+ * platform account panel already has. The material and spacing come from the
+ * design tokens, so it sits in the same system as the rest of the chrome
+ * instead of carrying its own hand-tuned `--editor-*` colours.
+ */
+
+/* ----------------------------------------------------------------- avatars */
+
+.account-avatar {
+  flex-shrink: 0;
+  border-radius: var(--ds-radius-pill);
+  object-fit: cover;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--ds-font);
+  font-weight: 650;
+  color: var(--ds-fg-secondary);
+  background: var(--ds-surface-sunken);
+  box-shadow: var(--ds-ring);
+}
+
+.account-avatar--sm { width: 28px; height: 28px; font-size: 11px; }
+.account-avatar--md { width: 36px; height: 36px; font-size: var(--ds-text-sm); }
+.account-avatar--lg { width: 48px; height: 48px; font-size: var(--ds-text-base); }
+
+/* ------------------------------------------------------------------ events */
+
+.account__events {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-2);
+  margin-bottom: var(--ds-space-4);
+}
+
+.account__event {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ds-space-2);
+  padding: var(--ds-space-3);
+  border-radius: var(--ds-radius-sm);
+  font-family: var(--ds-font);
+  font-size: var(--ds-text-xs);
+  line-height: var(--ds-leading);
+  background: var(--ds-surface-sunken);
+  box-shadow: var(--ds-ring);
+  color: var(--ds-fg-secondary);
+}
+
+.account__event-icon { flex-shrink: 0; margin-top: 1px; }
+.account__event--error .account__event-icon { color: var(--ds-danger); }
+.account__event--info .account__event-icon { color: var(--ds-success); }
+.account__event-message { flex: 1; min-width: 0; }
+
+/* ---------------------------------------------------------------- identity */
+
+.account__identity {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-3);
+  padding: var(--ds-space-4);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface-sunken);
+  box-shadow: var(--ds-ring);
+}
+
+.account__identity-text { min-width: 0; flex: 1; }
+
+.account__identity-name {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  font-family: var(--ds-font);
+  font-size: var(--ds-text-sm);
+  font-weight: 650;
+  color: var(--ds-fg);
+}
+
+.account__identity-name > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account__identity-email {
+  margin: 2px 0 0;
+  font-family: var(--ds-font);
+  font-size: var(--ds-text-xs);
+  color: var(--ds-fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account__badge {
+  flex-shrink: 0;
+  padding: 2px var(--ds-space-2);
+  border-radius: var(--ds-radius-pill);
+  font-family: var(--ds-font);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ds-primary-contrast);
+  background: var(--ds-primary);
+}
+
+/* --------------------------------------------------------------- sections */
+
+.account__section { margin-top: var(--ds-space-6); }
+
+.account__section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--ds-space-3);
+  padding: 0 var(--ds-space-1);
+  margin-bottom: var(--ds-space-2);
+}
+
+.account__section-title {
+  margin: 0;
+  font-family: var(--ds-font);
+  font-size: var(--ds-text-xs);
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ds-fg-muted);
+}
+
+.account__section-meta {
+  font-family: var(--ds-font);
+  font-size: var(--ds-text-xs);
+  color: var(--ds-fg-muted);
+}
+
+/* A grouped list: one hairline-separated block rather than floating cards. */
+.account__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface-sunken);
+  box-shadow: var(--ds-ring);
+  overflow: hidden;
+}
+
+.account__list-item + .account__list-item {
+  border-top: 1px solid var(--ds-border-soft);
+}
+
+/* ------------------------------------------------------------------- rows */
+
+.account__row {
+  width: 100%;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-family: var(--ds-font);
+  color: var(--ds-fg);
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-3);
+  padding: var(--ds-space-3) var(--ds-space-4);
+  cursor: pointer;
+  transition: background var(--ds-motion-fast) var(--ds-ease);
+}
+
+.account__row:hover:not(:disabled) { background: var(--ds-surface); }
+
+.account__row:focus-visible {
+  outline: none;
+  box-shadow: inset var(--ds-ring-focus);
+}
+
+.account__row:disabled { cursor: not-allowed; opacity: 0.5; }
+
+.account__row[aria-current='true'] { background: var(--ds-surface-warm); }
+
+.account__row-icon {
+  flex-shrink: 0;
+  display: flex;
+  color: var(--ds-fg-meta);
+}
+
+/* Rows are buttons, so their inner structure is spans; they need to be told
+   to stack like the block elements they stand in for. */
+.account__row-text { display: block; min-width: 0; flex: 1; }
+
+.account__row-title {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  font-size: var(--ds-text-sm);
+  font-weight: 550;
+  color: var(--ds-fg);
+}
+
+.account__row-title > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account__row-subtitle {
+  display: block;
+  margin: 2px 0 0;
+  font-size: var(--ds-text-xs);
+  color: var(--ds-fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account__row-trailing {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  font-size: var(--ds-text-xs);
+  color: var(--ds-fg-muted);
+}
+
+.account__row-check { color: var(--ds-primary); }
+
+.account__kbd {
+  font-family: var(--ds-font-mono);
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 6px;
+  color: var(--ds-fg-muted);
+  background: var(--ds-surface);
+  box-shadow: var(--ds-ring);
+}
+
+/* The remove control sits inside a row, so it is a sibling of the row button
+   rather than a nested one — a button inside a button is not valid HTML. */
+.account__list-item--split { display: flex; align-items: center; }
+.account__list-item--split .account__row { flex: 1; min-width: 0; }
+
+.account__row-action {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ds-fg-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ds-space-2);
+  margin-right: var(--ds-space-2);
+  border-radius: var(--ds-radius-pill);
+  cursor: pointer;
+  transition:
+    background var(--ds-motion-fast) var(--ds-ease),
+    color var(--ds-motion-fast) var(--ds-ease);
+}
+
+.account__row-action:hover:not(:disabled) {
+  color: var(--ds-danger);
+  background: color-mix(in srgb, var(--ds-danger) 12%, transparent);
+}
+
+.account__row-action:focus-visible { outline: none; box-shadow: var(--ds-ring-focus); }
+.account__row-action:disabled { cursor: not-allowed; opacity: 0.4; }
+
+/* --------------------------------------------------------------- sign-in */
+
+.account__signin { display: flex; flex-direction: column; gap: var(--ds-space-4); }
+
+.account__signin-lead {
+  margin: 0;
+  font-family: var(--ds-font);
+  font-size: var(--ds-text-sm);
+  line-height: var(--ds-leading);
+  color: var(--ds-fg-secondary);
+}
+
+.account__divider {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-3);
+  font-family: var(--ds-font);
+  font-size: var(--ds-text-xs);
+  color: var(--ds-fg-muted);
+}
+
+.account__divider::before,
+.account__divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--ds-border-soft);
+}
+
+.account__signin-form {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--ds-space-2);
+}
+
+.account__signin-form .ds-field { flex: 1; min-width: 0; }
+
+/* ------------------------------------------------------------------ footer */
+
+.account__footer-group {
+  display: flex;
+  gap: var(--ds-space-3);
+  width: 100%;
+}
+
+.account__footer-group .ds-button { flex: 1; }
+
+.account__note {
+  margin: 0;
+  font-family: var(--ds-font);
+  font-size: var(--ds-text-xs);
+  color: var(--ds-fg-muted);
+  line-height: var(--ds-leading);
+}
+
+.account__empty {
+  margin: 0;
+  padding: var(--ds-space-4);
+  font-family: var(--ds-font);
+  font-size: var(--ds-text-xs);
+  color: var(--ds-fg-muted);
+  text-align: center;
+}
