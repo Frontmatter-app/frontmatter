@@ -111,3 +111,21 @@ describe("migrateLocalStorageKeys", () => {
     expect(failing.getItem("marktype_settings")).toBe("value");
   });
 });
+
+describe("when it runs", () => {
+  it("is the first import in main.tsx", async () => {
+    const { readFileSync } = await import("node:fs");
+    const main = readFileSync("src/main.tsx", "utf8");
+    const firstImport = main.split("\n").find((line) => line.trim().startsWith("import "));
+    // Module evaluation follows import order, and every store below reads local
+    // storage as it is evaluated. If this stops being first, the migration runs
+    // after the reads it exists to precede and silently does nothing useful.
+    expect(firstImport).toContain("runStorageMigration");
+  });
+
+  it("runs as a side effect of being imported, not as a call in a body", async () => {
+    const { readFileSync } = await import("node:fs");
+    const runner = readFileSync("src/lib/runStorageMigration.ts", "utf8");
+    expect(runner).toMatch(/^migrateLocalStorageKeys\(\);$/m);
+  });
+});

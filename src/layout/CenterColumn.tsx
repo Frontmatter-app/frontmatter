@@ -78,13 +78,16 @@ export function CenterColumn({ className, style }: { className?: string; style?:
   useEffect(() => {
     if (!ydoc || !currentDocumentId) return;
 
-    const { setGrammarLints, setGrammarError, clear } = useProseScanStore.getState();
+    // Resolved per call rather than captured here: a store module replaced
+    // under hot reload leaves captured actions writing into a copy nothing
+    // reads any more, which looks exactly like a checker that found nothing.
+    const scan = () => useProseScanStore.getState();
 
     // Readability and inclusive language are computed in the renderer and need
     // no scan at all. Only grammar crosses the IPC boundary, and only in
     // Revise, which is the one stage that draws any of this.
     if (!showProseLint || !grammarCheck || stage !== 'revise') {
-      clear();
+      scan().clear();
       return;
     }
 
@@ -115,14 +118,14 @@ export function CenterColumn({ className, style }: { className?: string; style?:
         const lints = await invoke<GrammarLint[]>('check_grammar', { text: textToScan });
         if (active && textToScan === latestText) {
           lastScannedText = textToScan;
-          setGrammarLints(lints);
+          scan().setGrammarLints(lints);
         }
       } catch (e) {
         console.error('Grammar check failed:', e);
         // Surfaced rather than swallowed. The commonest cause is an app binary
         // built before `check_grammar` existed, and from the outside that is
         // indistinguishable from prose with nothing wrong in it.
-        if (active) setGrammarError(e instanceof Error ? e.message : String(e));
+        if (active) scan().setGrammarError(e instanceof Error ? e.message : String(e));
       } finally {
         scanInProgress = false;
         if (active && pendingScan) runScan();
@@ -144,7 +147,7 @@ export function CenterColumn({ className, style }: { className?: string; style?:
       if (!text.trim()) {
         latestText = '';
         lastScannedText = null;
-        clear();
+        scan().clear();
         return;
       }
 
