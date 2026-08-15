@@ -413,9 +413,15 @@ export const frontmatterTheme = EditorView.theme({
   ".cm-cursor": {
     borderLeftColor: 'var(--editor-caret-color)'
   },
+  // Longhands. WebKit rejects a `text-decoration` shorthand that carries a
+  // colour or a thickness outright, so the strike this names was not drawn.
   ".cm-deleted-segment": {
     color: 'var(--editor-deleted-text-color)',
-    textDecoration: 'line-through var(--editor-deleted-strike-color) 2px',
+    textDecorationLine: 'line-through',
+    textDecorationColor: 'var(--editor-deleted-strike-color)',
+    textDecorationThickness: '2px',
+    WebkitTextDecorationLine: 'line-through',
+    WebkitTextDecorationColor: 'var(--editor-deleted-strike-color)',
     backgroundColor: 'var(--editor-deleted-bg-color)',
     padding: '0 2px',
     borderRadius: '2px',

@@ -29,9 +29,17 @@ export const suggestionTheme = EditorView.theme({
     borderBottom: '2px solid var(--editor-success)',
     color: 'inherit'
   },
+  // Longhands, for the same reason the grammar underline uses them: WebKit
+  // takes `text-decoration` as the CSS2 shorthand and throws out any
+  // declaration carrying a colour or a thickness, so this line was struck
+  // through with nothing at all in the webview the app ships in.
   '.cm-suggestion-delete': {
     backgroundColor: 'var(--editor-error-bg)',
-    textDecoration: 'line-through var(--editor-error) 2px',
+    textDecorationLine: 'line-through',
+    textDecorationColor: 'var(--editor-error)',
+    textDecorationThickness: '2px',
+    WebkitTextDecorationLine: 'line-through',
+    WebkitTextDecorationColor: 'var(--editor-error)',
     color: 'inherit',
     opacity: 0.8
   }

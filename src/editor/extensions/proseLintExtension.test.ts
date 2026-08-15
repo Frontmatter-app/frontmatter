@@ -12,6 +12,7 @@ import {
 } from "./proseLintExtension";
 import { analyzeDocument } from "../../review/lintPipeline";
 import { EMPTY_IGNORE_STATE, type LintIssue } from "../../review/lintTypes";
+import { EMPTY_GRAMMAR_SCAN } from "../../review/grammarIssues";
 
 const views: EditorView[] = [];
 
@@ -141,6 +142,24 @@ describe("revealLintIssue", () => {
     expect(view.state.selection.main.head).toBe(4);
   });
 
+  /**
+   * The sidebar analyses on its own debounce, so a card can be holding the
+   * range as it was a keystroke or two ago. Following the card's offsets put
+   * the caret in the wrong place; the editor has the same issue with every
+   * edit since mapped through it.
+   */
+  it("uses the editor's range, not the stale one the card was holding", () => {
+    const view = mount("She quickly agreed.");
+    const target = issue(4, 11);
+    view.dispatch({ effects: setLintIssuesEffect.of([target]) });
+    view.dispatch({ changes: { from: 0, insert: "Yesterday " } });
+
+    revealLintIssue(view, target);
+
+    const head = view.state.selection.main.head;
+    expect(view.state.doc.sliceString(head, head + 7)).toBe("quickly");
+  });
+
   it("marks the issue so the card and the highlight agree", () => {
     const view = mount("She quickly agreed.");
     const target = issue(4, 11);
@@ -184,7 +203,7 @@ describe("end to end with the analyser", () => {
   it("highlights the words the analyser found, in the real document", () => {
     const doc = "The report was written by Kim. She quickly agreed.";
     const view = mount(doc);
-    const { issues } = analyzeDocument(doc, [], EMPTY_IGNORE_STATE);
+    const { issues } = analyzeDocument(doc, EMPTY_GRAMMAR_SCAN, EMPTY_IGNORE_STATE);
     view.dispatch({ effects: setLintIssuesEffect.of(issues) });
 
     const ranges = decorationRanges(view);
@@ -195,15 +214,38 @@ describe("end to end with the analyser", () => {
 });
 
 describe("the styles actually reach the page", () => {
+  const emittedCss = () =>
+    Array.from(document.querySelectorAll("style"))
+      .map((el) => el.textContent ?? "")
+      .join("\n");
+
   it("emits a wavy underline rule for grammar", () => {
     const view = mount("teh cat");
     view.dispatch({ effects: setLintIssuesEffect.of([issue(0, 3, { category: "grammar" })]) });
 
-    const css = Array.from(document.querySelectorAll("style"))
-      .map((el) => el.textContent ?? "")
-      .join("\n");
+    const css = emittedCss();
     expect(css).toContain("cm-prose-grammar");
-    expect(css).toMatch(/underline wavy/);
+    expect(css).toContain("text-decoration-style: wavy");
+    expect(css).toContain("text-decoration-line: underline");
+  });
+
+  /**
+   * The reported bug. `text-decoration: underline wavy <color>` is the CSS3
+   * shorthand, and WebKit — the engine behind the Tauri webview this ships in
+   * — parses `text-decoration` as the CSS2 shorthand that takes a line and
+   * nothing more. It rejected the whole declaration as an unsupported value
+   * and drew no underline at all.
+   */
+  it("never puts a style or a colour in the text-decoration shorthand", () => {
+    mount("teh cat");
+    for (const declaration of emittedCss().matchAll(/text-decoration:([^;}]*)/g)) {
+      expect(declaration[1]).not.toMatch(/wavy|rgb|#[0-9a-f]{3}/i);
+    }
+  });
+
+  it("repeats the underline with the -webkit- names older WebKit answers to", () => {
+    mount("teh cat");
+    expect(emittedCss()).toContain("-webkit-text-decoration-style: wavy");
   });
 
   it("puts both the shared and the category class on the span", () => {

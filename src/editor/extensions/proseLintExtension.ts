@@ -103,12 +103,18 @@ export const lintIssueField = StateField.define<LintFieldValue>({
       // Between scans, follow the edits instead of redrawing against stale
       // offsets. `mapPos` keeps a highlight on its word while the writer types
       // ahead of it; the next scan replaces the set outright.
+      //
+      // An issue the edit did not move is passed through untouched rather than
+      // copied. Now that the analysis no longer truncates at a thousand, a long
+      // document can hold many thousands of these, and everything above the
+      // caret is unaffected by a keystroke — there is no reason to allocate a
+      // new object for each of them on every character typed.
       return {
-        issues: value.issues.map((issue) => ({
-          ...issue,
-          from: tr.changes.mapPos(issue.from, 1),
-          to: tr.changes.mapPos(issue.to, -1),
-        })),
+        issues: value.issues.map((issue) => {
+          const from = tr.changes.mapPos(issue.from, 1);
+          const to = tr.changes.mapPos(issue.to, -1);
+          return from === issue.from && to === issue.to ? issue : { ...issue, from, to };
+        }),
         activeId: value.activeId,
         decorations: value.decorations.map(tr.changes),
       };
@@ -158,10 +164,29 @@ export const proseLintTheme = EditorView.theme({
   // Grammar is the one category that means "this is wrong" rather than "this
   // could be better", so it gets the underline a spell checker would draw
   // instead of one of the readability tints.
+  //
+  // Written as longhands, and twice.
+  //
+  // The obvious `text-decoration: underline wavy <color>` is the CSS3
+  // shorthand, and WebKit — which is the engine this app actually ships on,
+  // through the Tauri webview — parses `text-decoration` as the CSS2 shorthand
+  // that takes a line and nothing else. It does not fail on the `wavy` and
+  // drop back to a plain underline; it rejects the whole declaration as an
+  // unsupported value, so the underline was never drawn at all. The longhands
+  // are parsed individually, so a value WebKit dislikes can only cost that one
+  // property. The `-webkit-` copies are what older WebKit answers to, and
+  // style-mod turns a leading capital into the leading dash they need.
   ".cm-prose-grammar": {
     backgroundColor: "transparent",
-    textDecoration: "underline wavy rgba(244, 63, 94, 0.9)",
+    textDecorationLine: "underline",
+    textDecorationStyle: "wavy",
+    textDecorationColor: "rgba(244, 63, 94, 0.9)",
     textDecorationSkipInk: "none",
+    WebkitTextDecorationLine: "underline",
+    WebkitTextDecorationStyle: "wavy",
+    WebkitTextDecorationColor: "rgba(244, 63, 94, 0.9)",
+    // The name WebKit had for skip-ink before it took the standard one.
+    WebkitTextDecorationSkip: "none",
     textUnderlineOffset: "3px",
     boxShadow: "none",
   },
@@ -302,8 +327,13 @@ export function proseLintExtension(options: ProseLintOptions = {}): Extension {
  * full extent, which says "this one" without the match highlighter joining in.
  */
 export function revealLintIssue(view: EditorView, issue: LintIssue): void {
+  // The card holds the range as the sidebar last analysed it, which is a
+  // debounce behind the editor. The copy in the field is the same issue with
+  // every edit since mapped through it, so it is the one that still points at
+  // the right words.
+  const current = getLintIssues(view).find((held) => held.id === issue.id) ?? issue;
   const docLength = view.state.doc.length;
-  const from = Math.max(0, Math.min(issue.from, docLength));
+  const from = Math.max(0, Math.min(current.from, docLength));
 
   view.dispatch({
     selection: { anchor: from },

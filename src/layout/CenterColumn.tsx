@@ -116,9 +116,13 @@ export function CenterColumn({ className, style }: { className?: string; style?:
 
       try {
         const lints = await invoke<GrammarLint[]>('check_grammar', { text: textToScan });
-        if (active && textToScan === latestText) {
+        if (active) {
           lastScannedText = textToScan;
-          scan().setGrammarLints(lints);
+          // Stored with the text it was a check of. Results that the writer has
+          // typed past are no longer thrown away here — they are still the best
+          // answer available for the parts of the document nobody has touched,
+          // and the analysis moves what it can and drops the rest.
+          scan().setGrammarScan(textToScan, lints);
         }
       } catch (e) {
         console.error('Grammar check failed:', e);
@@ -162,6 +166,11 @@ export function CenterColumn({ className, style }: { className?: string; style?:
       active = false;
       if (timer) clearTimeout(timer);
       ytextMd.unobserve(scheduleScan);
+      // The store outlives this effect, and the next document's first results
+      // are a debounce plus a round trip away. Without this, switching tabs
+      // left the previous document's grammar results sitting in the store for
+      // the editor to draw on a document they had nothing to do with.
+      scan().clear();
     };
   }, [ydoc, currentDocumentId, showProseLint, grammarCheck, stage]);
 

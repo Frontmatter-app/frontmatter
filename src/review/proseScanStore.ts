@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { GrammarLint } from './grammarIssues';
+import { EMPTY_GRAMMAR_SCAN, type GrammarLint, type GrammarScan } from './grammarIssues';
 
 /**
  * Grammar results, which are the only ones that arrive from outside the editor.
@@ -10,7 +10,15 @@ import type { GrammarLint } from './grammarIssues';
  * scan finishing and the next analysis.
  */
 interface ProseScanState {
-  grammarLints: GrammarLint[];
+  /**
+   * The last check, carrying the text it was a check of.
+   *
+   * Stored together on purpose. When these were two values — lints here, the
+   * document wherever the caller happened to read it — every consumer paired
+   * results with whatever the text had since become, which is how a warning
+   * came to be drawn on a word Harper never looked at.
+   */
+  grammar: GrammarScan;
   /**
    * Why the last grammar check produced nothing, if it failed.
    *
@@ -20,19 +28,18 @@ interface ProseScanState {
    * checker never ran" have to be distinguishable from the outside.
    */
   grammarError: string | null;
-  setGrammarLints: (lints: GrammarLint[]) => void;
+  /** `text` is the document as it was handed to the checker, not as it is now. */
+  setGrammarScan: (text: string, lints: GrammarLint[]) => void;
   setGrammarError: (message: string | null) => void;
   clear: () => void;
 }
 
-const EMPTY_LINTS: GrammarLint[] = [];
-
 export const useProseScanStore = create<ProseScanState>((set) => ({
-  grammarLints: EMPTY_LINTS,
+  grammar: EMPTY_GRAMMAR_SCAN,
   grammarError: null,
-  setGrammarLints: (grammarLints) => set({ grammarLints, grammarError: null }),
-  setGrammarError: (grammarError) => set({ grammarError, grammarLints: EMPTY_LINTS }),
-  // Reuses the same empty array every time, so the analysis memo and every
+  setGrammarScan: (text, lints) => set({ grammar: { text, lints }, grammarError: null }),
+  setGrammarError: (grammarError) => set({ grammarError, grammar: EMPTY_GRAMMAR_SCAN }),
+  // Reuses the same empty scan every time, so the analysis memo and every
   // `useMemo` downstream see an unchanged reference instead of a new object.
-  clear: () => set({ grammarLints: EMPTY_LINTS, grammarError: null }),
+  clear: () => set({ grammar: EMPTY_GRAMMAR_SCAN, grammarError: null }),
 }));

@@ -44,6 +44,19 @@ const CATEGORY_STYLE: Record<LintCategory, { accent: string; label: string; text
   grammar: { accent: "border-rose-400/40", label: "Grammar", text: "text-rose-600 dark:text-rose-400" },
 };
 
+/**
+ * How many issue cards this list will build.
+ *
+ * The cap belongs here and only here. It used to sit in the analysis, where it
+ * cut every issue past the thousandth out of the results altogether — so a long
+ * document lost its highlights as well as its cards, from a fixed point onwards,
+ * silently. A card is a dozen DOM nodes in a list that is not virtualised, which
+ * is a good reason to stop building them and no reason at all to stop
+ * underlining the text. What is left over is counted below rather than dropped
+ * on the floor.
+ */
+const MAX_LINT_CARDS = 300;
+
 /** Trims a sentence-length excerpt down to something a card can hold. */
 function excerpt(text: string, limit = 120): string {
   const flat = text.replace(/\s+/g, " ").trim();
@@ -88,7 +101,9 @@ export function ReviseView(props: ReviseViewProps) {
   const matchesReviewFilter = (kind: ReviewKind) => reviewFilter === "all" || reviewFilter === kind;
   const visibleSuggestions = matchesReviewFilter("suggestion") ? suggestions : [];
   const visibleAnnotations = matchesReviewFilter("note") ? annotations : [];
-  const visibleLintIssues = lintIssues.filter((issue) => matchesReviewFilter(issue.severity));
+  const matchingLintIssues = lintIssues.filter((issue) => matchesReviewFilter(issue.severity));
+  const visibleLintIssues = matchingLintIssues.slice(0, MAX_LINT_CARDS);
+  const undrawnCardCount = matchingLintIssues.length - visibleLintIssues.length;
   const noteCount = annotations.length;
   const suggestionCount = suggestions.length;
   const lintCount = lintIssues.length;
@@ -198,6 +213,13 @@ export function ReviseView(props: ReviseViewProps) {
               </div>
             );
           })}
+          {undrawnCardCount > 0 && (
+            <div className="rounded-md border border-black/5 dark:border-white/5 bg-[var(--editor-secondary-bg)] px-2.5 py-2 text-[10px] leading-relaxed text-[var(--editor-text-color)] opacity-70">
+              <span className="font-semibold">{undrawnCardCount} more issues</span> further down the
+              document. They are all still highlighted in the editor — filter above, or work through
+              these first.
+            </div>
+          )}
           {visibleSuggestions.map((sug) => (
             <SuggestionCard key={sug.id} suggestion={sug} active={sug.id === activeSuggestionId}
               cardRef={(el) => { cardRefs.current[sug.id] = el; }} onCardClick={onCardClick}

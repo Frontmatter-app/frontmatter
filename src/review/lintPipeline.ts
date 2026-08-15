@@ -11,7 +11,7 @@
 import { analyzeReadability, type ReadabilityStats } from "./readability";
 import { compareIssues, type LintIgnoreState, type LintIssue } from "./lintTypes";
 import { maskMarkdown, LineIndex } from "./markdownMask";
-import { grammarLintsToIssues, type GrammarLint } from "./grammarIssues";
+import { grammarLintsToIssues, type GrammarScan } from "./grammarIssues";
 import { analyzeInclusiveLanguage } from "./inclusiveIssues";
 
 export interface LintAnalysis {
@@ -29,8 +29,22 @@ const EMPTY_STATS: ReadabilityStats = {
 
 export const EMPTY_ANALYSIS: LintAnalysis = { all: [], issues: [], stats: EMPTY_STATS };
 
-/** Total issues rendered. Past this the sidebar is unusable anyway. */
-const MAX_VISIBLE_ISSUES = 1000;
+/**
+ * Nothing is capped here, and that is a fix rather than an oversight.
+ *
+ * This used to end with `.slice(0, 1000)`. Issues come out in document order,
+ * so the cap did not thin the highlights out — it cut the document in half.
+ * Past about fifteen pages every remaining sentence, adverb and misspelling
+ * simply had no highlight and no card, with nothing on screen to say so, which
+ * reads exactly like a checker that stops working half way down a long file.
+ *
+ * The cost it was guarding against is real, but it is the sidebar's: a card is
+ * a dozen DOM nodes and the list is not virtualised. The editor's cost is not
+ * comparable — decorations live in a range tree that only renders what is in
+ * the viewport. So the analysis returns everything it found, the editor draws
+ * all of it, and the sidebar caps its own card list and says how many it left
+ * out.
+ */
 
 /**
  * Removes highlights that say the same thing twice.
@@ -118,13 +132,13 @@ function sameIgnore(a: LintIgnoreState, b: LintIgnoreState): boolean {
 
 export function analyzeDocument(
   source: string,
-  grammarLints: GrammarLint[] | null | undefined,
+  grammar: GrammarScan | null | undefined,
   ignore: LintIgnoreState,
 ): LintAnalysis {
   if (
     memo &&
     memo.source === source &&
-    memo.grammar === grammarLints &&
+    memo.grammar === grammar &&
     sameIgnore(memo.ignore, ignore)
   ) {
     return memo.result;
@@ -132,7 +146,7 @@ export function analyzeDocument(
 
   if (!source) {
     const result = EMPTY_ANALYSIS;
-    memo = { source, grammar: grammarLints, ignore, result };
+    memo = { source, grammar, ignore, result };
     return result;
   }
 
@@ -140,13 +154,13 @@ export function analyzeDocument(
   const lines = new LineIndex(source);
   const { issues: readabilityIssues, stats } = analyzeReadability(source, mask);
   const inclusiveIssues = analyzeInclusiveLanguage(source, mask, { lines });
-  const grammarIssues = grammarLintsToIssues(source, grammarLints, { mask, lines });
+  const grammarIssues = grammarLintsToIssues(source, grammar, { mask, lines });
 
   const all = dedupe([...readabilityIssues, ...inclusiveIssues, ...grammarIssues]);
-  const issues = filterIgnored(all, ignore).slice(0, MAX_VISIBLE_ISSUES);
+  const issues = filterIgnored(all, ignore);
 
   const result: LintAnalysis = { all, issues, stats };
-  memo = { source, grammar: grammarLints, ignore, result };
+  memo = { source, grammar, ignore, result };
   return result;
 }
 

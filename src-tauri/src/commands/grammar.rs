@@ -234,6 +234,26 @@ mod tests {
         assert!(run("The cat are sleeping.").unwrap().is_empty());
     }
 
+    /// The same ceiling, from a sentence that was reported as a miss.
+    ///
+    /// "This is wrongs" is the identical shape: a real word, spelled correctly,
+    /// in a position only a parser could object to. Harper finds the
+    /// lower-case sentence start two clauses later and nothing else — and it is
+    /// not a matter of configuration, because `set_all_rules_to(Some(true))`
+    /// over all 828 curated rules returns exactly the same single lint. The
+    /// fix for this class is a model, not a setting.
+    #[test]
+    fn does_not_catch_a_wrong_word_form_a_rule_cannot_enumerate() {
+        let text = "Here we provide tips for using these templates. \
+                    This is wrongs and I like it. what do you think these does?";
+        let kinds: Vec<&str> = run(text)
+            .unwrap()
+            .iter()
+            .map(|lint| &text[lint.start..lint.end])
+            .collect();
+        assert_eq!(kinds, vec!["what"]);
+    }
+
     #[test]
     fn word_choice_is_an_error_rather_than_a_gentle_suggestion() {
         let lints = run("He could of gone.").unwrap();

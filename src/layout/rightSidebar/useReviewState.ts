@@ -33,7 +33,7 @@ export function useReviewState({ ydoc, stage, currentDocumentId, currentUserName
   const [reviewFilter, setReviewFilter] = useState<ReviewKind | "all">("all");
   const cardRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
-  const grammarLints = useProseScanStore((s) => s.grammarLints);
+  const grammarScan = useProseScanStore((s) => s.grammar);
   const grammarError = useProseScanStore((s) => s.grammarError);
   const activeLintIssueId = useLintSelection((s) => s.activeIssueId);
 
@@ -41,8 +41,8 @@ export function useReviewState({ ydoc, stage, currentDocumentId, currentUserName
   // two runs second in a tick reuses the first one's result rather than
   // re-parsing the document.
   const analysis = useMemo(
-    () => analyzeDocument(docText, grammarLints, lintIgnoreState),
-    [docText, grammarLints, lintIgnoreState],
+    () => analyzeDocument(docText, grammarScan, lintIgnoreState),
+    [docText, grammarScan, lintIgnoreState],
   );
   const lintIssues = analysis.issues;
   const readabilityStats = analysis.stats;

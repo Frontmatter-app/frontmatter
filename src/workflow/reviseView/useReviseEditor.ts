@@ -18,7 +18,7 @@ import { useSyncStatusStore } from "../../cloud/syncStatusStore";
 import { auth } from "../../auth/firebase";
 import { setCurrentExcalidrawDocumentId, setImageAnnotationManager, setImageAuthorId, setImageYdoc } from "../../editor/extensions/inlinePreview/interactions";
 import { linkCommand } from "../../editor/formatting/commands";
-import { proseLintExtension, revealLintIssue } from "../../editor/extensions/proseLintExtension";
+import { getLintIssues, proseLintExtension, revealLintIssue } from "../../editor/extensions/proseLintExtension";
 import { autoCorrectExtension } from "../../editor/extensions/autoCorrectExtension";
 import type { AutoCorrectOptions } from "../../editor/extensions/autoCorrect";
 import { suggestionsExtension, setSuggestionsEffect } from "../../editor/extensions/suggestionsExtension";
@@ -77,7 +77,7 @@ export function useReviseEditor(ydoc: Y.Doc, documentId: string) {
   const [editorView, setEditorView] = useState<EditorView | null>(null);
   const { setActiveHeading, setActiveAnnotationId, setActiveSuggestionId } = useWorkspace();
   const { settings } = useSettingsStore();
-  const grammarLints = useProseScanStore((s) => s.grammarLints);
+  const grammarScan = useProseScanStore((s) => s.grammar);
 
   // The editor is built once, so anything the extensions read at keystroke
   // time has to come through a ref. Passing the values directly would freeze
@@ -218,7 +218,7 @@ export function useReviseEditor(ydoc: Y.Doc, documentId: string) {
       }
       const { issues } = analyzeDocument(
         ytext.toString(),
-        useProseScanStore.getState().grammarLints,
+        useProseScanStore.getState().grammar,
         readIgnore(ydoc),
       );
       handle.updateLintIssues(issues);
@@ -237,7 +237,7 @@ export function useReviseEditor(ydoc: Y.Doc, documentId: string) {
       ytext.unobserve(schedule);
       window.removeEventListener("editor-refresh-lint", push);
     };
-  }, [ydoc, settings.showProseLint, grammarLints, lintIgnore]);
+  }, [ydoc, settings.showProseLint, grammarScan, lintIgnore]);
 
   /** The sidebar half of the round trip: a card click scrolls the editor. */
   useEffect(() => {
@@ -258,8 +258,13 @@ export function useReviseEditor(ydoc: Y.Doc, documentId: string) {
       const { issue, replacement } = (event as CustomEvent<{ issue?: LintIssue; replacement?: string }>).detail ?? {};
       const view = handleRef.current?.view;
       if (!issue || replacement === undefined || !view) return;
-      const to = Math.min(issue.to, view.state.doc.length);
-      const from = Math.min(issue.from, to);
+      // Same reason as revealing: take the editor's copy of the range, which
+      // has followed the edits, over the sidebar's, which is a debounce old.
+      // The check below then refuses to rewrite anything that is not the exact
+      // text the fix was offered for.
+      const current = getLintIssues(view).find((held) => held.id === issue.id) ?? issue;
+      const to = Math.min(current.to, view.state.doc.length);
+      const from = Math.min(current.from, to);
       if (view.state.doc.sliceString(from, to) !== issue.match) return;
       dispatchEdit(view, { changes: { from, to, insert: replacement }, selection: { anchor: from + replacement.length } }, "input.replace");
     };

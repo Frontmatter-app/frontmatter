@@ -10,6 +10,7 @@
 
 import type { LintIssue, LintSeverity } from "./lintTypes";
 import { LineIndex, type MaskedMarkdown } from "./markdownMask";
+import { createRangeShift } from "./rangeShift";
 
 export interface GrammarLint {
   /** Absolute UTF-16 offset, inclusive. */
@@ -32,6 +33,21 @@ export interface GrammarLint {
  * checked against an enum that lives in another language; a `match` can.
  */
 
+/**
+ * A finished grammar check, together with the text it was a check *of*.
+ *
+ * The text is not bookkeeping. Grammar is the only analysis in the app whose
+ * results arrive later than the document they describe, so the text is the only
+ * thing that says which document an offset means.
+ */
+export interface GrammarScan {
+  /** Exactly what Harper was given. */
+  text: string;
+  lints: GrammarLint[];
+}
+
+export const EMPTY_GRAMMAR_SCAN: GrammarScan = { text: "", lints: [] };
+
 export interface GrammarConversionOptions {
   /** Drops lints that land on code, links or other non-prose. */
   mask?: MaskedMarkdown;
@@ -40,37 +56,53 @@ export interface GrammarConversionOptions {
 
 export function grammarLintsToIssues(
   source: string,
-  lints: GrammarLint[] | null | undefined,
+  scan: GrammarScan | null | undefined,
   options: GrammarConversionOptions = {},
 ): LintIssue[] {
-  if (!lints || lints.length === 0) return [];
+  if (!scan || scan.lints.length === 0) return [];
 
+  const scanned = scan.text;
   const lines = options.lines ?? new LineIndex(source);
   const mask = options.mask;
+  const shift = createRangeShift(scanned, source);
   const counts = new Map<string, number>();
   const issues: LintIssue[] = [];
 
-  for (const lint of lints) {
-    const from = Math.max(0, Math.min(lint.start, source.length));
-    const to = Math.max(from, Math.min(lint.end, source.length));
-    if (to <= from) continue;
+  for (const lint of scan.lints) {
+    // Clamped against the scanned text, because that is the text these offsets
+    // are offsets into.
+    const start = Math.max(0, Math.min(lint.start, scanned.length));
+    const end = Math.max(start, Math.min(lint.end, scanned.length));
+    if (end <= start) continue;
+
+    const match = scanned.slice(start, end);
+    const key = `${lint.kind}|${match.toLowerCase()}`;
+
+    // Counted before anything is dropped, so an id names the same flag whether
+    // or not the ones around it survived. Ignoring the second "teh" must not
+    // start meaning the third one the moment an edit lands on the first.
+    const nth = (counts.get(key) ?? 0) + 1;
+    counts.set(key, nth);
+
+    const moved = shift(start, end);
+    if (!moved) continue;
+
+    // The invariant the whole review depends on: a highlight covers the text
+    // that was judged. If the shift ever disagrees, drawing nothing is right
+    // and drawing it anyway is the bug this replaces.
+    if (source.slice(moved.from, moved.to) !== match) continue;
 
     // Harper parses Markdown and skips code itself, but the mask is the one
     // place that decides what counts as prose in this app, so it has the final
     // say for every source of issues alike.
-    if (mask && (mask.ignored[from] === 1 || mask.ignored[to - 1] === 1)) continue;
-
-    const match = source.slice(from, to);
-    const key = `${lint.kind}|${match.toLowerCase()}`;
-    const nth = (counts.get(key) ?? 0) + 1;
-    counts.set(key, nth);
+    if (mask && (mask.ignored[moved.from] === 1 || mask.ignored[moved.to - 1] === 1)) continue;
 
     issues.push({
       id: `${key}|${nth}`,
-      from,
-      to,
-      line: lines.lineAt(from),
-      column: lines.columnAt(from),
+      from: moved.from,
+      to: moved.to,
+      line: lines.lineAt(moved.from),
+      column: lines.columnAt(moved.from),
       severity: lint.severity ?? "suggestion",
       category: "grammar",
       rule: lint.kind,
