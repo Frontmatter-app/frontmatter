@@ -3,6 +3,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { invoke, isWebPreview } from '../../filesystem/tauriCommands';
 import { UserMetricsData } from './metricsTypes';
 import { loadMetricsFromLocalStorage, persistToLocalStorage, loadMetricsFromSqlite } from './metricsStorage';
+import { dayKey } from './metricsDates';
 
 export type { UserMetricsData } from './metricsTypes';
 export { migrateLocalStorageToSqlite } from './metricsStorage';
@@ -24,61 +25,19 @@ export function loadLocalMetricsSync(uid: string): UserMetricsData {
   return loadMetricsFromLocalStorage(uid);
 }
 
-// Merge two metrics objects; overlay wins per-key
-export function mergeMetrics(base: UserMetricsData, overlay: Partial<UserMetricsData>): UserMetricsData {
-  const mergedHeatmap = { ...base.heatmap, ...(overlay.heatmap || {}) };
-  const mergedWritingTime = { ...base.writingTime, ...(overlay.writingTime || {}) };
-  const mergedHourlyBuckets = { ...base.hourlyBuckets, ...(overlay.hourlyBuckets || {}) };
-  const mergedFocusDaily = { ...(base.focusSessionsDaily || {}), ...(overlay.focusSessionsDaily || {}) };
-
-  const baseSpeed = base.typingSpeed;
-  const overlaySpeed = overlay.typingSpeed || { avgWpm: 0, peakWpm: 0, sampleCount: 0 };
-
-  let mergedAvgWpm = baseSpeed.avgWpm;
-  let mergedPeakWpm = baseSpeed.peakWpm;
-  let mergedSampleCount = baseSpeed.sampleCount;
-
-  if (overlaySpeed.sampleCount && overlaySpeed.sampleCount > 0) {
-    if (baseSpeed.sampleCount > 0) {
-      const totalSamples = baseSpeed.sampleCount + overlaySpeed.sampleCount;
-      mergedAvgWpm = Math.round(
-        (baseSpeed.avgWpm * baseSpeed.sampleCount + overlaySpeed.avgWpm * overlaySpeed.sampleCount) /
-          totalSamples
-      );
-      mergedPeakWpm = Math.max(baseSpeed.peakWpm, overlaySpeed.peakWpm || 0);
-      mergedSampleCount = totalSamples;
-    } else {
-      mergedAvgWpm = overlaySpeed.avgWpm;
-      mergedPeakWpm = overlaySpeed.peakWpm || 0;
-      mergedSampleCount = overlaySpeed.sampleCount;
-    }
-  }
-
-  // Aggregate focus sessions
-  let totalFocusCount = 0;
-  let totalFocusDuration = 0;
-  Object.values(mergedFocusDaily).forEach((val) => {
-    totalFocusCount += val.totalCount;
-    totalFocusDuration += val.avgDurationMin * val.totalCount;
-  });
-  const mergedFocusAvg = totalFocusCount > 0 ? Math.round(totalFocusDuration / totalFocusCount) : 0;
-
-  return {
-    heatmap: mergedHeatmap,
-    writingTime: mergedWritingTime,
-    focusSessions: {
-      totalCount: totalFocusCount,
-      avgDurationMin: mergedFocusAvg,
-    },
-    focusSessionsDaily: mergedFocusDaily,
-    typingSpeed: {
-      avgWpm: mergedAvgWpm,
-      peakWpm: mergedPeakWpm,
-      sampleCount: mergedSampleCount,
-    },
-    hourlyBuckets: mergedHourlyBuckets,
-    lastSync: overlay.lastSync || base.lastSync,
-  };
+export interface SaveOptions {
+  /**
+   * The days this write actually changed. Everything else in `data` is left
+   * alone.
+   *
+   * Without this the function wrote every day it held — up to 170 rows, each
+   * its own IPC round trip and its own upsert — on a timer that fires every
+   * eight seconds while someone is typing. The rows were also rewritten with
+   * whatever the current WPM average happened to be, so a burst of typing this
+   * afternoon silently restamped last March's typing speed.
+   */
+  dirtyDates?: string[];
+  forceCloudSync?: boolean;
 }
 
 // Save metrics to SQLite via Tauri backend, and sync to Firestore when applicable
@@ -86,39 +45,42 @@ export async function saveAndSyncMetrics(
   uid: string,
   teamId: string | null,
   data: UserMetricsData,
-  forceCloudSync: boolean = false
+  options: SaveOptions = {},
 ): Promise<void> {
   if (!uid) return;
+
+  const { dirtyDates, forceCloudSync = false } = options;
 
   // Keep the localStorage cache fresh for instant load next time
   persistToLocalStorage(uid, data);
 
   // Persist to SQLite (primary durable store)
   if (!isWebPreview) {
-    const dates = Object.keys(data.heatmap);
-    if (dates.length > 0) {
-      try {
-        const promises = dates.map((dateStr) => {
+    const dates = dirtyDates ?? Object.keys(data.heatmap);
+    try {
+      await Promise.all(
+        dates.map((dateStr) => {
           const dailyFocus = data.focusSessionsDaily?.[dateStr] || { totalCount: 0, avgDurationMin: 0 };
           return invoke<void>('save_daily_metrics', {
             args: {
               uid,
               date: dateStr,
               edits: data.heatmap[dateStr] || 0,
-              writing_time_seconds: data.writingTime[dateStr] || 0,
+              writing_time_seconds: Math.round(data.writingTime[dateStr] || 0),
               hourly_buckets: JSON.stringify(data.hourlyBuckets[dateStr] || []),
               focus_sessions_total: dailyFocus.totalCount,
               focus_sessions_avg_min: dailyFocus.avgDurationMin,
               avg_wpm: data.typingSpeed.avgWpm,
               peak_wpm: data.typingSpeed.peakWpm,
               wpm_sample_count: data.typingSpeed.sampleCount,
+              words_written: Math.round(data.wordsWritten?.[dateStr] || 0),
+              issues_resolved: Math.round(data.issuesResolved?.[dateStr] || 0),
             },
           });
-        });
-        await Promise.all(promises);
-      } catch (e) {
-        console.error('Failed to persist metrics to SQLite:', e);
-      }
+        }),
+      );
+    } catch (e) {
+      console.error('Failed to persist metrics to SQLite:', e);
     }
   }
 
@@ -143,7 +105,7 @@ export async function saveAndSyncMetrics(
 export async function recordFocusSession(uid: string, teamId: string | null, durationMinutes: number) {
   if (!uid || durationMinutes <= 0) return;
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = dayKey();
 
   try {
     const currentData = await loadLocalMetrics(uid);
@@ -178,16 +140,16 @@ export async function recordFocusSession(uid: string, teamId: string | null, dur
     const globalAvgDuration = totalFocusCount > 0 ? Math.round(totalFocusDuration / totalFocusCount) : 0;
 
     const updatedData: UserMetricsData = {
+      ...currentData,
       heatmap: updatedHeatmap,
       writingTime: updatedWritingTime,
       focusSessions: { totalCount: totalFocusCount, avgDurationMin: globalAvgDuration },
       focusSessionsDaily: updatedFocusSessionsDaily,
-      typingSpeed: currentData.typingSpeed,
       hourlyBuckets: updatedHourlyBuckets,
       lastSync: Date.now(),
     };
 
-    await saveAndSyncMetrics(uid, teamId, updatedData);
+    await saveAndSyncMetrics(uid, teamId, updatedData, { dirtyDates: [todayStr] });
   } catch (e) {
     console.error('Failed to record focus session:', e);
   }

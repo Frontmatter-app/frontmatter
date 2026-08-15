@@ -61,6 +61,9 @@ macro_rules! app_command_handlers {
             // -- Metrics and focus ----------------------------------------
             $crate::commands::metrics::get_metrics_date_range,
             $crate::commands::metrics::save_daily_metrics,
+            $crate::commands::metrics::save_doc_health_daily,
+            $crate::commands::metrics::get_doc_health_range,
+            $crate::commands::metrics::get_review_backlog,
             $crate::commands::focus_sessions::save_focus_session,
             // -- Windows --------------------------------------------------
             $crate::commands::new_window::open_file_in_new_window_command,

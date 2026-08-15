@@ -2,7 +2,7 @@
 // Produced by scripts/generate-ipc.mjs from the #[tauri::command] definitions
 // in src-tauri/src. Run `npm run ipc:gen` after changing a command.
 //
-// 104 commands registered in main.rs.
+// 107 commands registered in main.rs.
 //
 // `unknown` means the Rust type is not a serialisable struct this generator
 // could resolve; narrow it with a cast at the call site.
@@ -36,6 +36,29 @@ export interface DailyMetricsRow {
   avg_wpm: number;
   peak_wpm: number;
   wpm_sample_count: number;
+  words_written: number;
+  issues_resolved: number;
+}
+
+export interface DocHealthRow {
+  date: string;
+  documents: number;
+  words: number;
+  stale_docs: number;
+  broken_links: number;
+  missing_alt_text: number;
+  empty_sections: number;
+  unclosed_fences: number;
+  undefined_acronyms: number;
+  hard_sentences: number;
+  passives: number;
+  inclusive_issues: number;
+  median_grade: number;
+  docs_over_grade_target: number;
+  review_open: number;
+  review_resolved: number;
+  oldest_open_review_days: number;
+  defects: number;
 }
 
 export interface DocumentMeta {
@@ -190,6 +213,12 @@ export interface RenameResult {
   updated_count: number;
 }
 
+export interface ReviewBacklogRow {
+  open: number;
+  resolved: number;
+  oldest_open_days: number;
+}
+
 export interface RuntimeListItem {
   id: string;
   language: string;
@@ -285,6 +314,9 @@ export interface IpcArgsMap {
   'get_annotations': { documentId: string };
   'get_metrics_date_range': { args: unknown };
   'save_daily_metrics': { args: unknown };
+  'save_doc_health_daily': { args: unknown };
+  'get_doc_health_range': { args: unknown };
+  'get_review_backlog': Record<string, never>;
   'save_focus_session': { documentId: string; wordsWritten: number; startedAt: string };
   'open_file_in_new_window_command': { workspacePath: string; filePath: string };
   'open_account_window': { accountUid: string; accountToken?: string | null; workspaceContextJson: string; savedAccountsJson?: string | null };
@@ -393,6 +425,9 @@ export interface IpcResultMap {
   'get_annotations': AnnotationRecord[];
   'get_metrics_date_range': DailyMetricsRow[];
   'save_daily_metrics': null;
+  'save_doc_health_daily': null;
+  'get_doc_health_range': DocHealthRow[];
+  'get_review_backlog': ReviewBacklogRow;
   'save_focus_session': FocusSessionMeta;
   'open_file_in_new_window_command': null;
   'open_account_window': null;
@@ -505,6 +540,9 @@ export const IPC_COMMANDS = [
   'get_annotations',
   'get_metrics_date_range',
   'save_daily_metrics',
+  'save_doc_health_daily',
+  'get_doc_health_range',
+  'get_review_backlog',
   'save_focus_session',
   'open_file_in_new_window_command',
   'open_account_window',

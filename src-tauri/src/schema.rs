@@ -90,6 +90,31 @@ CREATE TABLE IF NOT EXISTS metrics_daily (
     PRIMARY KEY (uid, date)
 );
 
+-- One row per workspace per day: what the documentation set looked like that
+-- day. Keyed by workspace rather than by author, because a stale page or a
+-- broken link belongs to the docs, not to whoever last touched them.
+CREATE TABLE IF NOT EXISTS doc_health_daily (
+    date TEXT PRIMARY KEY,
+    documents INTEGER NOT NULL DEFAULT 0,
+    words INTEGER NOT NULL DEFAULT 0,
+    stale_docs INTEGER NOT NULL DEFAULT 0,
+    broken_links INTEGER NOT NULL DEFAULT 0,
+    missing_alt_text INTEGER NOT NULL DEFAULT 0,
+    empty_sections INTEGER NOT NULL DEFAULT 0,
+    unclosed_fences INTEGER NOT NULL DEFAULT 0,
+    undefined_acronyms INTEGER NOT NULL DEFAULT 0,
+    hard_sentences INTEGER NOT NULL DEFAULT 0,
+    passives INTEGER NOT NULL DEFAULT 0,
+    inclusive_issues INTEGER NOT NULL DEFAULT 0,
+    median_grade INTEGER NOT NULL DEFAULT 0,
+    docs_over_grade_target INTEGER NOT NULL DEFAULT 0,
+    review_open INTEGER NOT NULL DEFAULT 0,
+    review_resolved INTEGER NOT NULL DEFAULT 0,
+    oldest_open_review_days INTEGER NOT NULL DEFAULT 0,
+    defects INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS objects (
     uuid TEXT PRIMARY KEY,
     object_type TEXT NOT NULL,
@@ -222,6 +247,29 @@ pub async fn migrate_database(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         sqlx::query("ALTER TABLE annotations ADD COLUMN replies TEXT NOT NULL DEFAULT '[]'")
             .execute(pool)
             .await?;
+    }
+
+    // Net words and fixed prose issues per day. The edit counter next to them
+    // counts Yjs change events, which is a number about the editor rather than
+    // about the writing; these two are the ones that mean something on their
+    // own.
+    let mrows = sqlx::query("PRAGMA table_info(metrics_daily)").fetch_all(pool).await?;
+    let mut mflags = [false; 2];
+    for row in &mrows {
+        if let Ok(name) = row.try_get::<String, _>("name") {
+            match name.as_str() {
+                "words_written" => mflags[0] = true,
+                "issues_resolved" => mflags[1] = true,
+                _ => {}
+            }
+        }
+    }
+    let mcols = [
+        "words_written INTEGER NOT NULL DEFAULT 0",
+        "issues_resolved INTEGER NOT NULL DEFAULT 0",
+    ];
+    for (i, col) in mcols.iter().enumerate() {
+        if !mflags[i] { sqlx::query(&format!("ALTER TABLE metrics_daily ADD COLUMN {col}")).execute(pool).await?; }
     }
 
     // Focus sessions table

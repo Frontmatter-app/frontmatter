@@ -1,5 +1,7 @@
 import { invoke, isWebPreview } from '../../filesystem/tauriCommands';
 import { UserMetricsData, getEmptyMetrics } from './metricsTypes';
+import { dayKey, shiftDayKey } from './metricsDates';
+import { HEATMAP_WEEKS } from './metricsCalculation';
 
 // Load from localStorage (synchronous fallback used for instant renders)
 export function loadMetricsFromLocalStorage(uid: string): UserMetricsData {
@@ -21,6 +23,8 @@ export function loadMetricsFromLocalStorage(uid: string): UserMetricsData {
           sampleCount: parsed.typingSpeed?.sampleCount || 0,
         },
         hourlyBuckets: parsed.hourlyBuckets || {},
+        wordsWritten: parsed.wordsWritten || {},
+        issuesResolved: parsed.issuesResolved || {},
       };
     }
   } catch (e) {
@@ -40,11 +44,13 @@ export function persistToLocalStorage(uid: string, data: UserMetricsData) {
 
 // Load metrics from SQLite via Tauri backend (primary source of truth)
 export async function loadMetricsFromSqlite(uid: string): Promise<UserMetricsData> {
+  // Wide enough to cover every cell the heatmap draws, plus the partial week
+  // at each end. This was 169 days against a 24-week grid; once the grid shows
+  // a year, a short window would render the older half as blanks that look
+  // exactly like days nobody wrote on.
   const today = new Date();
-  const startDate = new Date(today);
-  startDate.setDate(today.getDate() - 169);
-  const startStr = startDate.toISOString().split('T')[0];
-  const endStr = today.toISOString().split('T')[0];
+  const startStr = shiftDayKey(dayKey(today), -(HEATMAP_WEEKS * 7 + 7));
+  const endStr = dayKey(today);
 
   try {
     const rows = await invoke<
@@ -58,6 +64,8 @@ export async function loadMetricsFromSqlite(uid: string): Promise<UserMetricsDat
         avg_wpm: number;
         peak_wpm: number;
         wpm_sample_count: number;
+        words_written: number;
+        issues_resolved: number;
       }[]
     >('get_metrics_date_range', {
       args: {
@@ -74,6 +82,8 @@ export async function loadMetricsFromSqlite(uid: string): Promise<UserMetricsDat
     const heatmap: { [dateStr: string]: number } = {};
     const writingTime: { [dateStr: string]: number } = {};
     const hourlyBuckets: { [dateStr: string]: number[] } = {};
+    const wordsWritten: { [dateStr: string]: number } = {};
+    const issuesResolved: { [dateStr: string]: number } = {};
     const focusSessionsDaily: { [dateStr: string]: { totalCount: number; avgDurationMin: number } } = {};
     let totalFocus = 0;
     let focusCnt = 0;
@@ -84,7 +94,9 @@ export async function loadMetricsFromSqlite(uid: string): Promise<UserMetricsDat
       heatmap[row.date] = row.edits;
       writingTime[row.date] = row.writing_time_seconds;
       hourlyBuckets[row.date] = JSON.parse(row.hourly_buckets || '[]');
-      
+      wordsWritten[row.date] = row.words_written || 0;
+      issuesResolved[row.date] = row.issues_resolved || 0;
+
       if (row.focus_sessions_total > 0) {
         focusSessionsDaily[row.date] = {
           totalCount: row.focus_sessions_total,
@@ -110,6 +122,8 @@ export async function loadMetricsFromSqlite(uid: string): Promise<UserMetricsDat
       focusSessionsDaily,
       typingSpeed: { avgWpm, peakWpm, sampleCount: totalSampleCount },
       hourlyBuckets,
+      wordsWritten,
+      issuesResolved,
     };
   } catch (e) {
     console.error('Failed to load metrics from SQLite:', e);
@@ -178,6 +192,8 @@ export async function migrateLocalStorageToSqlite(uid: string): Promise<void> {
               avg_wpm: data.typingSpeed.avgWpm,
               peak_wpm: data.typingSpeed.peakWpm,
               wpm_sample_count: data.typingSpeed.sampleCount,
+              words_written: Math.round(data.wordsWritten?.[dateStr] || 0),
+              issues_resolved: Math.round(data.issuesResolved?.[dateStr] || 0),
             },
           });
         });

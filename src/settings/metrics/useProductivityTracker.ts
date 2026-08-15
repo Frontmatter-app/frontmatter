@@ -3,7 +3,14 @@ import { useWorkspace } from '../../workspace/WorkspaceProvider';
 import { useAuth } from '../../auth/AuthProvider';
 import { usePlan } from '../../billing/PlanProvider';
 import { registry } from '../../yjs/DocumentRegistry';
-import { loadLocalMetrics, saveAndSyncMetrics, migrateLocalStorageToSqlite, UserMetricsData } from './metricsSync';
+import {
+  loadLocalMetrics,
+  saveAndSyncMetrics,
+  migrateLocalStorageToSqlite,
+  recordFocusSession,
+  UserMetricsData,
+} from './metricsSync';
+import { dayKey } from './metricsDates';
 import * as Y from 'yjs';
 
 interface ActiveBurst {
@@ -11,6 +18,26 @@ interface ActiveBurst {
   lastTime: number;
   chars: number;
 }
+
+/** A writing stretch survives a pause this long; past it, the stretch ended. */
+const FOCUS_GAP_MS = 3 * 60 * 1000;
+
+/** Shorter than this is not deep work, it is a typo fix. */
+const MIN_FOCUS_MINUTES = 10;
+
+/**
+ * A burst has to last this long before its rate means anything.
+ *
+ * Rate is chars over elapsed time. Over a fifth of a second — one autocomplete
+ * accepting a word, one paste — the divisor is small enough that the result is
+ * noise, and it was noise that set the "peak WPM" everyone saw: the old code
+ * clamped anything up to 300 and kept the maximum forever, so a single paste
+ * pinned the peak at the ceiling for good.
+ */
+const MIN_SAMPLE_MS = 5000;
+
+/** And it needs enough text to be a rate rather than a single word. */
+const MIN_SAMPLE_CHARS = 40;
 
 export function useProductivityTracker() {
   const { currentDocumentId } = useWorkspace();
@@ -21,87 +48,114 @@ export function useProductivityTracker() {
 
   const pendingEditsRef = useRef<{ [dateStr: string]: number }>({});
   const pendingWritingTimeRef = useRef<{ [dateStr: string]: number }>({});
+  const pendingWordsRef = useRef<{ [dateStr: string]: number }>({});
   const lastKeyTimeRef = useRef<number>(Date.now());
   const syncTimeoutRef = useRef<number | null>(null);
   const burstEndTimeoutRef = useRef<number | null>(null);
+  const focusTimeoutRef = useRef<number | null>(null);
 
   const activeBurstRef = useRef<ActiveBurst | null>(null);
+  const focusStartRef = useRef<number | null>(null);
+  const focusLastRef = useRef<number>(0);
+
+  /**
+   * Closes an open writing stretch, and records it if it was long enough.
+   *
+   * `recordFocusSession` has existed since the metric was added and was never
+   * called by anything, so the "Focus Sessions" card counted to zero for every
+   * user who ever opened it. This is the caller.
+   */
+  const endFocusSession = () => {
+    const start = focusStartRef.current;
+    focusStartRef.current = null;
+    if (!start || !uid) return;
+
+    const minutes = Math.round((focusLastRef.current - start) / 60000);
+    if (minutes >= MIN_FOCUS_MINUTES) {
+      recordFocusSession(uid, teamId, minutes).catch(console.error);
+    }
+  };
 
   const flushBurst = async () => {
     const burst = activeBurstRef.current;
-    if (!burst || !uid) return;
+    activeBurstRef.current = null;
 
-    const durationMs = burst.lastTime - burst.startTime;
-    const durationSec = durationMs / 1000;
+    const edits = pendingEditsRef.current;
+    const times = pendingWritingTimeRef.current;
+    const words = pendingWordsRef.current;
+    pendingEditsRef.current = {};
+    pendingWritingTimeRef.current = {};
+    pendingWordsRef.current = {};
 
-    if (durationSec <= 0 || burst.chars <= 0) {
-      activeBurstRef.current = null;
-      return;
+    const dirtyDates = Array.from(
+      new Set([...Object.keys(edits), ...Object.keys(times), ...Object.keys(words)]),
+    );
+    if (!uid || dirtyDates.length === 0) return;
+
+    // A rate is only recorded for bursts long enough to have one. Short ones
+    // still count as edits and as writing time — they just do not get a vote
+    // on how fast this person types.
+    let sampleWpm = 0;
+    if (burst) {
+      const durationMs = burst.lastTime - burst.startTime;
+      if (durationMs >= MIN_SAMPLE_MS && burst.chars >= MIN_SAMPLE_CHARS) {
+        const raw = Math.round((burst.chars / 5) / (durationMs / 60000));
+        sampleWpm = Math.max(5, Math.min(200, raw));
+      }
     }
-
-    const wpm = Math.round((burst.chars / 5) / (durationSec / 60));
-    const clampedWpm = Math.max(5, Math.min(300, wpm));
-
-    const today = new Date(burst.startTime);
-    const todayStr = today.toISOString().split('T')[0];
-
-    const editsInBurst = pendingEditsRef.current[todayStr] || 1;
-    const timeInBurst = pendingWritingTimeRef.current[todayStr] || Math.round(durationSec);
 
     try {
       const currentData = await loadLocalMetrics(uid);
 
-      const prevEdits = currentData.heatmap[todayStr] || 0;
-      const prevTime = currentData.writingTime[todayStr] || 0;
-
       const updatedHeatmap = { ...currentData.heatmap };
-      updatedHeatmap[todayStr] = prevEdits + editsInBurst;
-
       const updatedWritingTime = { ...currentData.writingTime };
-      updatedWritingTime[todayStr] = prevTime + timeInBurst;
-
       const updatedHourlyBuckets = { ...currentData.hourlyBuckets };
-      const currentBucket = updatedHourlyBuckets[todayStr] || new Array(24).fill(0);
-      updatedHourlyBuckets[todayStr] = [...currentBucket];
-      updatedHourlyBuckets[todayStr]![today.getHours()] =
-        (updatedHourlyBuckets[todayStr]![today.getHours()] || 0) + timeInBurst;
+      const updatedWords = { ...(currentData.wordsWritten || {}) };
+
+      for (const dateStr of dirtyDates) {
+        updatedHeatmap[dateStr] = (updatedHeatmap[dateStr] || 0) + (edits[dateStr] || 0);
+        updatedWritingTime[dateStr] = (updatedWritingTime[dateStr] || 0) + (times[dateStr] || 0);
+        updatedWords[dateStr] = Math.max(0, (updatedWords[dateStr] || 0) + (words[dateStr] || 0));
+      }
+
+      // Hour buckets are the writer's local hour of the writer's local day,
+      // which is the only combination that describes an actual afternoon.
+      const now = new Date();
+      const todayStr = dayKey(now);
+      const todaySeconds = times[todayStr] || 0;
+      if (todaySeconds > 0) {
+        const bucket = [...(updatedHourlyBuckets[todayStr] || new Array(24).fill(0))];
+        bucket[now.getHours()] = (bucket[now.getHours()] || 0) + todaySeconds;
+        updatedHourlyBuckets[todayStr] = bucket;
+      }
 
       let updatedSpeed = currentData.typingSpeed;
-      if (clampedWpm > 0) {
-        if (updatedSpeed.sampleCount > 0) {
-          const alpha = 0.2;
-          const newAvg = Math.round(updatedSpeed.avgWpm * (1 - alpha) + clampedWpm * alpha);
-          updatedSpeed = {
-            avgWpm: newAvg,
-            peakWpm: Math.max(updatedSpeed.peakWpm, clampedWpm),
-            sampleCount: updatedSpeed.sampleCount + 1,
-          };
-        } else {
-          updatedSpeed = {
-            avgWpm: clampedWpm,
-            peakWpm: clampedWpm,
-            sampleCount: 1,
-          };
-        }
+      if (sampleWpm > 0) {
+        updatedSpeed =
+          updatedSpeed.sampleCount > 0
+            ? {
+                // Exponential mean: recent weeks matter more than the first
+                // week someone used the app.
+                avgWpm: Math.round(updatedSpeed.avgWpm * 0.8 + sampleWpm * 0.2),
+                peakWpm: Math.max(updatedSpeed.peakWpm, sampleWpm),
+                sampleCount: updatedSpeed.sampleCount + 1,
+              }
+            : { avgWpm: sampleWpm, peakWpm: sampleWpm, sampleCount: 1 };
       }
 
       const updatedData: UserMetricsData = {
+        ...currentData,
         heatmap: updatedHeatmap,
         writingTime: updatedWritingTime,
-        focusSessions: currentData.focusSessions,
-        focusSessionsDaily: currentData.focusSessionsDaily,
         typingSpeed: updatedSpeed,
         hourlyBuckets: updatedHourlyBuckets,
+        wordsWritten: updatedWords,
         lastSync: Date.now(),
       };
 
-      await saveAndSyncMetrics(uid, teamId, updatedData);
+      await saveAndSyncMetrics(uid, teamId, updatedData, { dirtyDates });
     } catch (e) {
       console.error('Failed to flush metrics burst:', e);
-    } finally {
-      pendingEditsRef.current = {};
-      pendingWritingTimeRef.current = {};
-      activeBurstRef.current = null;
     }
   };
 
@@ -117,6 +171,13 @@ export function useProductivityTracker() {
     burstEndTimeoutRef.current = window.setTimeout(() => {
       flushBurst();
     }, 15000) as unknown as number;
+  };
+
+  const scheduleFocusEnd = () => {
+    if (focusTimeoutRef.current) clearTimeout(focusTimeoutRef.current);
+    focusTimeoutRef.current = window.setTimeout(() => {
+      endFocusSession();
+    }, FOCUS_GAP_MS) as unknown as number;
   };
 
   // One-time migration from localStorage to SQLite
@@ -138,7 +199,7 @@ export function useProductivityTracker() {
       if (!event.transaction.local) return; // Only track edits by the local user
 
       const now = Date.now();
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = dayKey();
       const timeDiffMs = now - lastKeyTimeRef.current;
       lastKeyTimeRef.current = now;
 
@@ -146,29 +207,43 @@ export function useProductivityTracker() {
       event.changes.added.forEach((item) => {
         insertedCount += item.length;
       });
+      let deletedCount = 0;
+      event.changes.deleted.forEach((item) => {
+        deletedCount += item.length;
+      });
+
+      if (insertedCount === 0 && deletedCount === 0) return;
 
       if (insertedCount > 0) {
         pendingEditsRef.current[todayStr] = (pendingEditsRef.current[todayStr] || 0) + 1;
 
+        // Capped, so stepping away mid-sentence does not bank the whole break
+        // as writing time.
         const timeDeltaSec = Math.min(timeDiffMs / 1000, 3);
         pendingWritingTimeRef.current[todayStr] =
           (pendingWritingTimeRef.current[todayStr] || 0) + timeDeltaSec;
 
         const burst = activeBurstRef.current;
         if (!burst) {
-          activeBurstRef.current = {
-            startTime: now,
-            lastTime: now,
-            chars: insertedCount,
-          };
+          activeBurstRef.current = { startTime: now, lastTime: now, chars: insertedCount };
         } else {
           burst.lastTime = now;
           burst.chars += insertedCount;
         }
-
-        scheduleFlush();
-        scheduleBurstEnd();
       }
+
+      // Net of deletions: rewriting a paragraph three times is not three
+      // paragraphs of output.
+      const netChars = insertedCount - deletedCount;
+      pendingWordsRef.current[todayStr] =
+        (pendingWordsRef.current[todayStr] || 0) + netChars / 5;
+
+      if (focusStartRef.current === null) focusStartRef.current = now;
+      focusLastRef.current = now;
+
+      scheduleFlush();
+      scheduleBurstEnd();
+      scheduleFocusEnd();
     };
 
     registry.acquire(currentDocumentId).then((doc) => {
@@ -186,11 +261,13 @@ export function useProductivityTracker() {
       active = false;
       if (burstEndTimeoutRef.current) clearTimeout(burstEndTimeoutRef.current);
       if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+      if (focusTimeoutRef.current) clearTimeout(focusTimeoutRef.current);
       if (ytextMd) ytextMd.unobserve(handleUpdate);
       if (ytextDraft) ytextDraft.unobserve(handleUpdate);
       if (acquiredDoc) {
         registry.release(currentDocumentId);
       }
+      endFocusSession();
       flushBurst().catch(console.error);
     };
   }, [currentDocumentId, uid, teamId]);
