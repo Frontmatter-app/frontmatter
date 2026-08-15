@@ -15,6 +15,7 @@ import { useSettingsStore } from "../../settings/settingsStore";
 import { useValeLintStore } from "../../settings/valeLintStore";
 import { registry } from "../../yjs/DocumentRegistry";
 import { setCurrentExcalidrawDocumentId, setImageAnnotationManager, setImageAuthorId, setImageYdoc } from "../../editor/extensions/inlinePreview/interactions";
+import { setImageBaseDir } from "../../images/imageService";
 import { linkCommand } from "../../editor/formatting/commands";
 import { refreshInlinePreviewEffect } from "../../editor/extensions/inlinePreview/settingsRefresh";
 import { valeLintExtension } from "../../editor/extensions/valeLintExtension";
@@ -69,6 +70,11 @@ export function useReviseEditor(ydoc: Y.Doc, documentId: string) {
     setCurrentExcalidrawDocumentId(documentId);
     setImageYdoc(ydoc);
     setImageAuthorId(authorId);
+    // This view renders the same inline image previews as the write view, so it
+    // has to set the base directory too. Left unset, relative references resolve
+    // against whichever document the write view last opened.
+    const filePath = (ydoc?.getMap("meta").get("file_path") as string | undefined) || "";
+    setImageBaseDir(filePath ? filePath.substring(0, filePath.lastIndexOf("/")) : "");
     return () => { setCurrentExcalidrawDocumentId(null); setImageYdoc(null); setImageAuthorId(""); };
   }, [documentId, ydoc, authorId]);
 

@@ -159,10 +159,15 @@ export function applyDocData(
   const ytext = doc.getText('markdown');
   const draftText = doc.getText('draft');
 
+  // A document backed by a file on disk is never server-seeded, whatever the
+  // caller believes. Skipping the seed for one would open it blank, and the
+  // next autosave writes that blank straight back over the file.
+  const serverOwnsContent = !!options.isCloud && !data?.file_path;
+
   // Cached CRDT state from before the sync server shares no history with the
   // server's copy, so merging them would duplicate the document. Dropping it
   // costs nothing: the server resends the full state on connect.
-  const cacheIsCompatible = !options.isCloud || parsed.yjs_origin === YJS_STATE_ORIGIN;
+  const cacheIsCompatible = !serverOwnsContent || parsed.yjs_origin === YJS_STATE_ORIGIN;
 
   let applied = false;
   if (parsed.yjs_state && cacheIsCompatible) {
@@ -181,7 +186,7 @@ export function applyDocData(
     }
   }
 
-  if (!applied && !options.isCloud) {
+  if (!applied && !serverOwnsContent) {
     ytext.insert(0, parsed.markdown || '');
     draftText.insert(0, parsed.draft || '');
   }

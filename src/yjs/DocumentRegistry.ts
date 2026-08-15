@@ -32,7 +32,7 @@ const dmp = new diff_match_patch();
 
 export class DocumentRegistry {
   private acquiring = new Map<string, Promise<Y.Doc>>();
-  private docs = new Map<string, { doc: Y.Doc; refs: number; interval?: any }>();
+  private docs = new Map<string, { doc: Y.Doc; refs: number; interval?: any; isCloud: boolean }>();
   private unlistenFileChanged: (() => void) | null = null;
   private providers = new Map<string, CollabProvider>();
   private lastSavedContent = new Map<string, string>();
@@ -44,18 +44,34 @@ export class DocumentRegistry {
     this.initPlanSubscription();
   }
 
-  /** True for any document that lives in the cloud, team or personal alike. */
-  private isCloudDocument(documentId: string): boolean {
-    const plan = usePlanStore.getState();
-    return (
-      useSyncStatusStore.getState().cloudDocumentIds.has(documentId) ||
-      plan.activeContext.type === 'team'
-    );
+  /**
+   * Whether a document's content is owned by the sync server.
+   *
+   * This is a property of the *document*, not of the workspace you happen to be
+   * in. A file on disk is a local document even when a team workspace is open:
+   * a team workspace still lists every markdown file in the folder you opened,
+   * and those files have no `cloud_documents` record for a server to sync from.
+   *
+   * Getting this wrong destroys files. Cloud documents deliberately skip local
+   * seeding — the server supplies their content — so treating a local file as a
+   * cloud document opens it blank, and the next autosave writes that blank back
+   * over the file on disk.
+   */
+  private isCloudDocument(documentId: string, data?: { file_path?: string | null }): boolean {
+    if (useSyncStatusStore.getState().cloudDocumentIds.has(documentId)) return true;
+    // Backed by a real file: local, whatever context is active.
+    if (data && data.file_path) return false;
+    // No file on disk. In a team workspace a new document is cloud-backed;
+    // in a personal one it is only cloud-backed if it was listed as such above.
+    if (data) return usePlanStore.getState().activeContext.type === 'team';
+    return false;
   }
 
   private attachProvider(documentId: string, doc: Y.Doc) {
     if (this.providers.has(documentId)) return;
-    if (!auth.currentUser || !this.isCloudDocument(documentId)) return;
+    if (!auth.currentUser) return;
+    // Uses the value resolved at acquire time, which saw the document's record.
+    if (!this.docs.get(documentId)?.isCloud) return;
     try {
       this.providers.set(documentId, new CollabProvider(documentId, doc));
     } catch (e) {
@@ -136,9 +152,12 @@ export class DocumentRegistry {
 
     const acquirePromise = (async () => {
       const doc = new Y.Doc();
-      const isCloud = this.isCloudDocument(documentId);
+      // Resolved after the record is loaded, so `file_path` can be consulted —
+      // deciding from workspace context alone misclassifies local files.
+      let isCloud = false;
       try {
         const { data, parsed } = await loadDocData(documentId);
+        isCloud = this.isCloudDocument(documentId, data);
         applyDocData(doc, data, parsed, { isCloud });
 
         const ytext = doc.getText("markdown");
@@ -198,7 +217,7 @@ export class DocumentRegistry {
       this.pendingReleases.delete(documentId);
       const refs = 1 - deferred;
 
-      this.docs.set(documentId, { doc, refs, interval });
+      this.docs.set(documentId, { doc, refs, interval, isCloud });
       if (refs <= 0) {
         this.teardown(documentId);
         return doc;

@@ -181,6 +181,43 @@ describe('applyDocData bootstrap', () => {
     expect(doc.getText('markdown').toString()).toBe('local only');
   });
 
+  it('seeds a file on disk even when the caller says it is a cloud document', () => {
+    // Opening a folder of markdown while a team workspace is active used to
+    // classify every local file as cloud-backed, skip the seed, and show a blank
+    // editor — and the next autosave wrote that blank over the file on disk.
+    // A document with a `file_path` has no server copy to wait for.
+    const doc = new Y.Doc();
+    applyDocData(
+      doc,
+      { ...META, file_path: '/Users/me/notes/chapter.md' },
+      { markdown: '# Chapter One\n\nReal content on disk.', draft: '', yjs_state: '' },
+      { isCloud: true },
+    );
+
+    expect(doc.getText('markdown').toString()).toBe('# Chapter One\n\nReal content on disk.');
+  });
+
+  it('keeps legacy cached state for a file on disk', () => {
+    // The migration guard drops pre-sync-server cache for cloud documents. A
+    // local file has no server to re-fetch from, so dropping it would lose work.
+    const cached = new Y.Doc();
+    cached.getText('markdown').insert(0, 'offline work');
+
+    const doc = new Y.Doc();
+    applyDocData(
+      doc,
+      { ...META, file_path: '/Users/me/notes/a.md' },
+      {
+        markdown: 'offline work',
+        draft: '',
+        yjs_state: uint8ToBase64(Y.encodeStateAsUpdate(cached)),
+      },
+      { isCloud: true },
+    );
+
+    expect(doc.getText('markdown').toString()).toBe('offline work');
+  });
+
   it('carries metadata onto the document either way', () => {
     const doc = new Y.Doc();
     applyDocData(
