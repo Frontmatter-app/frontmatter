@@ -13,9 +13,9 @@ import { referencePickerExtension, setPickerDocumentPath } from '../../editor/ex
 import { refreshInlinePreviewEffect } from '../../editor/extensions/inlinePreview/settingsRefresh';
 import { formattingKeymap } from '../../editor/formatting/keymap';
 import { setCurrentDocId } from '../../keyboard/useGlobalShortcuts';
-import { setImageBaseDir } from '../../images/imageService';
 import type { ImageContext } from '../../images/imageTypes';
 import { imageDropExtension } from '../../editor/extensions/imageDrop';
+import { useDocumentAssets } from '../../images/useDocumentAssets';
 import { getContextFromYdoc } from '../../excalidraw/excalidrawService';
 import { usePlanStore } from '../../billing/PlanProvider';
 import { useSyncStatusStore } from '../../cloud/syncStatusStore';
@@ -51,6 +51,9 @@ export function useWriteEditor(
   const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [hasSelection, setHasSelection] = useState(false);
   const [selToolbar, setSelToolbar] = useState<{ from: number; to: number } | null>(null);
+  // State, not just the ref: image resolution has to re-run once the editor
+  // exists, and a ref assignment does not re-render.
+  const [editorView, setEditorView] = useState<EditorView | null>(null);
   const { setActiveHeading, setActiveSuggestionId, documents, workspacePath } = useWorkspace();
   const { settings } = useSettingsStore();
   const teamPerms = useTeamPermissions();
@@ -103,11 +106,11 @@ export function useWriteEditor(
     const relPath = workspacePath && absPath.startsWith(workspacePath) ? absPath.slice(workspacePath.length).replace(/^\/+/, '') : absPath;
     setPickerDocumentPath(relPath);
     setCurrentDocId(documentId);
-    // Relative image references resolve against the document's own folder. The
-    // image widgets are built deep inside the CodeMirror extension and have no
-    // route to workspace context, so this is set here for them to read.
-    setImageBaseDir(absPath ? absPath.substring(0, absPath.lastIndexOf('/')) : '');
   }, [documentId, documents, workspacePath]);
+
+  // Owns the image base directory, resolves this document's images, and
+  // re-renders once it knows where each one actually lives.
+  useDocumentAssets(ydoc, editorView, getImageContext());
 
   useEffect(() => {
     applyThemeVariablesToDOM();
@@ -150,6 +153,7 @@ export function useWriteEditor(
       formattingKeymap,
     ]);
     handleRef.current = handle;
+    setEditorView(handle.view);
 
     if (suggestionManager) {
       const sync = () => {

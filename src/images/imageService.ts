@@ -6,21 +6,25 @@
  * through `resolveImageUrl`. That split is the point:
  *
  *  - **Ingest** normalises: it validates the type, caps the size, downscales and
- *    re-encodes to WebP, and names the result by the SHA-256 of its bytes.
- *    Content addressing means identical images are stored once, and an
- *    annotated copy is a *new* object instead of an overwrite of its original.
+ *    re-encodes to WebP, and names the result by a prefix of the SHA-256 of its
+ *    bytes. Identical images are stored once, and an annotated copy is a *new*
+ *    file instead of an overwrite of its original.
  *
- *  - **Resolve** happens at render time, not write time. The document stores a
- *    portable reference; what URL that becomes depends on where it is being
- *    viewed. Previously the transport URL was baked into the markdown, which is
- *    why local images resolved against the filesystem root and cloud images
- *    pointed at an endpoint no `<img>` tag could authenticate to.
+ *  - **Resolve** happens at render time, not write time, and lives in
+ *    `assetResolver`. The document stores a path; what URL that becomes depends
+ *    on where it is being viewed.
+ *
+ * Bytes follow the document's homes: a document with a folder on disk keeps its
+ * images beside it, a cloud-backed document uploads them, and one that is both
+ * does both. The reference written into the markdown is identical either way,
+ * which is what lets a document move between local, personal, and team without
+ * anything being rewritten.
  */
-import { convertFileSrc } from '@tauri-apps/api/core';
 import { getExtensionFromMime } from './imageUtils';
 import type { ImageContext, ImageResult } from './imageTypes';
 import { useImageStore } from './imageStore';
-import { uploadAsset, digestBytes } from './cloud/cloudflareR2';
+import { uploadAsset, digestBytes } from './cloud/assetClient';
+import { noteLocalAsset } from './assetResolver';
 
 const ASSETS_DIR = '.assets';
 const IMGS_DIR = `${ASSETS_DIR}/imgs`;
@@ -34,18 +38,7 @@ const WEBP_QUALITY = 0.82;
 /** Formats that must not be re-encoded: animation and vector would be destroyed. */
 const PASSTHROUGH_TYPES = new Set(['image/gif', 'image/svg+xml']);
 
-/**
- * The directory relative image references resolve against.
- *
- * Module-level because the CodeMirror image widgets are constructed deep inside
- * the extension and have no access to workspace context — the same shape as
- * `setCurrentExcalidrawDocumentId` and friends in the inline-preview extension.
- */
-let imageBaseDir = '';
-
-export function setImageBaseDir(dir: string | undefined | null) {
-  imageBaseDir = dir || '';
-}
+export { resolveImageUrl, setImageBaseDir } from './assetResolver';
 
 function assetsDir(docDir: string): string {
   return `${docDir}/${IMGS_DIR}`;
@@ -53,8 +46,7 @@ function assetsDir(docDir: string): string {
 
 async function writeFileLocal(path: string, data: Uint8Array): Promise<void> {
   const { writeFile, mkdir } = await import('@tauri-apps/plugin-fs');
-  const dir = path.substring(0, path.lastIndexOf('/'));
-  await mkdir(dir, { recursive: true });
+  await mkdir(path.substring(0, path.lastIndexOf('/')), { recursive: true });
   await writeFile(path, data);
 }
 
@@ -64,47 +56,6 @@ async function fileExists(path: string): Promise<boolean> {
     return await exists(path);
   } catch {
     return false;
-  }
-}
-
-/**
- * Turns a stored reference into something the webview can load.
- *
- * Absolute URLs (the CDN, or a data URI) pass through. Relative references are
- * resolved against the document's directory using Tauri's own `convertFileSrc`,
- * which percent-encodes correctly — the previous implementation built
- * `https://asset.localhost/...` by string concatenation, dropped the document
- * directory entirely so every local image resolved against the filesystem root,
- * and broke outright on paths containing spaces or `#`.
- */
-export function resolveImageUrl(path: string, docDir?: string): string {
-  if (!path) return '';
-  if (
-    path.startsWith('http://') ||
-    path.startsWith('https://') ||
-    path.startsWith('data:') ||
-    path.startsWith('asset:')
-  ) {
-    return path;
-  }
-
-  const base = docDir || imageBaseDir;
-  const cleaned = path.replace(/^file:\/\//, '');
-
-  // Without a base directory a relative reference cannot be resolved at all.
-  // Returning it unchanged renders a broken image, which is the honest outcome.
-  if (!cleaned.startsWith('/') && !base) return cleaned;
-
-  const absolute = cleaned.startsWith('/')
-    ? cleaned
-    : `${base.replace(/\/$/, '')}/${cleaned.replace(/^\.\//, '')}`;
-
-  try {
-    return convertFileSrc(absolute);
-  } catch {
-    // No Tauri bridge (tests, or a browser build): produce the same shape the
-    // asset protocol would, correctly encoded.
-    return `https://asset.localhost${encodeURI(absolute)}`;
   }
 }
 
@@ -150,7 +101,6 @@ async function normalise(blob: Blob): Promise<NormalisedImage> {
         : await new Promise<Blob | null>((resolve) =>
             (canvas as HTMLCanvasElement).toBlob(resolve, 'image/webp', WEBP_QUALITY),
           );
-
     if (!encoded) throw new Error('encode failed');
 
     // Re-encoding is not always a win — a small PNG can grow as WebP.
@@ -164,11 +114,17 @@ async function normalise(blob: Blob): Promise<NormalisedImage> {
   }
 }
 
+/** `<slug>-<digest>.<ext>` — the filename is the content address. */
+export function assetFileName(displayName: string, digest: string, extension: string): string {
+  const slug = displayName.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_') || 'image';
+  return `${slug.slice(0, 40)}-${digest}.${extension}`;
+}
+
 /**
  * The single entry point for getting an image into a document.
  *
- * Returns the reference to write into the markdown: a CDN URL for cloud
- * documents, a workspace-relative path for local ones.
+ * Always returns the same document-relative reference, whatever the document's
+ * storage happens to be.
  */
 export async function ingestImage(
   source: Blob,
@@ -186,43 +142,41 @@ export async function ingestImage(
 
   try {
     const { bytes, contentType, extension } = await normalise(source);
-    useImageStore.getState().updateProgress(uploadId, 50);
+    useImageStore.getState().updateProgress(uploadId, 40);
+
+    const digest = await digestBytes(bytes);
+    const fileName = assetFileName(displayName, digest, extension);
+    const reference = `./${IMGS_DIR}/${fileName}`;
+
+    // A document with a folder keeps its own copy: no network to view it, and
+    // it stays readable by anything else that opens the file.
+    let localPath: string | undefined;
+    if (context.docDir) {
+      localPath = `${assetsDir(context.docDir)}/${fileName}`;
+      if (!(await fileExists(localPath))) {
+        await writeFileLocal(localPath, bytes);
+      }
+      noteLocalAsset(reference, localPath);
+    }
+
+    useImageStore.getState().updateProgress(uploadId, 70);
 
     if (context.isCloud) {
-      const stored = await uploadAsset(bytes, contentType, context.documentId);
-      useImageStore.getState().updateProgress(uploadId, 100);
-      return { url: stored.url, isExternal: false, isCloud: true };
+      await uploadAsset(bytes, contentType, context.documentId, digest);
     }
 
-    const docDir = context.docDir || '';
-    if (!docDir) {
-      throw new Error('This document has no folder on disk yet; save it before adding images.');
-    }
-
-    // The digest is in the filename so the same image is written once, and so
-    // an edited copy never overwrites its original.
-    const digest = await digestBytes(bytes);
-    const safeName = displayName.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_') || 'image';
-    const fileName = `${safeName}-${digest.slice(0, 8)}.${extension}`;
-    const savePath = `${assetsDir(docDir)}/${fileName}`;
-
-    if (!(await fileExists(savePath))) {
-      await writeFileLocal(savePath, bytes);
+    if (!context.docDir && !context.isCloud) {
+      throw new Error('This document has nowhere to keep images yet; save it first.');
     }
 
     useImageStore.getState().updateProgress(uploadId, 100);
-    return {
-      url: `./${IMGS_DIR}/${fileName}`,
-      localPath: savePath,
-      isExternal: false,
-      isCloud: false,
-    };
+    return { url: reference, localPath, isExternal: false, isCloud: !!context.isCloud, digest };
   } finally {
     useImageStore.getState().removeUpload(uploadId);
   }
 }
 
-/** Picked or pasted file. */
+/** Picked, pasted, or dropped file. */
 export async function uploadImage(file: File, context: ImageContext): Promise<ImageResult> {
   return ingestImage(file, context, file.name);
 }
@@ -230,27 +184,23 @@ export async function uploadImage(file: File, context: ImageContext): Promise<Im
 /**
  * Brings an image referenced by URL into the document's own storage.
  *
- * Already-ingested references (a CDN URL, or a path already under `.assets`)
- * are returned untouched — they are content-addressed and immutable, so there
- * is nothing to copy.
+ * Already-ingested references are returned untouched — they are
+ * content-addressed and immutable, so there is nothing to copy.
  */
 export async function importToAssets(
   sourceUrl: string,
   context: ImageContext,
 ): Promise<ImageResult> {
-  const alreadyStored = context.isCloud
-    ? sourceUrl.startsWith('http')
-    : sourceUrl.includes(`${IMGS_DIR}/`);
-  if (alreadyStored) {
+  if (sourceUrl.includes(`${IMGS_DIR}/`)) {
     return { url: sourceUrl, isExternal: false, isCloud: !!context.isCloud };
   }
 
+  const { resolveImageUrl } = await import('./assetResolver');
   const response = await fetch(resolveImageUrl(sourceUrl, context.docDir));
   if (!response.ok) throw new Error(`Could not read image: ${response.status}`);
-  const blob = await response.blob();
 
   const name = sourceUrl.split(/[?#]/)[0].split('/').pop() || 'image';
-  return ingestImage(blob, context, name);
+  return ingestImage(await response.blob(), context, name);
 }
 
 /**
@@ -259,8 +209,7 @@ export async function importToAssets(
  * Always a new asset. Annotation used to derive the filename from the source
  * image and write it back to the same path, destroying the original — and
  * because the URL was unchanged, the markdown was never updated either, so the
- * edit appeared not to have applied at all. New drawings were all saved as
- * `drawing.png`, so each one replaced the last.
+ * edit appeared not to have applied at all.
  */
 export async function saveAnnotatedImage(
   blob: Blob,

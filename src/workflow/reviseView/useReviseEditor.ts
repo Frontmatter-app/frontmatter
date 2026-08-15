@@ -14,8 +14,12 @@ import { createFontTheme } from "../../editor/themes/themeConfig";
 import { useSettingsStore } from "../../settings/settingsStore";
 import { useValeLintStore } from "../../settings/valeLintStore";
 import { registry } from "../../yjs/DocumentRegistry";
+import { useDocumentAssets } from "../../images/useDocumentAssets";
+import { getContextFromYdoc } from "../../excalidraw/excalidrawService";
+import { usePlanStore } from "../../billing/PlanProvider";
+import { useSyncStatusStore } from "../../cloud/syncStatusStore";
+import { auth } from "../../auth/firebase";
 import { setCurrentExcalidrawDocumentId, setImageAnnotationManager, setImageAuthorId, setImageYdoc } from "../../editor/extensions/inlinePreview/interactions";
-import { setImageBaseDir } from "../../images/imageService";
 import { linkCommand } from "../../editor/formatting/commands";
 import { refreshInlinePreviewEffect } from "../../editor/extensions/inlinePreview/settingsRefresh";
 import { valeLintExtension } from "../../editor/extensions/valeLintExtension";
@@ -40,6 +44,7 @@ export function useReviseEditor(ydoc: Y.Doc, documentId: string) {
   const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [hasSelection, setHasSelection] = useState(false);
   const saved = useRef<{ from: number; to: number } | null>(null);
+  const [editorView, setEditorView] = useState<EditorView | null>(null);
   const { setActiveHeading, setActiveAnnotationId, setActiveSuggestionId } = useWorkspace();
   const { settings } = useSettingsStore();
   const valeAlerts = useValeLintStore((s) => s.alerts);
@@ -70,13 +75,20 @@ export function useReviseEditor(ydoc: Y.Doc, documentId: string) {
     setCurrentExcalidrawDocumentId(documentId);
     setImageYdoc(ydoc);
     setImageAuthorId(authorId);
-    // This view renders the same inline image previews as the write view, so it
-    // has to set the base directory too. Left unset, relative references resolve
-    // against whichever document the write view last opened.
-    const filePath = (ydoc?.getMap("meta").get("file_path") as string | undefined) || "";
-    setImageBaseDir(filePath ? filePath.substring(0, filePath.lastIndexOf("/")) : "");
     return () => { setCurrentExcalidrawDocumentId(null); setImageYdoc(null); setImageAuthorId(""); };
   }, [documentId, ydoc, authorId]);
+
+  // This view renders the same inline image previews as the write view, so it
+  // needs the same resolution. Without it, relative references resolved against
+  // whichever document the write view had opened last.
+  useDocumentAssets(ydoc, editorView, (() => {
+    if (!ydoc || !documentId) return null;
+    const plan = usePlanStore.getState();
+    const isCloud =
+      plan.activeContext.type === "team" ||
+      useSyncStatusStore.getState().cloudDocumentIds.has(documentId);
+    return getContextFromYdoc(ydoc, isCloud, plan.teamId || undefined, auth.currentUser?.uid);
+  })());
 
   // Main editor setup
   useEffect(() => {
@@ -117,6 +129,7 @@ export function useReviseEditor(ydoc: Y.Doc, documentId: string) {
       valeLintExtension(settings.showProseLint),
     ], aMgr);
     handleRef.current = handle;
+    setEditorView(handle.view);
 
     handle.view.dispatch({ effects: setSuggestionsEffect.of(sMgr.getSuggestions()) });
     const sugCb = () => { if (handle.view.dom.isConnected) handle.view.dispatch({ effects: setSuggestionsEffect.of(sMgr.getSuggestions()) }); };

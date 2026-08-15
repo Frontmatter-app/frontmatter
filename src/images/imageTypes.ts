@@ -7,6 +7,8 @@ export interface ImageContext {
 }
 
 export interface ImageResult {
+  /** Content digest, when the image went through ingest. */
+  digest?: string;
   url: string;
   localPath?: string;
   isExternal: boolean;

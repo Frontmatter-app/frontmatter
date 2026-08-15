@@ -40,6 +40,7 @@ else:
     from pycrdt import Doc
 
 from firebase import verify_id_token, init_firebase
+from authz import document_access
 
 # ── y-websocket wire protocol ────────────────────────────────────────────────
 MSG_SYNC = 0
@@ -160,45 +161,6 @@ def store_snapshot(doc_id: str, state: bytes) -> None:
         Body=state,
         ContentType='application/octet-stream',
     )
-
-
-def document_access(uid: str, doc_id: str) -> tuple[bool, bool, dict]:
-    """(can_read, can_write, document_data), mirroring firestore.rules."""
-    from firebase_admin import firestore
-
-    init_firebase()
-    db = firestore.client()
-
-    snap = db.collection('cloud_documents').document(doc_id).get()
-    if not snap.exists:
-        return False, False, {}
-    data = snap.to_dict() or {}
-
-    if data.get('ownerId') == uid:
-        return True, True, data
-
-    team_id = data.get('teamId')
-    if not team_id:
-        return False, False, data
-
-    team_snap = db.collection('teams').document(team_id).get()
-    if not team_snap.exists:
-        return False, False, data
-    if (team_snap.to_dict() or {}).get('ownerId') == uid:
-        return True, True, data
-
-    membership = db.collection('teams').document(team_id).collection('members').document(uid).get()
-    if not membership.exists:
-        return False, False, data
-
-    my_groups = set((membership.to_dict() or {}).get('groupIds') or [])
-    perms = data.get('filePermissions') or {}
-    visible_to = perms.get('visibleTo') or []
-    writable_by = perms.get('writableBy') or []
-
-    can_read = not visible_to or bool(my_groups.intersection(visible_to))
-    can_write = can_read and (not writable_by or bool(my_groups.intersection(writable_by)))
-    return can_read, can_write, data
 
 
 def mark_bootstrapped(doc_id: str) -> None:
