@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
+import { highlightSelectionMatches, search } from "@codemirror/search";
 import {
   getLintIssues,
   lintIssueField,
@@ -132,15 +133,50 @@ describe("active issue", () => {
 });
 
 describe("revealLintIssue", () => {
-  it("selects exactly the flagged text", () => {
+  it("puts the caret at the start of the issue", () => {
     const view = mount("She quickly agreed.");
     const target = issue(4, 11);
     view.dispatch({ effects: setLintIssuesEffect.of([target]) });
     revealLintIssue(view, target);
+    expect(view.state.selection.main.head).toBe(4);
+  });
 
-    const { from, to } = view.state.selection.main;
-    expect(view.state.doc.sliceString(from, to)).toBe("quickly");
+  it("marks the issue so the card and the highlight agree", () => {
+    const view = mount("She quickly agreed.");
+    const target = issue(4, 11);
+    view.dispatch({ effects: setLintIssuesEffect.of([target]) });
+    revealLintIssue(view, target);
     expect(view.state.field(lintIssueField).activeId).toBe(target.id);
+  });
+
+  /**
+   * The reported bug. Selecting the flagged word made
+   * `highlightSelectionMatches` light up every other occurrence of it, so one
+   * card appeared to point at a dozen places at once.
+   */
+  it("leaves the selection empty, so the match highlighter stays quiet", () => {
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const doc = "what a day. It rained. what a shame. what next.";
+    const view = new EditorView({
+      // The real editor's search extensions, which is where the interference
+      // came from — testing without them would have missed this entirely.
+      state: EditorState.create({
+        doc,
+        extensions: [search(), highlightSelectionMatches(), proseLintExtension()],
+      }),
+      parent,
+    });
+    views.push(view);
+
+    const target = issue(23, 27, { id: "second-what" });
+    view.dispatch({ effects: setLintIssuesEffect.of([target]) });
+    expect(doc.slice(23, 27)).toBe("what");
+
+    revealLintIssue(view, target);
+
+    expect(view.state.selection.main.empty).toBe(true);
+    expect(view.contentDOM.querySelectorAll(".cm-selectionMatch")).toHaveLength(0);
   });
 });
 

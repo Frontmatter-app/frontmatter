@@ -165,9 +165,12 @@ export const proseLintTheme = EditorView.theme({
     textUnderlineOffset: "3px",
     boxShadow: "none",
   },
+  // The sole indicator of which issue a card refers to, now that revealing one
+  // no longer selects it, so it has to be unmistakable on its own.
   ".cm-prose-active": {
-    outline: "1.5px solid color-mix(in srgb, var(--editor-text-color, #000) 35%, transparent)",
-    outlineOffset: "1px",
+    outline: "2px solid color-mix(in srgb, var(--editor-text-color, #000) 55%, transparent)",
+    outlineOffset: "2px",
+    borderRadius: "3px",
   },
   ".cm-prose-tooltip": {
     maxWidth: "22rem",
@@ -282,14 +285,28 @@ export function proseLintExtension(options: ProseLintOptions = {}): Extension {
   return [lintIssueField, proseLintTheme, lintTooltip, activationWatcher(options.onActivate)];
 }
 
-/** Moves the caret to an issue and selects it. Used by the sidebar. */
+/**
+ * Scrolls to an issue and marks it. Used by the sidebar.
+ *
+ * Deliberately leaves the selection empty.
+ *
+ * Selecting the flagged text seemed the obvious thing to do, and it was wrong:
+ * the editor runs `highlightSelectionMatches()` with its default
+ * `minSelectionLength: 1`, so selecting the word "what" lit up every other
+ * "what" in the document. Clicking one card appeared to point at a dozen
+ * places at once — and being case-sensitive, it picked out exactly the
+ * lower-case ones, which is precisely the set a capitalization warning is
+ * about, making the wrong highlights look deliberate.
+ *
+ * The caret goes to the start of the issue and `cm-prose-active` marks its
+ * full extent, which says "this one" without the match highlighter joining in.
+ */
 export function revealLintIssue(view: EditorView, issue: LintIssue): void {
   const docLength = view.state.doc.length;
   const from = Math.max(0, Math.min(issue.from, docLength));
-  const to = Math.max(from, Math.min(issue.to, docLength));
 
   view.dispatch({
-    selection: { anchor: from, head: to },
+    selection: { anchor: from },
     effects: [
       EditorView.scrollIntoView(from, { y: "center", yMargin: 80 }),
       setActiveLintIssueEffect.of(issue.id),
