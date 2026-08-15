@@ -188,6 +188,9 @@ export function showImageContextMenu(clientX: number, clientY: number, imageUrl:
         imageUrl,
         imageAlt,
         documentId: _currentDocumentId,
+        // So the save rewrites this instance, not the first URL match.
+        sourceFrom: from,
+        sourceTo: to,
       });
     }
   }));

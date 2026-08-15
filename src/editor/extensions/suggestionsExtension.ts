@@ -2,6 +2,7 @@ import { ViewPlugin, Decoration, DecorationSet, EditorView } from '@codemirror/v
 import { StateEffect, StateField, Extension, Transaction, EditorState } from '@codemirror/state';
 import * as Y from 'yjs';
 import { Suggestion, SuggestionManager } from '../../yjs/suggestions';
+import { toAbsolute } from '../../yjs/relativePositions';
 
 export const setSuggestionsEffect = StateEffect.define<Suggestion[]>();
 export const suggestionApplyEffect = StateEffect.define<void>();
@@ -39,7 +40,7 @@ export const suggestionTheme = EditorView.theme({
 
 function isAdjacent(relPos: Y.RelativePosition, index: number, ytext: Y.Text): boolean {
   if (!ytext.doc) return false;
-  const abs = Y.createAbsolutePositionFromRelativePosition(relPos, ytext.doc);
+  const abs = toAbsolute(relPos, ytext.doc);
   return abs ? abs.index === index : false;
 }
 
@@ -69,8 +70,8 @@ export const suggestionsExtension = (
         for (const sug of suggestions) {
           if (sug.resolved) continue;
 
-          const startAbs = Y.createAbsolutePositionFromRelativePosition(sug.start_pos, ytext.doc!);
-          const endAbs = Y.createAbsolutePositionFromRelativePosition(sug.end_pos, ytext.doc!);
+          const startAbs = toAbsolute(sug.start_pos, ytext.doc!);
+          const endAbs = toAbsolute(sug.end_pos, ytext.doc!);
 
           if (startAbs && endAbs && startAbs.index < endAbs.index) {
             const deco = sug.type === 'insert' ? insertDeco : deleteDeco;

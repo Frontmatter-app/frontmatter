@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useWorkspace } from "../../workspace/WorkspaceProvider";
 import { AnnotationManager, Annotation } from "../../yjs/annotations";
 import { SuggestionManager, Suggestion } from "../../yjs/suggestions";
+import { toAbsolute } from "../../yjs/relativePositions";
 import { useValeLintStore } from "../../settings/valeLintStore";
 import { parseDocumentMetrics } from "../../settings/metrics/metricsParser";
 import { buildMetricLintAlerts, filterLintAlerts, sanitizeMarkdownForLint } from "../../review/reviewIssues";
@@ -75,8 +76,8 @@ export function useReviewState({ ydoc, stage, currentDocumentId, currentUserName
 
   const handleCardClick = (item: { start_pos: Y.RelativePosition; end_pos: Y.RelativePosition }) => {
     if (!ydoc) return;
-    const startAbs = Y.createAbsolutePositionFromRelativePosition(item.start_pos, ydoc);
-    const endAbs = Y.createAbsolutePositionFromRelativePosition(item.end_pos, ydoc);
+    const startAbs = toAbsolute(item.start_pos, ydoc);
+    const endAbs = toAbsolute(item.end_pos, ydoc);
     if (startAbs && endAbs) window.dispatchEvent(new CustomEvent('editor-select-range', { detail: { from: startAbs.index, to: endAbs.index } }));
   };
 
@@ -84,8 +85,8 @@ export function useReviewState({ ydoc, stage, currentDocumentId, currentUserName
     if (!isTeamContext) {
       if (!sugManagerRef.current) return;
       const ytext = ydoc!.getText('markdown');
-      const startAbs = Y.createAbsolutePositionFromRelativePosition(sug.start_pos, ydoc!);
-      const endAbs = Y.createAbsolutePositionFromRelativePosition(sug.end_pos, ydoc!);
+      const startAbs = toAbsolute(sug.start_pos, ydoc!);
+      const endAbs = toAbsolute(sug.end_pos, ydoc!);
       if (sug.type === 'delete' && startAbs && endAbs && startAbs.index < endAbs.index) {
         ydoc!.transact(() => { ytext.delete(startAbs.index, endAbs.index - startAbs.index); }, 'suggestion-apply');
       }
@@ -96,8 +97,8 @@ export function useReviewState({ ydoc, stage, currentDocumentId, currentUserName
     if (!(await guardTeamPermission(isTeamContext, teamPerms.canWriteFile(), 'accept suggestions'))) return;
     if (!sugManagerRef.current) return;
     const ytext = ydoc!.getText('markdown');
-    const startAbs = Y.createAbsolutePositionFromRelativePosition(sug.start_pos, ydoc!);
-    const endAbs = Y.createAbsolutePositionFromRelativePosition(sug.end_pos, ydoc!);
+    const startAbs = toAbsolute(sug.start_pos, ydoc!);
+    const endAbs = toAbsolute(sug.end_pos, ydoc!);
     if (sug.type === 'delete' && startAbs && endAbs && startAbs.index < endAbs.index) {
       ydoc!.transact(() => { ytext.delete(startAbs.index, endAbs.index - startAbs.index); }, 'suggestion-apply');
     }
@@ -108,8 +109,8 @@ export function useReviewState({ ydoc, stage, currentDocumentId, currentUserName
     if (!isTeamContext) {
       if (!sugManagerRef.current) return;
       const ytext = ydoc!.getText('markdown');
-      const startAbs = Y.createAbsolutePositionFromRelativePosition(sug.start_pos, ydoc!);
-      const endAbs = Y.createAbsolutePositionFromRelativePosition(sug.end_pos, ydoc!);
+      const startAbs = toAbsolute(sug.start_pos, ydoc!);
+      const endAbs = toAbsolute(sug.end_pos, ydoc!);
       if (sug.type === 'insert' && startAbs && endAbs && startAbs.index < endAbs.index) {
         ydoc!.transact(() => { ytext.delete(startAbs.index, endAbs.index - startAbs.index); }, 'suggestion-apply');
       }
@@ -120,8 +121,8 @@ export function useReviewState({ ydoc, stage, currentDocumentId, currentUserName
     if (!(await guardTeamPermission(isTeamContext, teamPerms.canReviseFile(), 'reject suggestions'))) return;
     if (!sugManagerRef.current) return;
     const ytext = ydoc!.getText('markdown');
-    const startAbs = Y.createAbsolutePositionFromRelativePosition(sug.start_pos, ydoc!);
-    const endAbs = Y.createAbsolutePositionFromRelativePosition(sug.end_pos, ydoc!);
+    const startAbs = toAbsolute(sug.start_pos, ydoc!);
+    const endAbs = toAbsolute(sug.end_pos, ydoc!);
     if (sug.type === 'insert' && startAbs && endAbs && startAbs.index < endAbs.index) {
       ydoc!.transact(() => { ytext.delete(startAbs.index, endAbs.index - startAbs.index); }, 'suggestion-apply');
     }

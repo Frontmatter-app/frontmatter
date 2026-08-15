@@ -2,6 +2,7 @@ import modal
 import os
 import json
 import base64
+import asyncio
 
 if modal.is_local():
     Request = None
@@ -11,6 +12,13 @@ else:
     from firebase_admin import firestore
 
 from firebase import verify_id_token, init_firebase
+
+
+async def _run_sync(fn, *args, **kwargs):
+    """Firestore's sync client and the compaction merge both block; keep them off
+    the event loop, matching `_firestore_call` in team.py and `_s3_call` in r2_storage.py."""
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, lambda: fn(*args, **kwargs))
 
 
 def run_compaction(doc_id: str):
@@ -68,13 +76,40 @@ def run_compaction(doc_id: str):
     return {"status": "compacted", "count": len(to_delete)}
 
 
+def can_administer_document(uid: str, doc_id: str) -> bool:
+    """Compaction rewrites `content`/`yState` and deletes the update log, so it is
+    restricted to the document's owner or the owner of the team it belongs to."""
+    init_firebase()
+    db = firestore.client()
+    doc_snap = db.collection('cloud_documents').document(doc_id).get()
+    if not doc_snap.exists:
+        return False
+    doc_data = doc_snap.to_dict() or {}
+
+    if doc_data.get('ownerId') == uid:
+        return True
+
+    team_id = doc_data.get('teamId')
+    if not team_id:
+        return False
+    team_snap = db.collection('teams').document(team_id).get()
+    if not team_snap.exists:
+        return False
+    return (team_snap.to_dict() or {}).get('ownerId') == uid
+
+
 def setup_document_routes(app):
     @app.post("/compact")
     async def compact(request: Request):
         auth_header = request.headers.get("Authorization")
         if not auth_header or not auth_header.startswith("Bearer "):
             raise HTTPException(status_code=401, detail="Missing or malformed Authorization header.")
-        verify_id_token(auth_header.split("Bearer ")[1])
+        # `verify_id_token` is async; calling it without awaiting discarded the
+        # coroutine and let every request through unauthenticated.
+        decoded = await verify_id_token(auth_header.split("Bearer ")[1])
+        uid = decoded.get("uid")
+        if not uid:
+            raise HTTPException(status_code=401, detail="Invalid authorization token.")
 
         try:
             body = await request.json()
@@ -84,4 +119,7 @@ def setup_document_routes(app):
         if not doc_id:
             raise HTTPException(status_code=400, detail="Missing docId.")
 
-        return run_compaction(doc_id)
+        if not await _run_sync(can_administer_document, uid, doc_id):
+            raise HTTPException(status_code=403, detail="Not permitted to compact this document.")
+
+        return await _run_sync(run_compaction, doc_id)

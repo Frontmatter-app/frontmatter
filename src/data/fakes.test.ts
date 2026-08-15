@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createFakePorts, unwrapContent } from './fakes';
+import { MEMBER_DEFAULT_PERMS } from '../auth/teamPermissions';
 
 /**
  * The fake is what every UI test renders against, so its behaviour has to match
@@ -103,9 +104,34 @@ describe('fake ports', () => {
     expect(user?.teamMemberships).toEqual([]);
   });
 
-  it('skips profiles that do not exist when resolving many', async () => {
-    const ports = createFakePorts({ users: [{ id: 'u1' }, { id: 'u2' }] });
-    await expect(ports.users.getMany(['u1', 'missing', 'u2'])).resolves.toHaveLength(2);
+  it('lists team members with their group ids and display fields', async () => {
+    const ports = createFakePorts({
+      users: [
+        { id: 'u1', displayName: 'Ada', email: 'ada@example.com' },
+        { id: 'u2', displayName: 'Grace', email: 'grace@example.com' },
+      ],
+      teams: [
+        {
+          id: 't1',
+          name: 'Acme',
+          description: '',
+          ownerId: 'owner1',
+          members: ['u1', 'u2'],
+          groups: {
+            editors: { name: 'Editors', members: ['u1'], permissions: MEMBER_DEFAULT_PERMS },
+          },
+        },
+      ],
+    });
+
+    const roster = await ports.teams.listMembers('t1');
+
+    expect(roster).toHaveLength(2);
+    expect(roster.find((m) => m.uid === 'u1')).toMatchObject({
+      displayName: 'Ada',
+      groupIds: ['editors'],
+    });
+    expect(roster.find((m) => m.uid === 'u2')?.groupIds).toEqual([]);
   });
 
   it('signs an agreement and notifies the watcher', async () => {
@@ -125,16 +151,37 @@ describe('fake ports', () => {
     expect(seen).toHaveBeenLastCalledWith(expect.objectContaining({ agreementVersion: 1 }));
   });
 
-  it('finds an invite by token', () => {
+  it('resolves an invite by token, joining the team and its agreement', async () => {
+    const ports = createFakePorts({
+      invites: [{ id: 'i1', token: 'abc', teamId: 't1', email: 'invitee@example.com' }],
+      teams: [
+        {
+          id: 't1',
+          name: 'Acme',
+          description: '',
+          ownerId: 'owner1',
+          members: [],
+          agreementDocId: 'doc1',
+          agreementVersion: 3,
+        },
+      ],
+      cloudDocuments: [{ id: 'doc1', ownerId: 'owner1', teamId: 't1', content: '# Terms' }],
+    });
+
+    await expect(ports.invites.getByToken('abc')).resolves.toMatchObject({
+      teamId: 't1',
+      teamName: 'Acme',
+      invitedEmail: 'invitee@example.com',
+      agreementVersion: 3,
+      agreementContent: '# Terms',
+    });
+  });
+
+  it('rejects an unknown token rather than resolving null', async () => {
     const ports = createFakePorts({
       invites: [{ id: 'i1', token: 'abc', teamId: 't1' }],
     });
-    const seen = vi.fn();
 
-    ports.invites.watchByToken('abc', seen);
-    expect(seen).toHaveBeenCalledWith(expect.objectContaining({ teamId: 't1' }));
-
-    ports.invites.watchByToken('wrong', seen);
-    expect(seen).toHaveBeenLastCalledWith(null);
+    await expect(ports.invites.getByToken('wrong')).rejects.toThrow(/no longer valid/);
   });
 });

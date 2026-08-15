@@ -3,7 +3,7 @@ import { useWorkspace } from '../workspace/WorkspaceProvider';
 import { useAuth } from '../auth/AuthProvider';
 import { usePlan } from '../billing/PlanProvider';
 import { registry } from '../yjs/DocumentRegistry';
-import { PresenceData } from '../cloud/firestoreYjsProvider';
+import { PresenceData } from '../cloud/collabProvider';
 import { useData } from '../data/DataProvider';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -423,25 +423,19 @@ export function CollaborationBar({ documentId }: { documentId?: string | null })
         if (!team || cancelled) return;
         const ownerId = team.ownerId || '';
 
-        const uids = new Set<string>([ownerId]);
-        Object.values(team.groups ?? {}).forEach((g) =>
-          (g.members || []).forEach((u) => uids.add(u)),
-        );
-        (team.members ?? []).forEach((u) => uids.add(u));
-
-        const infos: TeamMemberInfo[] = [];
-        const profiles = await users.getMany(Array.from(uids).filter(Boolean));
+        // The team's membership records already cover the owner and every
+        // group member, and carry the display fields — user documents are
+        // self-readable only now.
+        const roster = await teams.listMembers(teamId);
         if (cancelled) return;
-        for (const u of profiles) {
-          infos.push({
-            uid: u.id,
-            displayName: u.displayName || u.email?.split('@')[0] || 'Member',
-            email: u.email || null,
-            photoURL: u.photoURL || null,
-            role: u.id === ownerId ? 'owner' : 'member',
-            updatedAt: null,
-          });
-        }
+        const infos: TeamMemberInfo[] = roster.map((member) => ({
+          uid: member.uid,
+          displayName: member.displayName || member.email?.split('@')[0] || 'Member',
+          email: member.email,
+          photoURL: member.photoURL,
+          role: member.uid === ownerId ? 'owner' : 'member',
+          updatedAt: null,
+        }));
 
         if (!cancelled) {
           infos.sort((a, b) => {

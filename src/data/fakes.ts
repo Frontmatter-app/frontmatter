@@ -117,6 +117,32 @@ export function createFakePorts(seed: FakeSeed = {}): DataPorts & { seed: FakeSe
       });
       return id;
     },
+    async listMembers(teamId) {
+      const team = teams.get(teamId);
+      if (!team) return [];
+      const groupIdsFor = (uid: string) =>
+        Object.entries(team.groups ?? {})
+          .filter(([, group]) => (group.members ?? []).includes(uid))
+          .map(([groupId]) => groupId);
+
+      return (team.members ?? []).map((uid) => {
+        const user = users.get(uid);
+        return {
+          uid,
+          groupIds: groupIdsFor(uid),
+          displayName: user?.displayName ?? null,
+          email: user?.email ?? null,
+          photoURL: user?.photoURL ?? null,
+        };
+      });
+    },
+    async listMemberMetrics(teamId) {
+      const team = teams.get(teamId);
+      if (!team) return {};
+      return Object.fromEntries(
+        (team.members ?? []).map((uid) => [uid, users.get(uid)?.metrics ?? null]),
+      );
+    },
     async updateGroups(teamId, groups) {
       teams.patch(teamId, { groups });
     },
@@ -136,9 +162,6 @@ export function createFakePorts(seed: FakeSeed = {}): DataPorts & { seed: FakeSe
   const usersPort: UsersPort = {
     async get(uid) {
       return users.get(uid);
-    },
-    async getMany(uids) {
-      return uids.map((uid) => users.get(uid)).filter((u): u is UserDoc => u !== null);
     },
   };
 
@@ -172,10 +195,24 @@ export function createFakePorts(seed: FakeSeed = {}): DataPorts & { seed: FakeSe
   };
 
   const invitesPort: InvitesPort = {
-    watchByToken(token, onChange) {
+    // Mirrors the backend's /invite-details: resolves the token against the
+    // seeded invite, then joins the team and its agreement document, which is
+    // what the real endpoint assembles server-side.
+    async getByToken(token) {
       const match = invites.all().find((i) => i.token === token);
-      onChange(match ?? null);
-      return () => {};
+      if (!match) throw new Error('This invitation link is no longer valid.');
+
+      const team = teams.get(match.teamId);
+      const agreementDoc = team?.agreementDocId ? documents.get(team.agreementDocId) : null;
+
+      return {
+        teamId: match.teamId,
+        teamName: team?.name ?? null,
+        invitedEmail: match.email ?? '',
+        groupId: null,
+        agreementVersion: team?.agreementVersion ?? 1,
+        agreementContent: agreementDoc?.content ?? null,
+      };
     },
   };
 

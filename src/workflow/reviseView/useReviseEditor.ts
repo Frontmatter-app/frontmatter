@@ -4,6 +4,7 @@ import { createEditor, EditorHandle } from "../../editor/createEditor";
 import { Awareness } from "y-protocols/awareness";
 import { AnnotationManager } from "../../yjs/annotations";
 import { SuggestionManager } from "../../yjs/suggestions";
+import { toAbsolute } from "../../yjs/relativePositions";
 import { useWorkspace } from "../../workspace/WorkspaceProvider";
 import { useAuth } from "../../auth/AuthProvider";
 import { usePlan } from "../../billing/PlanProvider";
@@ -90,14 +91,14 @@ export function useReviseEditor(ydoc: Y.Doc, documentId: string) {
       setActiveHeading(getActiveHeading(u.state));
       const pos = u.state.selection.main.head;
       const activeAnn = aMgr.getAnnotations().find((a) => {
-        const sa = Y.createAbsolutePositionFromRelativePosition(a.start_pos, ydoc);
-        const ea = Y.createAbsolutePositionFromRelativePosition(a.end_pos, ydoc);
+        const sa = toAbsolute(a.start_pos, ydoc);
+        const ea = toAbsolute(a.end_pos, ydoc);
         return sa && ea && pos >= sa.index && pos <= ea.index && !a.resolved;
       });
       setActiveAnnotationId(activeAnn ? activeAnn.id : null);
       const activeSug = sMgr.getSuggestions().find((s) => {
-        const sa = Y.createAbsolutePositionFromRelativePosition(s.start_pos, ydoc);
-        const ea = Y.createAbsolutePositionFromRelativePosition(s.end_pos, ydoc);
+        const sa = toAbsolute(s.start_pos, ydoc);
+        const ea = toAbsolute(s.end_pos, ydoc);
         return sa && ea && pos >= sa.index && pos <= ea.index && !s.resolved;
       });
       setActiveSuggestionId(activeSug ? activeSug.id : null);

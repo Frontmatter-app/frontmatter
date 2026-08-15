@@ -76,16 +76,19 @@ export function ActivityMonitorModal({ isOpen, onClose }: ActivityMonitorModalPr
       try {
         const team = await teams.get(fetchTarget);
         if (team && active) {
-          const memberIds = Array.from(
-            new Set([team.ownerId, ...(team.members || [])].filter(Boolean)),
-          );
-          const profiles = await users.getMany(memberIds);
-          const list: TeamMember[] = profiles.map(profile => ({
-            uid: profile.id,
-            email: profile.email || 'No email',
-            displayName: profile.displayName || 'Anonymous User',
-            role: profile.id === team.ownerId ? 'Team Owner' : 'Team Member',
-            metrics: (profile.metrics as UserMetricsData | undefined) || null,
+          // Roster from the team's membership records; metrics from the backend,
+          // which authorizes the caller as the team owner. Both used to come from
+          // other people's users/{uid} documents, readable by anyone signed in.
+          const [roster, metrics] = await Promise.all([
+            teams.listMembers(fetchTarget),
+            teams.listMemberMetrics(fetchTarget).catch(() => ({} as Record<string, unknown | null>)),
+          ]);
+          const list: TeamMember[] = roster.map(member => ({
+            uid: member.uid,
+            email: member.email || 'No email',
+            displayName: member.displayName || 'Anonymous User',
+            role: member.uid === team.ownerId ? 'Team Owner' : 'Team Member',
+            metrics: (metrics[member.uid] as UserMetricsData | undefined) || null,
           }));
           if (active) {
             setMembers(list);

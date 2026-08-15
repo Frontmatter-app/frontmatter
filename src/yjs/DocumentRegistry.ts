@@ -7,9 +7,10 @@ import { getSettings } from "../settings/settingsStore";
 import { usePlanStore } from "../billing/PlanProvider";
 import { auth } from "../auth/firebase";
 import { useSyncStatusStore } from "../cloud/syncStatusStore";
-import { FirestoreYjsProvider } from "../cloud/firestoreYjsProvider";
+import { CollabProvider } from "../cloud/collabProvider";
 import { generateDraftFromMarkdown } from "./draftUtils";
 import { saveToLocalDb, syncDraftNodesToDb, syncToCloud, loadDocData, applyDocData, buildDocSavePayload } from "./documentSync";
+import { sweepLocalAssets } from "../images/assetGc";
 
 interface DirtyDocsStore {
   dirtyDocs: Set<string>;
@@ -33,28 +34,53 @@ export class DocumentRegistry {
   private acquiring = new Map<string, Promise<Y.Doc>>();
   private docs = new Map<string, { doc: Y.Doc; refs: number; interval?: any }>();
   private unlistenFileChanged: (() => void) | null = null;
-  private providers = new Map<string, FirestoreYjsProvider>();
+  private providers = new Map<string, CollabProvider>();
   private lastSavedContent = new Map<string, string>();
+  /** Releases that arrived while an acquire was still in flight. */
+  private pendingReleases = new Map<string, number>();
 
   constructor() {
     this.initWatcher();
     this.initPlanSubscription();
   }
 
+  /** True for any document that lives in the cloud, team or personal alike. */
+  private isCloudDocument(documentId: string): boolean {
+    const plan = usePlanStore.getState();
+    return (
+      useSyncStatusStore.getState().cloudDocumentIds.has(documentId) ||
+      plan.activeContext.type === 'team'
+    );
+  }
+
+  private attachProvider(documentId: string, doc: Y.Doc) {
+    if (this.providers.has(documentId)) return;
+    if (!auth.currentUser || !this.isCloudDocument(documentId)) return;
+    try {
+      this.providers.set(documentId, new CollabProvider(documentId, doc));
+    } catch (e) {
+      console.error('[registry] Could not attach the collaboration provider:', e);
+    }
+  }
+
+  /**
+   * Attaches or detaches providers when the signed-in context changes.
+   *
+   * The gate used to be `state.isTeam`, so personal cloud documents got no CRDT
+   * at all and two devices editing one clobbered each other through the
+   * whole-document push. Any cloud document now gets the same transport.
+   */
   private initPlanSubscription() {
-    usePlanStore.subscribe((state) => {
-      if (state.isTeam && auth.currentUser) {
+    usePlanStore.subscribe(() => {
+      if (auth.currentUser) {
         for (const [docId, entry] of this.docs.entries()) {
-          if (!this.providers.has(docId)) {
-            const provider = new FirestoreYjsProvider(docId, entry.doc, state.teamId);
-            this.providers.set(docId, provider);
-          }
+          this.attachProvider(docId, entry.doc);
         }
-      } else {
-        for (const [docId, provider] of this.providers.entries()) {
-          provider.destroy();
-          this.providers.delete(docId);
-        }
+        return;
+      }
+      for (const [docId, provider] of this.providers.entries()) {
+        provider.destroy();
+        this.providers.delete(docId);
       }
     });
   }
@@ -93,6 +119,13 @@ export class DocumentRegistry {
     const existing = this.docs.get(documentId);
     if (existing) { existing.refs++; return existing.doc; }
 
+    // A release that arrives before the acquire resolves is recorded here.
+    // `docs.set` happens at the end of the async body, so such a release used to
+    // find no entry, no-op, and leave the document, its autosave interval, and
+    // its provider alive for the rest of the session.
+    const pendingReleases = this.pendingReleases.get(documentId) ?? 0;
+    this.pendingReleases.set(documentId, pendingReleases);
+
     const alreadyAcquiring = this.acquiring.get(documentId);
     if (alreadyAcquiring) {
       const doc = await alreadyAcquiring;
@@ -103,14 +136,19 @@ export class DocumentRegistry {
 
     const acquirePromise = (async () => {
       const doc = new Y.Doc();
+      const isCloud = this.isCloudDocument(documentId);
       try {
         const { data, parsed } = await loadDocData(documentId);
-        applyDocData(doc, data, parsed);
+        applyDocData(doc, data, parsed, { isCloud });
 
         const ytext = doc.getText("markdown");
         const draftText = doc.getText("draft");
 
-        if (!parsed.draft && !parsed.yjs_state && parsed.markdown) {
+        // Local documents only. The outline is deterministic content with
+        // non-deterministic authorship, so two peers generating it each
+        // inserted their own copy into the shared draft. Cloud documents get
+        // theirs from the sync server's one-time bootstrap.
+        if (!isCloud && !parsed.draft && !parsed.yjs_state && parsed.markdown) {
           const generatedDraft = generateDraftFromMarkdown(parsed.markdown, false);
           if (generatedDraft) draftText.insert(0, generatedDraft);
         }
@@ -136,7 +174,10 @@ export class DocumentRegistry {
             await syncDraftNodesToDb(doc, documentId);
           } catch (e) { console.error("Autosave failed:", e); }
         }
-        if (autoSync) {
+        // Only for documents with no CRDT channel. Pushing the whole `content`
+        // blob alongside the sync server would be two writers with no version
+        // check racing the same field — the blob would clobber merged text.
+        if (autoSync && !this.providers.has(documentId)) {
           await syncToCloud(doc, documentId);
         }
         useDirtyDocsStore.getState().setDirty(documentId, false);
@@ -152,12 +193,18 @@ export class DocumentRegistry {
         }
       }, 5000);
 
-      if (usePlanStore.getState().isTeam && auth.currentUser) {
-        const provider = new FirestoreYjsProvider(documentId, doc, usePlanStore.getState().teamId);
-        this.providers.set(documentId, provider);
+      // Settle any releases that landed while this was in flight.
+      const deferred = this.pendingReleases.get(documentId) ?? 0;
+      this.pendingReleases.delete(documentId);
+      const refs = 1 - deferred;
+
+      this.docs.set(documentId, { doc, refs, interval });
+      if (refs <= 0) {
+        this.teardown(documentId);
+        return doc;
       }
 
-      this.docs.set(documentId, { doc, refs: 1, interval });
+      this.attachProvider(documentId, doc);
       return doc;
     })();
 
@@ -166,20 +213,31 @@ export class DocumentRegistry {
     finally { this.acquiring.delete(documentId); }
   }
 
-  release(documentId: string): void {
-    const existing = this.docs.get(documentId);
-    if (!existing) return;
-    existing.refs--;
-    if (existing.refs > 0) return;
-
-    clearInterval(existing.interval);
+  private teardown(documentId: string): void {
+    const entry = this.docs.get(documentId);
+    if (!entry) return;
+    clearInterval(entry.interval);
     const provider = this.providers.get(documentId);
     if (provider) { provider.destroy(); this.providers.delete(documentId); }
-    existing.doc.destroy();
+    entry.doc.destroy();
     this.docs.delete(documentId);
   }
 
-  getProvider(documentId: string): FirestoreYjsProvider | undefined {
+  release(documentId: string): void {
+    const existing = this.docs.get(documentId);
+    if (!existing) {
+      // Still acquiring: record it so the acquire can settle the balance.
+      if (this.acquiring.has(documentId)) {
+        this.pendingReleases.set(documentId, (this.pendingReleases.get(documentId) ?? 0) + 1);
+      }
+      return;
+    }
+    existing.refs--;
+    if (existing.refs > 0) return;
+    this.teardown(documentId);
+  }
+
+  getProvider(documentId: string): CollabProvider | undefined {
     return this.providers.get(documentId);
   }
 
@@ -197,6 +255,21 @@ export class DocumentRegistry {
       useDirtyDocsStore.getState().setDirty(documentId, false);
     } catch (e) {
       console.error("Failed to manually save document:", e);
+    }
+
+    // On explicit save only, never on autosave: a sweep right after every
+    // keystroke pause would keep racing edits in progress. Unreferenced files
+    // are moved to `.assets/trash`, and only once they are a day old.
+    const filePath = doc.getMap("meta").get("file_path") as string | undefined;
+    if (filePath) {
+      const docDir = filePath.substring(0, filePath.lastIndexOf("/"));
+      sweepLocalAssets(doc, docDir)
+        .then(({ trashed }) => {
+          if (trashed.length > 0) {
+            console.info(`[assets] Moved ${trashed.length} unreferenced image(s) to .assets/trash`);
+          }
+        })
+        .catch((e) => console.warn("[assets] Sweep failed:", e));
     }
   }
 

@@ -6,7 +6,8 @@ import { fetchImageAsDataURL, getImageBaseName, generateId } from '../images/ima
 import { resolveImageUrl, importToAssets, saveAnnotatedImage } from '../images/imageService';
 import type { ImageContext } from '../images/imageTypes';
 
-const EXCALIDRAW_MAP_KEY = 'excalidraw';
+const APPSTATE_MAP_KEY = 'excalidraw';
+const ELEMENTS_MAP_KEY = 'excalidraw-elements';
 const FILES_MAP_KEY = 'excalidraw-files';
 
 export async function loadImageIntoScene(
@@ -86,19 +87,13 @@ export async function exportAndSaveImage(
   return saved.url;
 }
 
-export async function clearSceneState(
-  ydoc: Y.Doc,
-  context: ImageContext,
-): Promise<void> {
-  const map = ydoc.getMap(EXCALIDRAW_MAP_KEY);
-  const filesMap = ydoc.getMap(FILES_MAP_KEY);
+/** Empties the shared scene. Elements are per-id entries now, not one blob. */
+export function clearSceneState(ydoc: Y.Doc): void {
   ydoc.transact(() => {
-    map.delete('elements');
-    map.delete('appState');
-    map.delete('version');
-    map.delete('files');
-    filesMap.clear();
-  }, ydoc.clientID);
+    ydoc.getMap(ELEMENTS_MAP_KEY).clear();
+    ydoc.getMap(FILES_MAP_KEY).clear();
+    ydoc.getMap(APPSTATE_MAP_KEY).clear();
+  }, 'excalidraw-clear');
 }
 
 export function getContextFromYdoc(ydoc: Y.Doc, isCloud: boolean, teamId?: string, uid?: string): ImageContext {

@@ -12,6 +12,19 @@ static IMAGE_RE: Lazy<Regex> =
 
 const WORDS_PER_MINUTE: i32 = 200;
 
+/// Repoints document-relative image references at the exported site root.
+///
+/// In the workspace an image is `./.assets/imgs/x.webp`, relative to the file
+/// that uses it. A page's URL in the built site bears no relation to its path on
+/// disk, so that reference resolves to nothing once exported. The export copies
+/// every document's assets into `static/.assets/imgs`, and this points the
+/// references there.
+fn rewrite_asset_paths(md: &str) -> String {
+    md.replace("](./.assets/imgs/", "](/.assets/imgs/")
+        .replace("](.assets/imgs/", "](/.assets/imgs/")
+        .replace("](../.assets/imgs/", "](/.assets/imgs/")
+}
+
 fn extract_images(md: &str) -> Vec<String> {
     let prose = markdown::prose_lines(md).join("\n");
     let mut urls: Vec<String> = IMAGE_RE
@@ -118,11 +131,11 @@ pub fn build_pages(docs: &[&DocInfo], index_path: Option<&str>) -> Vec<PageInfo>
             next: None,
             breadcrumbs: vec![],
             tags: paths::extract_tags(&doc.file_path),
-            images: extract_images(&doc.content),
+            images: extract_images(&rewrite_asset_paths(&doc.content)),
             code_languages: markdown::fence_languages(&doc.content),
             created_at: doc.file_created_at.clone(),
             updated_at: doc.updated_at.clone(),
-            content: doc.content.clone(),
+            content: rewrite_asset_paths(&doc.content),
         })
         .collect();
 

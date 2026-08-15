@@ -53,8 +53,11 @@ const PlanContext = createContext<PlanContextType>({
   openBillingPortal: async () => {},
 });
 
-export const AUTHOR_PRODUCT_ID = import.meta.env.VITE_CREEM_AUTHOR_PRD_ID || 'prod_5v9ydeKW6XhjVJc5jJihRa';
-export const TEAM_PRODUCT_ID = import.meta.env.VITE_CREEM_TEAM_PRD_ID || 'prod_4sfr7PyPAbNGKb2ygpv3P8';
+// No hardcoded fallbacks: the previous defaults were the exact inverse of the
+// backend's, so an unconfigured build sent buyers to the wrong Creem product and
+// the webhook then granted the wrong plan. Both sides now read the same env vars.
+export const AUTHOR_PRODUCT_ID = import.meta.env.VITE_CREEM_AUTHOR_PRD_ID || '';
+export const TEAM_PRODUCT_ID = import.meta.env.VITE_CREEM_TEAM_PRD_ID || '';
 
 export const usePlanStore = create<{
   plan: PlanType;
@@ -263,10 +266,12 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
   }, [activeContext, ownedTeamId]);
 
   const upgradeToAuthor = async () => {
+    if (!AUTHOR_PRODUCT_ID) throw new Error('VITE_CREEM_AUTHOR_PRD_ID is not configured.');
     await createCheckoutSession(AUTHOR_PRODUCT_ID);
   };
 
   const upgradeToTeam = async () => {
+    if (!TEAM_PRODUCT_ID) throw new Error('VITE_CREEM_TEAM_PRD_ID is not configured.');
     await createCheckoutSession(TEAM_PRODUCT_ID);
   };
 

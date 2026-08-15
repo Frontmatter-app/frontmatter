@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../auth/AuthProvider';
 import { usePlan } from '../billing/PlanProvider';
 import { useData } from '../data/DataProvider';
+import type { InviteDetails } from '../data/types';
 import { markdown } from '../editor/extensions/inlinePreview/markdown';
 import { Mail, Check, LogOut, ShieldAlert, Users, Compass } from 'lucide-react';
 import { getAuth } from 'firebase/auth';
@@ -10,12 +11,11 @@ import { showAlertDialog } from '../lib/tauriDialog';
 export function InviteLandingScreen() {
   const { user, signInWithGoogle, logout } = useAuth();
   const { switchWorkspace } = usePlan();
-  const { invites, teams, cloudDocuments } = useData();
+  const { invites } = useData();
 
   const [token, setToken] = useState<string | null>(null);
-  const [inviteData, setInviteData] = useState<any>(null);
+  const [inviteData, setInviteData] = useState<InviteDetails | null>(null);
   const [inviteLoading, setInviteLoading] = useState(true);
-  const [teamDoc, setTeamDoc] = useState<any>(null);
   const [agreementContent, setAgreementContent] = useState<string>('');
   
   const [scrolledToBottom, setScrolledToBottom] = useState(false);
@@ -42,37 +42,32 @@ export function InviteLandingScreen() {
     }
 
     setInviteLoading(true);
-    const unsub = invites.watchByToken(token, (invite, error) => {
-      if (error) {
-        console.error(error);
-        setErrorMsg('Failed to load invitation info.');
-        setInviteLoading(false);
-        return;
-      }
+    let active = true;
 
-      if (invite) {
-        setInviteData(invite);
+    // One-shot backend lookup. The agreement text arrives with it: an invitee is
+    // not a team member yet, so they can read neither the team nor its agreement
+    // document directly — the previous client-side fetch of both always failed.
+    invites
+      .getByToken(token)
+      .then((details) => {
+        if (!active) return;
+        setInviteData(details);
+        setAgreementContent(details.agreementContent ?? '');
         setErrorMsg(null);
-
-        if (invite.teamId) {
-          teams.get(invite.teamId).then(async (team) => {
-            if (!team) return;
-            setTeamDoc(team);
-            if (team.agreementDocId) {
-              const text = await cloudDocuments.getText(team.agreementDocId);
-              if (text !== null) setAgreementContent(text);
-            }
-          });
-        }
-      } else {
+      })
+      .catch((err: Error) => {
+        if (!active) return;
         setInviteData(null);
-        setErrorMsg('Invalid or expired invitation link.');
-      }
-      setInviteLoading(false);
-    });
+        setErrorMsg(err.message || 'Invalid or expired invitation link.');
+      })
+      .finally(() => {
+        if (active) setInviteLoading(false);
+      });
 
-    return () => unsub();
-  }, [token, invites, teams, cloudDocuments]);
+    return () => {
+      active = false;
+    };
+  }, [token, invites]);
 
   // Handle scroll check
   const handleScroll = () => {
@@ -190,26 +185,8 @@ export function InviteLandingScreen() {
     );
   }
 
-  // Handle Non-Pending status
-  if (inviteData.status !== 'pending') {
-    return (
-      <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-zinc-950 text-white p-4">
-        <div className="w-full max-w-sm rounded-3xl border border-white/5 bg-zinc-900 p-6 text-center shadow-2xl">
-          <Users className="w-12 h-12 text-amber-500 mx-auto mb-4" />
-          <h3 className="font-bold text-sm text-neutral-200">Invite Not Active</h3>
-          <p className="text-xs text-neutral-400 mt-2 mb-6">
-            This invitation has already been {inviteData.status}.
-          </p>
-          <button
-            onClick={handleDecline}
-            className="w-full py-2 bg-white/5 hover:bg-white/10 text-xs font-semibold rounded-xl border border-white/10 transition cursor-pointer"
-          >
-            Go Back
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // An already-used or expired invite never resolves now — /invite-details returns
+  // 410 and the message lands in `errorMsg`, handled by the error branch above.
 
   // Verify signed in email matches
   const emailMismatch = user && user.email.toLowerCase() !== inviteData.invitedEmail.toLowerCase();

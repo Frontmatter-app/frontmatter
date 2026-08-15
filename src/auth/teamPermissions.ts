@@ -72,7 +72,8 @@ const OWNER_PERMS: GroupPermissions = {
   gitBranch: true,
 };
 
-const MEMBER_DEFAULT_PERMS: GroupPermissions = {
+/** What a member with no group gets: read-only, plus offline access. */
+export const MEMBER_DEFAULT_PERMS: GroupPermissions = {
   openLocalFiles: false,
   createFiles: false,
   createFolders: false,

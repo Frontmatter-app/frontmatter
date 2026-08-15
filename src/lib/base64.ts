@@ -1,9 +1,21 @@
+/**
+ * Chunked so the intermediate string is built in slices rather than one
+ * character at a time.
+ *
+ * This runs on every document save, over the whole encoded CRDT state, on the
+ * main thread. Appending a character at a time is quadratic in practice for
+ * large documents; `String.fromCharCode` over a slice is not. The chunk stays
+ * well under the argument-count limit that makes `apply`-style spreading throw
+ * on large inputs.
+ */
+const CHUNK = 0x8000;
+
 export function uint8ToBase64(bytes: Uint8Array): string {
-  let binary = '';
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
+  const parts: string[] = [];
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    parts.push(String.fromCharCode(...bytes.subarray(i, i + CHUNK)));
   }
-  return btoa(binary);
+  return btoa(parts.join(''));
 }
 
 export function base64ToUint8(b64: string): Uint8Array {

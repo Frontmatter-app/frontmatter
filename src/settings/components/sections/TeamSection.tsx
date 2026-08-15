@@ -36,13 +36,14 @@ export function TeamSection() {
         setEa(p => ({ ...p, text: text ?? '' }));
       }
 
-      const memberIds = [team.ownerId, ...(team.members || [])].filter(Boolean);
-      const profiles = await users.getMany(memberIds);
-      setM(profiles.map(profile => ({
-        uid: profile.id,
-        email: profile.email || 'No email',
-        displayName: profile.displayName || 'Unknown User',
-        role: profile.id === team.ownerId ? 'owner' : 'member',
+      // From the team's membership records rather than each member's user
+      // document — those are self-readable only now.
+      const roster = await teams.listMembers(teamId);
+      setM(roster.map(member => ({
+        uid: member.uid,
+        email: member.email || 'No email',
+        displayName: member.displayName || 'Unknown User',
+        role: member.uid === team.ownerId ? 'owner' : 'member',
       })));
     } catch (e) { console.error(e); } finally { setLm(false); }
   };

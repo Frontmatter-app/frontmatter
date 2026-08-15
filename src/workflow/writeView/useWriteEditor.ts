@@ -13,7 +13,15 @@ import { referencePickerExtension, setPickerDocumentPath } from '../../editor/ex
 import { refreshInlinePreviewEffect } from '../../editor/extensions/inlinePreview/settingsRefresh';
 import { formattingKeymap } from '../../editor/formatting/keymap';
 import { setCurrentDocId } from '../../keyboard/useGlobalShortcuts';
+import { setImageBaseDir } from '../../images/imageService';
+import type { ImageContext } from '../../images/imageTypes';
+import { imageDropExtension } from '../../editor/extensions/imageDrop';
+import { getContextFromYdoc } from '../../excalidraw/excalidrawService';
+import { usePlanStore } from '../../billing/PlanProvider';
+import { useSyncStatusStore } from '../../cloud/syncStatusStore';
+import { auth } from '../../auth/firebase';
 import { SuggestionManager } from '../../yjs/suggestions';
+import { toAbsolute } from '../../yjs/relativePositions';
 import { suggestionsExtension, setSuggestionsEffect } from '../../editor/extensions/suggestionsExtension';
 import { useWorkspace } from '../../workspace/WorkspaceProvider';
 
@@ -51,17 +59,38 @@ export function useWriteEditor(
   useEffect(() => {
     if (!ydoc) { setAwareness(null); return; }
     if (!documentId) { setAwareness(new Awareness(ydoc)); return; }
-    let active = true;
-    let timeoutId: any;
-    const check = () => {
-      const provider = registry.getProvider(documentId);
-      if (provider) { if (active) setAwareness(provider.awareness); }
-      else if (isTeam) timeoutId = setTimeout(check, 50);
-      else if (active) setAwareness(new Awareness(ydoc));
+    // The registry attaches the provider synchronously as `acquire` resolves,
+    // and this effect runs with the resolved doc, so one check is enough. It
+    // used to retry every 50ms forever whenever `isTeam` was set and no provider
+    // ever appeared — a permanent 20Hz timer for anyone signed out mid-session.
+    const provider = registry.getProvider(documentId);
+    if (provider) {
+      setAwareness(provider.awareness);
+      return;
+    }
+
+    // Local-only document: a standalone awareness keeps the editor's cursor
+    // extension working with no peers. Destroyed on unmount — these leaked an
+    // interval each before.
+    const local = new Awareness(ydoc);
+    setAwareness(local);
+    return () => {
+      local.destroy();
     };
-    check();
-    return () => { active = false; if (timeoutId) clearTimeout(timeoutId); };
-  }, [ydoc, documentId, isTeam]);
+  }, [ydoc, documentId]);
+
+  /**
+   * Resolved per event rather than captured: a document can gain cloud status,
+   * or move on disk, while the editor is mounted.
+   */
+  const getImageContext = useCallback((): ImageContext | null => {
+    if (!ydoc || !documentId) return null;
+    const plan = usePlanStore.getState();
+    const isCloud =
+      plan.activeContext.type === 'team' ||
+      useSyncStatusStore.getState().cloudDocumentIds.has(documentId);
+    return getContextFromYdoc(ydoc, isCloud, plan.teamId || undefined, auth.currentUser?.uid);
+  }, [ydoc, documentId]);
 
   useEffect(() => {
     document.body.setAttribute('data-focus-mode', focusMode ? 'true' : 'false');
@@ -74,6 +103,10 @@ export function useWriteEditor(
     const relPath = workspacePath && absPath.startsWith(workspacePath) ? absPath.slice(workspacePath.length).replace(/^\/+/, '') : absPath;
     setPickerDocumentPath(relPath);
     setCurrentDocId(documentId);
+    // Relative image references resolve against the document's own folder. The
+    // image widgets are built deep inside the CodeMirror extension and have no
+    // route to workspace context, so this is set here for them to read.
+    setImageBaseDir(absPath ? absPath.substring(0, absPath.lastIndexOf('/')) : '');
   }, [documentId, documents, workspacePath]);
 
   useEffect(() => {
@@ -89,8 +122,8 @@ export function useWriteEditor(
         setActiveHeading(getActiveHeading(update.state));
         const pos = update.state.selection.main.head;
         const activeSug = suggestionManager?.getSuggestions().find((sug) => {
-          const startAbs = Y.createAbsolutePositionFromRelativePosition(sug.start_pos, ydoc);
-          const endAbs = Y.createAbsolutePositionFromRelativePosition(sug.end_pos, ydoc);
+          const startAbs = toAbsolute(sug.start_pos, ydoc);
+          const endAbs = toAbsolute(sug.end_pos, ydoc);
           return startAbs && endAbs && pos >= startAbs.index && pos <= endAbs.index && !sug.resolved;
         });
         setActiveSuggestionId(activeSug ? activeSug.id : null);
@@ -109,6 +142,7 @@ export function useWriteEditor(
 
     const handle = createEditor(containerRef.current, ydoc.getText('markdown'), awareness, [
       cursorListener,
+      imageDropExtension(getImageContext),
       suggestionsExtension(ydoc.getText('markdown'), suggestionManager ?? undefined),
       readOnlyCompartmentRef.current.of(EditorState.readOnly.of(false)),
       spellCheckCompartmentRef.current.of(EditorView.contentAttributes.of({ spellcheck: String(settings.spellCheck ?? true) })),

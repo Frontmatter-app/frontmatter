@@ -1,5 +1,7 @@
 import type * as Y from 'yjs';
-import { yCollab } from 'y-codemirror.next';
+import { yCollab, yUndoManagerKeymap } from 'y-codemirror.next';
+import { Prec } from '@codemirror/state';
+import { keymap } from '@codemirror/view';
 import { inlinePreviewPlugin } from '../editor/extensions/inlinePreview';
 import { inlinePreviewTheme } from '../editor/themes/marktype';
 import { focusModeExtension } from '../editor/extensions/focusMode';
@@ -59,9 +61,22 @@ export const editorFeatures: EditorFeature[] = [
   {
     id: 'collab',
     name: 'Live Collaboration',
-    editor: (ctx) => [yCollab(ctx.ytext, ctx.awareness)],
+    // `yUndoManagerKeymap` must be present, and must win over CodeMirror's
+    // `historyKeymap`. CodeMirror's own history stack contains remote-origin
+    // changes, so plain Mod-Z could revert a collaborator's typing; the Yjs
+    // undo manager only ever undoes this client's own edits.
+    //
+    // Precedence.high puts it ahead of the base keymap, which is registered
+    // first in createEditor and would otherwise claim Mod-Z.
+    editor: (ctx) => [
+      yCollab(ctx.ytext, ctx.awareness),
+      Prec.high(keymap.of(yUndoManagerKeymap)),
+    ],
     selfTest: () => {
       if (typeof yCollab !== 'function') throw new Error('yCollab is not a factory');
+      if (!Array.isArray(yUndoManagerKeymap) || yUndoManagerKeymap.length === 0) {
+        throw new Error('yUndoManagerKeymap is missing or empty');
+      }
     },
   },
 ];

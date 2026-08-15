@@ -2,6 +2,7 @@ import { ViewPlugin, Decoration, DecorationSet, EditorView } from '@codemirror/v
 import { StateEffect, StateField, Extension } from '@codemirror/state';
 import * as Y from 'yjs';
 import { AnnotationManager, Annotation } from '../../yjs/annotations';
+import { toAbsolute } from '../../yjs/relativePositions';
 
 export const setAnnotationsEffect = StateEffect.define<Annotation[]>();
 
@@ -54,8 +55,8 @@ export const annotationsExtension = (ytext: Y.Text): Extension => {
 
         try {
           for (const ann of annotations) {
-            const startAbs = Y.createAbsolutePositionFromRelativePosition(ann.start_pos, ytext.doc!);
-            const endAbs = Y.createAbsolutePositionFromRelativePosition(ann.end_pos, ytext.doc!);
+            const startAbs = toAbsolute(ann.start_pos, ytext.doc!);
+            const endAbs = toAbsolute(ann.end_pos, ytext.doc!);
 
             if (startAbs && endAbs && startAbs.index <= endAbs.index) {
               const deco = ann.resolved ? resolvedDeco : highlightDeco;

@@ -123,5 +123,63 @@ pub fn ensure_zola_project(
             .map_err(|e| format!("Failed to copy images: {e}"))?;
     }
 
+    copy_document_assets(workspace_path, output_dir)
+        .map_err(|e| format!("Failed to copy document images: {e}"))?;
+
+    Ok(())
+}
+
+/// Collects every document's `.assets/imgs` folder into `static/.assets/imgs`.
+///
+/// Uploaded images live beside the document that uses them, but only a
+/// top-level `images/` folder was ever copied — so every image inserted through
+/// the app was missing from the exported site.
+///
+/// Flattening them into one directory is safe because the filenames carry a hash
+/// of the file's own contents: two documents referencing the same name hold the
+/// same bytes. `normalize` rewrites the references to match.
+fn copy_document_assets(workspace_path: &Path, output_dir: &Path) -> std::io::Result<()> {
+    let dest = output_dir.join("static").join(".assets").join("imgs");
+    let mut found_any = false;
+
+    let mut stack = vec![workspace_path.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let entries = match fs::read_dir(&dir) {
+            Ok(entries) => entries,
+            Err(_) => continue, // unreadable folder is not a reason to fail the export
+        };
+
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                continue;
+            }
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+
+            if name == "node_modules" || name == ".git" || name == "target" {
+                continue;
+            }
+
+            if name == ".assets" {
+                let imgs = path.join("imgs");
+                if imgs.is_dir() {
+                    if !found_any {
+                        fs::create_dir_all(&dest)?;
+                        found_any = true;
+                    }
+                    for file in fs::read_dir(&imgs)?.flatten() {
+                        if file.file_type().map(|t| t.is_file()).unwrap_or(false) {
+                            fs::copy(file.path(), dest.join(file.file_name()))?;
+                        }
+                    }
+                }
+                continue;
+            }
+
+            stack.push(path);
+        }
+    }
+
     Ok(())
 }

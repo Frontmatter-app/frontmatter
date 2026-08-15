@@ -1,18 +1,17 @@
 import {
-  arrayRemove,
   arrayUnion,
   collection,
   deleteField,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
-  query,
   setDoc,
   updateDoc,
-  where,
 } from 'firebase/firestore';
 import { db } from '../../auth/firebase';
 import { deriveReadableBy } from '../../cloud/readableBy';
+import { backendCall } from './backendCall';
 import { unwrapContent } from '../fakes';
 import type {
   AgreementsPort,
@@ -25,7 +24,7 @@ import type {
 import type {
   AgreementDoc,
   CloudDocumentDoc,
-  InviteDoc,
+  InviteDetails,
   TeamDoc,
   UserDoc,
   Watcher,
@@ -40,10 +39,10 @@ import type {
  */
 
 const TEAMS = 'teams';
+const MEMBERS = 'members';
 const USERS = 'users';
 const CLOUD_DOCUMENTS = 'cloud_documents';
 const AGREEMENTS = 'agreements';
-const INVITES = 'invites';
 
 /** Bridges a Firestore document subscription to a plain `Watcher`. */
 function watchDoc<T>(path: [string, string], onChange: Watcher<T>) {
@@ -65,63 +64,60 @@ const teams: TeamsPort = {
   watch: (teamId, onChange) => watchDoc<TeamDoc>([TEAMS, teamId], onChange),
 
   async create(input) {
-    const teamId = doc(collection(db, TEAMS)).id;
-    const agreementDocId = doc(collection(db, CLOUD_DOCUMENTS)).id;
-    const now = new Date().toISOString();
-
-    await setDoc(doc(db, CLOUD_DOCUMENTS, agreementDocId), {
-      id: agreementDocId,
-      ownerId: input.ownerId,
-      teamId,
-      path: 'agreement',
-      title: 'Agreement',
-      content: JSON.stringify({ markdown: input.agreementMarkdown }),
-      stage: 'draft',
-      focusMode: false,
-      isAgreement: true,
-      createdAt: now,
-      updatedAt: now,
-    });
-
-    await setDoc(doc(db, TEAMS, teamId), {
-      ownerId: input.ownerId,
+    // Server-side: the owner's membership record is Admin-only, `ownedTeamId`
+    // and `teamMemberships` are no longer client-writable, and the four writes
+    // now commit as one batch instead of three unrolled-back `setDoc`s.
+    const result = await backendCall<{ teamId: string }>('/create-team', {
       name: input.name,
       description: input.description,
-      agreementDocId,
-      agreementVersion: 1,
-      members: [],
-      createdAt: now,
+      agreementMarkdown: input.agreementMarkdown,
     });
+    return result.teamId;
+  },
 
-    await setDoc(
-      doc(db, USERS, input.ownerId),
-      { ownedTeamId: teamId, teamMemberships: arrayUnion(teamId), teamId },
-      { merge: true },
+  async listMembers(teamId) {
+    // Roster data comes from the team's own membership records, not from each
+    // member's users/{uid} document. Those are self-readable only now — reading
+    // them exposed every account's email, plan, and Creem customer id to anyone
+    // signed in.
+    const snapshot = await getDocs(collection(db, TEAMS, teamId, MEMBERS));
+    return snapshot.docs.map((memberDoc) => {
+      const data = memberDoc.data();
+      return {
+        uid: memberDoc.id,
+        groupIds: (data.groupIds as string[]) ?? [],
+        displayName: (data.displayName as string) ?? null,
+        email: (data.email as string) ?? null,
+        photoURL: (data.photoURL as string) ?? null,
+      };
+    });
+  },
+
+  async listMemberMetrics(teamId) {
+    const result = await backendCall<{ metrics: Record<string, unknown | null> }>(
+      '/team-metrics',
+      { teamId },
     );
-
-    return teamId;
+    return result.metrics ?? {};
   },
 
   async updateGroups(teamId, groups) {
-    await updateDoc(doc(db, TEAMS, teamId), { groups });
+    // Goes through the backend so the per-member `groupIds` on the membership
+    // records move with the group map. The rules read group membership only from
+    // there, so writing `teams/{id}.groups` alone would not take effect.
+    await backendCall('/set-member-groups', { teamId, groups });
   },
 
   async removeMember(teamId, uid) {
-    await updateDoc(doc(db, TEAMS, teamId), { members: arrayRemove(uid) });
-    await updateDoc(doc(db, USERS, uid), {
-      teamId: null,
-      teamMemberships: arrayRemove(teamId),
-    });
+    // Was two client writes, the second of which — clearing the removed user's
+    // own record — the rules denied. Revocation half-applied and the member kept
+    // access through their still-populated `teamMemberships`.
+    await backendCall('/remove-member', { teamId, uid });
   },
 };
 
 const users: UsersPort = {
   get: (uid) => readDoc<UserDoc>(USERS, uid),
-
-  async getMany(uids) {
-    const results = await Promise.all(uids.map((uid) => readDoc<UserDoc>(USERS, uid)));
-    return results.filter((u): u is UserDoc => u !== null);
-  },
 };
 
 const cloudDocuments: CloudDocumentsPort = {
@@ -162,15 +158,23 @@ const agreements: AgreementsPort = {
 };
 
 const invites: InvitesPort = {
-  watchByToken(token, onChange) {
-    return onSnapshot(
-      query(collection(db, INVITES), where('token', '==', token)),
-      (snapshot) => {
-        const first = snapshot.docs[0];
-        onChange(first ? ({ id: first.id, ...first.data() } as InviteDoc) : null);
-      },
-      (error) => onChange(null, error as Error),
-    );
+  // Not a Firestore read: `invites` is backend-only now, because the token in each
+  // row is the join flow's bearer secret and the collection was world-readable.
+  async getByToken(token) {
+    const baseUrl = import.meta.env.VITE_MODAL_BASE_URL || '';
+    if (!baseUrl) throw new Error('VITE_MODAL_BASE_URL is not configured.');
+
+    const res = await fetch(`${baseUrl}/invite-details/${encodeURIComponent(token)}`);
+    if (!res.ok) {
+      // The backend distinguishes unknown (404) from used/expired (410); both
+      // carry a message meant for the invitee.
+      const detail = await res
+        .json()
+        .then((body) => body?.detail)
+        .catch(() => null);
+      throw new Error(detail || 'This invitation link is no longer valid.');
+    }
+    return (await res.json()) as InviteDetails;
   },
 };
 

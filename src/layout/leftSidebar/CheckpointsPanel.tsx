@@ -2,6 +2,7 @@ import React from 'react';
 import * as Y from 'yjs';
 import { ChevronDown, ChevronRight, History, RotateCcw } from 'lucide-react';
 import { invoke } from '../../filesystem/tauriCommands';
+import { restoreSnapshot } from '../../yjs/restoreSnapshot';
 import { showConfirmDialog, showPromptDialog } from '../../lib/tauriDialog';
 import { useSidebarContext } from '../SidebarContext';
 import type { SnapshotMeta } from '../../types';
@@ -89,7 +90,7 @@ export function CheckpointsPanel({ ydoc, documentId, title }: CheckpointsPanelPr
     if (!confirmed) return;
     try {
       const data = await invoke<number[]>('get_snapshot_data', { id });
-      Y.applyUpdate(ydoc, new Uint8Array(data));
+      restoreSnapshot(ydoc, new Uint8Array(data));
     } catch (e) {
       console.error('Failed to restore checkpoint:', e);
     }

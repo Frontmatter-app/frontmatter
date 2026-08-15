@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { invoke } from "../../filesystem/tauriCommands";
 import * as Y from "yjs";
+import { restoreSnapshot } from "../../yjs/restoreSnapshot";
 import { SnapshotMeta } from "../../types";
 import { showConfirmDialog } from "../../lib/tauriDialog";
 
@@ -44,7 +45,7 @@ export function useSnapshotHistory({ currentDocumentId, activeVersionId, setActi
     if (await showConfirmDialog("Restore Version", "Are you sure you want to restore this version?")) {
       try {
         const data: number[] = await invoke("get_snapshot_data", { id: snapId });
-        Y.applyUpdate(ydoc, new Uint8Array(data));
+        restoreSnapshot(ydoc, new Uint8Array(data));
         setActiveVersionId(null);
       } catch (e) { console.error("Failed to restore snapshot:", e); }
     }

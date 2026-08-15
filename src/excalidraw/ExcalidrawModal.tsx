@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Excalidraw, MainMenu, exportToBlob, CaptureUpdateAction } from '@excalidraw/excalidraw';
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
@@ -9,27 +9,39 @@ import { useExcalidrawStore } from './excalidrawStore';
 import { loadImageIntoScene, exportAndSaveImage, clearSceneState, getContextFromYdoc } from './excalidrawService';
 import { useExcalidrawSync } from './excalidrawYjsSync';
 import { importToAssets, saveAnnotatedImage } from '../images/imageService';
+import type { ImageContext } from '../images/imageTypes';
 import { usePlanStore } from '../billing/PlanProvider';
 import { auth } from '../auth/firebase';
 import { useSyncStatusStore } from '../cloud/syncStatusStore';
 
-const EK = 'excalidraw';
 
-function SyncBridge({ api, ydoc, awareness, documentId }: {
-  api: ExcalidrawImperativeAPI; ydoc: Y.Doc; awareness: awarenessProtocol.Awareness; documentId: string;
+function SyncBridge({ api, ydoc, awareness, documentId, imageContext }: {
+  api: ExcalidrawImperativeAPI; ydoc: Y.Doc; awareness: awarenessProtocol.Awareness;
+  documentId: string; imageContext: ImageContext | null;
 }) {
-  useExcalidrawSync({ ydoc, awareness, excalidrawAPI: api, isCollaborating: true, documentId });
+  useExcalidrawSync({ ydoc, awareness, excalidrawAPI: api, isCollaborating: true, documentId, imageContext });
   return null;
 }
 
 export function ExcalidrawModal() {
-  const { isOpen, mode, imageUrl, imageAlt, documentId, close } = useExcalidrawStore();
+  const { isOpen, mode, imageUrl, imageAlt, documentId, sourceFrom, close } = useExcalidrawStore();
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const [ydoc, setYdoc] = useState<Y.Doc | null>(null);
   const [awareness, setAwareness] = useState<awarenessProtocol.Awareness | null>(null);
   const [hasRemoteCollab, setHasRemoteCollab] = useState(false);
   const [saving, setSaving] = useState(false);
   const loading = useRef(false);
+
+  // Scene images are ingested like any other image, so the bridge needs the same
+  // context the rest of the pipeline uses.
+  const sceneImageContext = useMemo<ImageContext | null>(() => {
+    if (!ydoc) return null;
+    const plan = usePlanStore.getState();
+    const isCloud =
+      plan.activeContext.type === 'team' ||
+      (documentId ? useSyncStatusStore.getState().cloudDocumentIds.has(documentId) : false);
+    return getContextFromYdoc(ydoc, isCloud, plan.teamId, auth.currentUser?.uid);
+  }, [ydoc, documentId]);
 
   useEffect(() => {
     if (!isOpen || !documentId) return;
@@ -46,8 +58,7 @@ export function ExcalidrawModal() {
   useEffect(() => {
     if (!api || mode !== 'annotate-image' || !imageUrl || !ydoc) return;
     loading.current = true;
-    const map = ydoc.getMap(EK);
-    ydoc.transact(() => { map.delete('elements'); map.delete('appState'); map.delete('version'); map.delete('files'); }, ydoc.clientID);
+    clearSceneState(ydoc);
     api.updateScene({ elements: [], captureUpdate: CaptureUpdateAction.NEVER });
     (async () => {
       try {
@@ -84,21 +95,34 @@ export function ExcalidrawModal() {
       }
 
       if (!imageUrl) { setSaving(false); return; }
-      const text = ydoc.getText('markdown'); const current = text.toString();
+      const text = ydoc.getText('markdown');
       const newUrl = await exportAndSaveImage(api, imageUrl, imageAlt, ctx);
-      const esc = imageUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const updated = current.replace(new RegExp(`\\(${esc}\\)`), `(${newUrl})`);
-      if (updated !== current) { ydoc.transact(() => { text.delete(0, text.length); text.insert(0, updated); }); }
+
+      // Splice just the URL. This used to delete the entire document and
+      // reinsert it, which destroyed any concurrent edit and invalidated every
+      // relative position in the document — annotation and suggestion anchors
+      // included.
+      const current = text.toString();
+      const needle = `(${imageUrl})`;
+      // Prefer the range the user actually clicked; fall back to a search when
+      // the document has shifted since the menu opened.
+      const searchFrom = typeof sourceFrom === 'number' ? Math.max(0, sourceFrom) : 0;
+      let index = current.indexOf(needle, searchFrom);
+      if (index === -1) index = current.indexOf(needle);
+
+      if (index !== -1 && newUrl !== imageUrl) {
+        ydoc.transact(() => {
+          text.delete(index + 1, imageUrl.length);
+          text.insert(index + 1, newUrl);
+        }, 'annotate-image');
+      }
     } catch (err) { console.error('[ExcalidrawModal] Save failed:', err); }
     finally { setSaving(false); setApi(null); close(); }
-  }, [api, imageUrl, imageAlt, ydoc, close, mode]);
+  }, [api, imageUrl, imageAlt, ydoc, close, mode, sourceFrom, documentId]);
 
   const handleRevert = useCallback(() => {
     if (!ydoc) return;
-    const ps = usePlanStore.getState();
-    const isCloud = ps.activeContext.type === 'team' || (documentId ? useSyncStatusStore.getState().cloudDocumentIds.has(documentId) : false);
-    const ctx = getContextFromYdoc(ydoc, isCloud, ps.teamId, auth.currentUser?.uid);
-    clearSceneState(ydoc, ctx);
+    clearSceneState(ydoc);
     if (api) (api as any).updateScene({ elements: [], captureUpdate: CaptureUpdateAction.NEVER });
     loading.current = false; setApi(null); close();
   }, [ydoc, api, close]);
@@ -140,7 +164,15 @@ export function ExcalidrawModal() {
             </MainMenu>
           </Excalidraw>
         </div>
-        {api && ydoc && awareness && <SyncBridge api={api} ydoc={ydoc} awareness={awareness} documentId={documentId || ''} />}
+        {api && ydoc && awareness && (
+          <SyncBridge
+            api={api}
+            ydoc={ydoc}
+            awareness={awareness}
+            documentId={documentId || ''}
+            imageContext={sceneImageContext}
+          />
+        )}
       </div>
     </div>, document.body,
   );

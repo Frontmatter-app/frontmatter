@@ -120,7 +120,12 @@ def setup_billing_routes(app):
         raw_body = await request.body()
         signature = request.headers.get("creem-signature")
         secret = os.environ.get("CREEM_WEBHOOK_SECRET")
-        if secret and signature and not verify_webhook_signature(raw_body, signature, secret):
+        # Previously `if secret and signature and not verify(...)`, which skipped
+        # verification entirely when either was absent — omitting the header was
+        # enough to set any user's plan.
+        if not secret:
+            raise HTTPException(status_code=500, detail="Webhook secret is not configured.")
+        if not verify_webhook_signature(raw_body, signature, secret):
             raise HTTPException(status_code=401, detail="Invalid webhook signature.")
 
         try:
@@ -134,8 +139,16 @@ def setup_billing_routes(app):
         init_firebase()
         db = firestore.client()
 
-        author_prd = os.environ.get("VITE_CREEM_AUTHOR_PRD_ID") or os.environ.get("CREEM_AUTHOR_PRD_ID") or "prod_4sfr7PyPAbNGKb2ygpv3P8"
-        team_prd = os.environ.get("VITE_CREEM_TEAM_PRD_ID") or os.environ.get("CREEM_TEAM_PRD_ID") or "prod_5v9ydeKW6XhjVJc5jJihRa"
+        # These previously carried hardcoded fallbacks that were the exact inverse of
+        # the client's, so an unconfigured deployment granted 'team' for an Author
+        # purchase. There is no safe default — fail loudly instead of guessing.
+        author_prd = os.environ.get("VITE_CREEM_AUTHOR_PRD_ID") or os.environ.get("CREEM_AUTHOR_PRD_ID")
+        team_prd = os.environ.get("VITE_CREEM_TEAM_PRD_ID") or os.environ.get("CREEM_TEAM_PRD_ID")
+        if not author_prd or not team_prd:
+            raise HTTPException(
+                status_code=500,
+                detail="Creem product ids are not configured (CREEM_AUTHOR_PRD_ID / CREEM_TEAM_PRD_ID).",
+            )
 
         customer = event_data.get("customer") or {}
         customer_id = event_data.get("customerId") or customer.get("id")

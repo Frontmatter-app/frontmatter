@@ -568,3 +568,45 @@ fn spec_unterminated_frontmatter_is_left_intact() {
     let md = "---\ntitle: x\n\nBody with no closing delimiter\n";
     assert_eq!(strip_frontmatter(md), md);
 }
+
+#[test]
+fn guard_document_relative_image_paths_are_repointed_at_the_site_root() {
+    // Uploaded images live in `.assets/imgs` beside the document that uses
+    // them. A page's URL in the built site bears no relation to its path on
+    // disk, so a document-relative reference resolves to nothing once exported;
+    // the export collects those folders into `static/.assets/imgs` instead.
+    let config = cfg();
+    let pages = pages_for(
+        &[doc(
+            "guides/intro.md",
+            "# Intro\n\n![A diagram](./.assets/imgs/diagram-1a2b3c4d.webp)\n",
+        )],
+        &config,
+    );
+
+    assert_eq!(pages.len(), 1);
+    assert!(
+        pages[0].content.contains("](/.assets/imgs/diagram-1a2b3c4d.webp)"),
+        "image reference was not repointed: {}",
+        pages[0].content
+    );
+    assert!(
+        !pages[0].content.contains("](./.assets/imgs/"),
+        "document-relative form survived into the exported page"
+    );
+}
+
+#[test]
+fn guard_absolute_and_remote_image_urls_are_left_alone() {
+    let config = cfg();
+    let pages = pages_for(
+        &[doc(
+            "post.md",
+            "# Post\n\n![CDN](https://cdn.example.com/assets/abc.webp)\n![Site](/images/logo.png)\n",
+        )],
+        &config,
+    );
+
+    assert!(pages[0].content.contains("https://cdn.example.com/assets/abc.webp"));
+    assert!(pages[0].content.contains("](/images/logo.png)"));
+}

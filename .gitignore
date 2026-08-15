@@ -6,9 +6,10 @@ coverage/
 *.log
 .env*
 !.env.example
+.claude/
 
 dist-tmp/
-modal_backend/__pycache__/
+modal_backend/**/__pycache__/
 src-tauri/target/
 src-tauri/gen/
 src-tauri/node_modules/

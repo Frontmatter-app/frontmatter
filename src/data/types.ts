@@ -63,6 +63,25 @@ export interface AgreementDoc {
   agreementDocId?: string;
 }
 
+/**
+ * A team membership record: `teams/{teamId}/members/{uid}`.
+ *
+ * This document is what the security rules read to decide whether someone is on
+ * a team and which groups they belong to. It is written only by the backend with
+ * Admin credentials — membership used to be asserted by the member's own
+ * `users/{uid}` record, which they can write.
+ *
+ * It carries display fields too, so the roster never needs to read other
+ * people's user documents.
+ */
+export interface TeamMemberRecord {
+  uid: string;
+  groupIds: string[];
+  displayName: string | null;
+  email: string | null;
+  photoURL: string | null;
+}
+
 export interface InviteDoc {
   id: string;
   token: string;
@@ -70,6 +89,23 @@ export interface InviteDoc {
   email?: string;
   invitedBy?: string;
   createdAt?: string;
+}
+
+/**
+ * What the invite landing page is allowed to know, resolved by the backend from
+ * a token the invitee already holds.
+ *
+ * An invitee is not a team member yet, so they can read neither `invites` (now
+ * backend-only) nor the `teams` and `cloud_documents` records this is assembled
+ * from. Notably absent: the token itself, `invitedBy`, and the member list.
+ */
+export interface InviteDetails {
+  teamId: string;
+  teamName: string | null;
+  invitedEmail: string;
+  groupId: string | null;
+  agreementVersion: number;
+  agreementContent: string | null;
 }
 
 export interface CreateTeamInput {

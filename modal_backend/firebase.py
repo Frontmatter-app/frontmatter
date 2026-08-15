@@ -70,8 +70,10 @@ async def verify_id_token(id_token: str):
         raise HTTPException(status_code=401, detail="Invalid authorization token.")
 
 def verify_webhook_signature(raw_body: bytes, signature: str, secret: str) -> bool:
+    # Fail closed. Returning True on a missing secret meant an unconfigured
+    # deployment accepted any unauthenticated POST to /webhook as a plan grant.
     if not secret:
-        return True
+        return False
     if not signature:
         return False
     computed = hmac.new(
