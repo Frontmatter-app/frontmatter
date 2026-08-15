@@ -70,6 +70,50 @@ describe('AnnotationManager', () => {
     expect(annotation.replies.map((r) => r.text)).toContain('wait, one thing');
   });
 
+  it('persists the reply thread so it survives a reload', () => {
+    // Replies used to live only in the Yjs document. The `annotations` table
+    // had no column for them, nothing ever wrote one, and `loadInitial` read a
+    // field that was always undefined — so closing a local document without
+    // typing afterwards discarded every reply on it.
+    const doc = docWithText('some text');
+    const manager = new AnnotationManager(doc, 'doc1');
+    manager.addAnnotation('ann1', 'doc1', 'author', anchor(doc, 0), anchor(doc, 4), 'some', 'note');
+    manager.addReply('ann1', 'a reply', 'userB');
+
+    const call = invoke.mock.calls.find(([command]) => command === 'save_annotation_replies');
+    expect(call).toBeDefined();
+    expect(call![1]).toMatchObject({ id: 'ann1' });
+    expect(JSON.parse((call![1] as { replies: string }).replies)).toMatchObject([
+      { text: 'a reply', author_id: 'userB' },
+    ]);
+  });
+
+  it('reads a persisted reply thread back on load', async () => {
+    invoke.mockResolvedValue([
+      {
+        id: 'ann1',
+        document_id: 'doc1',
+        author_id: 'author',
+        start_pos: '',
+        end_pos: '',
+        selected_text: 'some',
+        note: 'note',
+        resolved: 0,
+        created_at: new Date().toISOString(),
+        replies: JSON.stringify([
+          { id: 'r1', author_id: 'userB', text: 'a reply', created_at: new Date().toISOString() },
+        ]),
+      },
+    ]);
+
+    const doc = docWithText('some text');
+    const manager = new AnnotationManager(doc, 'doc1');
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(manager.getAnnotations()[0].replies.map((r) => r.text)).toEqual(['a reply']);
+  });
+
   it('exposes anchors that resolve to the annotated range', () => {
     const doc = docWithText('Hello world');
     const manager = new AnnotationManager(doc, 'doc1');

@@ -42,17 +42,10 @@ export interface CloudFolderMeta {
   updated_at: string;
 }
 
-export interface Annotation {
-  id: string;
-  documentId: string;
-  startPos: number;
-  endPos: number;
-  selectedText: string;
-  note: string;
-  authorId: string;
-  createdAt: string;
-  resolved: boolean;
-}
+// `Annotation` lives in `yjs/annotations.ts`. A second declaration sat here
+// with numeric `startPos`/`endPos` — the design that predated relative
+// positions, and the one whose anchors broke on every edit. Nothing imported
+// it, and leaving it in place invited someone to import the wrong one.
 
 export interface DraftNode {
   id: string;
@@ -62,20 +55,6 @@ export interface DraftNode {
   children: string[];
   collapsed: boolean;
 }
-
-export interface ValeAlert {
-  line: number;
-  span: [number, number];
-  message: string;
-  description: string;
-  severity: string;
-  match: string;
-  rule: string;
-  action?: unknown;
-  link?: string;
-}
-
-export type ValeResponse = Record<string, ValeAlert[]>;
 
 export interface ObjectSearchResult {
   uuid: string;

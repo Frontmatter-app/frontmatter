@@ -7,7 +7,7 @@ import { useOutline } from "../hooks/useOutline";
 import { SuggestionCard, ReviseView } from "./rightSidebar/ReviseView";
 import { useSidebarContext } from "./SidebarContext";
 import { guardTeamAuth, guardTeamPermission } from "../auth/permissionGuards";
-import { showAlertDialog } from "../lib/tauriDialog";
+import { showAlertDialog, showPromptDialog } from "../lib/tauriDialog";
 import { StageSwitcher } from "./rightSidebar/StageSwitcher";
 import { HistoryPanel } from "./rightSidebar/HistoryPanel";
 import { SectionNotes } from "./rightSidebar/SectionNotes";
@@ -29,7 +29,7 @@ export function RightSidebar({ className, style }: { className?: string; style?:
   const currentDoc = documents.find(d => d.id === currentDocumentId);
   const currentDocPath = currentDoc?.file_path || null;
   const { commits: gitCommits, restoreFromCommit } = useGitHistory(workspacePath, currentDocPath);
-  const { annotations, suggestions, reviewFilter, setReviewFilter, cardRefs, lintAlerts, activeAnnotationId, activeSuggestionId, handleCardClick, handleAcceptSuggestion, handleRejectSuggestion, onAddSuggestionReply, onAddAnnotationReply, onResolveAnnotation } = useReviewState({ ydoc, stage, currentDocumentId, currentUserName, docText, lintIgnoreState, updateLintIgnoreState });
+  const { annotations, suggestions, reviewFilter, setReviewFilter, cardRefs, lintIssues, readabilityStats, grammarError, activeAnnotationId, activeSuggestionId, activeLintIssueId, handleCardClick, handleJumpToIssue, handleApplyFix, handleAcceptSuggestion, handleRejectSuggestion, onAddSuggestionReply, onAddAnnotationReply, onResolveAnnotation } = useReviewState({ ydoc, stage, currentDocumentId, currentUserName, docText, lintIgnoreState, updateLintIgnoreState });
 
   useEffect(() => { if (currentDocumentId) fetchSnapshots(); }, [currentDocumentId]);
 
@@ -51,7 +51,17 @@ export function RightSidebar({ className, style }: { className?: string; style?:
   const guardedCreateSnapshot = useCallback(async (label?: string) => {
     if (!(await guardTeamAuth(isTeamContext, user, 'create snapshots'))) return;
     if (!canWrite) { showAlertDialog('Permission Denied', 'You do not have permission to create snapshots.'); return; }
-    await createSnapshot(label);
+
+    let name = label;
+    if (name === undefined) {
+      // Matches the checkpoint prompt in the left sidebar. A dismissed prompt
+      // returns null; an empty string is a deliberate "no name", and still
+      // marks the version as one a person asked for.
+      const answer = await showPromptDialog('New Checkpoint', 'Name this checkpoint (optional):');
+      if (answer === null) return;
+      name = answer.trim();
+    }
+    await createSnapshot(name);
   }, [createSnapshot, isTeamContext, user, canWrite]);
 
   const guardedRestoreSnap = useCallback(async (snapId: string) => {
@@ -74,7 +84,7 @@ export function RightSidebar({ className, style }: { className?: string; style?:
   }
 
   const switchStage = (s: Stage) => { setStage(s); ydoc.getMap("meta").set("stage", s); };
-  const reprCounter = lintAlerts.length + suggestions.length + annotations.length;
+  const reprCounter = lintIssues.length + suggestions.length + annotations.length;
 
   return (
     <div className={cn("relative h-full flex flex-col", className)} style={style}>
@@ -123,16 +133,18 @@ export function RightSidebar({ className, style }: { className?: string; style?:
 
         {stage === "revise" && (
           <ReviseView
-            lintAlerts={lintAlerts} suggestions={suggestions} annotations={annotations}
+            lintIssues={lintIssues} readabilityStats={readabilityStats} grammarError={grammarError}
+            suggestions={suggestions} annotations={annotations}
             reviewFilter={reviewFilter} onSetReviewFilter={setReviewFilter}
             lintIgnoreState={lintIgnoreState} onUpdateLintIgnore={updateLintIgnoreState}
-            onJumpToLint={(alert) => window.dispatchEvent(new CustomEvent("editor-scroll-to-line", { detail: { lineIndex: Math.max(0, alert.line - 1) } }))}
+            onJumpToIssue={handleJumpToIssue} onApplyFix={handleApplyFix}
             onCardClick={handleCardClick}
             onAcceptSuggestion={handleAcceptSuggestion} onRejectSuggestion={handleRejectSuggestion}
             onResolveAnnotation={onResolveAnnotation}
             onAddSuggestionReply={onAddSuggestionReply}
             onAddAnnotationReply={onAddAnnotationReply}
             activeSuggestionId={activeSuggestionId} activeAnnotationId={activeAnnotationId}
+            activeLintIssueId={activeLintIssueId}
             cardRefs={cardRefs}
           />
         )}

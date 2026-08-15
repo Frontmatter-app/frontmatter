@@ -96,7 +96,7 @@ export function DraftView({ ydoc }: { ydoc: Y.Doc; title?: string }) {
   const maxWidth = WIDTH_MAP[settings.editorWidth ?? 'medium'];
 
   return (
-    <div className="w-full h-full marktype-editor-container">
+    <div className="w-full h-full frontmatter-editor-container">
       <div
         ref={containerRef}
         className="w-full h-full min-h-[300px] mx-auto"

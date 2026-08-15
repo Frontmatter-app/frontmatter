@@ -21,7 +21,7 @@ pub fn create_menu<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<MenuB
     #[cfg(target_os = "macos")]
     let app_menu = Submenu::with_items(
         app,
-        "MarkType",
+        "Frontmatter",
         true,
         &[
             &PredefinedMenuItem::about(app, None, None)?,
@@ -300,7 +300,7 @@ pub fn refresh_recent_menu(app: &tauri::AppHandle) {
 
 pub fn load_recent_projects() -> Vec<String> {
     let Some(home) = dirs::home_dir() else { return vec![] };
-    let config_path = home.join("MarkType").join(".app").join("recent.json");
+    let config_path = home.join("Frontmatter").join(".app").join("recent.json");
     let Ok(content) = std::fs::read_to_string(&config_path) else { return vec![] };
     serde_json::from_str::<Vec<String>>(&content).unwrap_or_default()
 }

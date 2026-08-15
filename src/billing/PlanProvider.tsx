@@ -104,7 +104,7 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
       const urlCtx = params.get('workspace_context');
       if (urlCtx) return JSON.parse(urlCtx);
     } catch (e) {}
-    const saved = localStorage.getItem('marktype_active_context');
+    const saved = localStorage.getItem('frontmatter_active_context');
     if (saved) {
       try { return JSON.parse(saved); } catch (e) {}
     }
@@ -136,7 +136,7 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
 
   // Persist active context
   useEffect(() => {
-    localStorage.setItem('marktype_active_context', JSON.stringify(activeContext));
+    localStorage.setItem('frontmatter_active_context', JSON.stringify(activeContext));
   }, [activeContext]);
 
   // Derived properties based on context

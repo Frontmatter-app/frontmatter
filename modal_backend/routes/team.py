@@ -21,7 +21,7 @@ async def send_email(to: str, subject: str, html: str) -> bool:
     if not api_key:
         return False
     from_email = os.environ.get("RESEND_FROM_EMAIL", "onboarding@resend.dev")
-    sender = f"MarkType <{from_email}>" if "<" not in from_email else from_email
+    sender = f"Frontmatter <{from_email}>" if "<" not in from_email else from_email
     import httpx
     try:
         async with httpx.AsyncClient() as client:
@@ -132,7 +132,7 @@ def setup_team_routes(app):
 
         inviter_snap = await _firestore_call(db.collection('users').document(uid).get)
         admin_name = (inviter_snap.to_dict().get('displayName') if inviter_snap.exists else None) or decoded.get('email') or 'Your Admin'
-        team_name = team_data.get('name', 'MarkType Team')
+        team_name = team_data.get('name', 'Frontmatter Team')
 
         users_snap = await _firestore_call(db.collection('users').where('email', '==', invitee_email).limit(1).get)
         user_exists = len(users_snap) > 0
@@ -154,7 +154,7 @@ def setup_team_routes(app):
             await write_membership(db, team_id, target_uid, group_id, target.to_dict() or {})
 
             html = EMAIL_ADDED_TO_TEAM.format(admin_name=admin_name, team_name=team_name)
-            sent = await send_email(invitee_email, f'You have been added to the team "{team_name}" on MarkType', html)
+            sent = await send_email(invitee_email, f'You have been added to the team "{team_name}" on Frontmatter', html)
             return {"status": "success", "addedDirectly": True, "emailSent": sent}
 
         existing = await _firestore_call(db.collection('invites').where('teamId', '==', team_id).where('invitedEmail', '==', invitee_email).where('status', '==', 'pending').get)
@@ -172,7 +172,7 @@ def setup_team_routes(app):
         invite_id = invite_ref.id
 
         html = EMAIL_INVITATION.format(admin_name=admin_name, team_name=team_name, token=token)
-        sent = await send_email(invitee_email, f'{admin_name} has invited you to join {team_name} on MarkType', html)
+        sent = await send_email(invitee_email, f'{admin_name} has invited you to join {team_name} on Frontmatter', html)
         return {"status": "success", "inviteId": invite_id, "emailSent": sent}
 
     @app.get("/invite-details/{token}")

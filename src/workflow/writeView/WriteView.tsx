@@ -16,7 +16,7 @@ const WIDTH_MAP: Record<string, string> = { narrow: '560px', medium: '720px', wi
 export function WriteView({ ydoc, documentId }: { ydoc: Y.Doc; documentId?: string }) {
   const {
     containerRef, handleRef, focusMode, isReadOnly, contextMenuPos, hasSelection,
-    settings, setContextMenuPos, setHasSelection, selToolbar, setSelToolbar,
+    settings, setContextMenuPos, setHasSelection, selToolbar, setSelToolbar, handleAddNote,
   } = useWriteEditor(ydoc, documentId);
   const { isTeam, teamId, activeContext } = usePlan();
   const { user } = useAuth();
@@ -31,7 +31,7 @@ export function WriteView({ ydoc, documentId }: { ydoc: Y.Doc; documentId?: stri
   const maxWidth = WIDTH_MAP[settings.editorWidth] || '720px';
 
   return (
-    <div className={`w-full h-full pb-32 marktype-editor-container relative ${focusMode ? 'focus-mode-active' : ''}`}>
+    <div className={`w-full h-full pb-32 frontmatter-editor-container relative ${focusMode ? 'focus-mode-active' : ''}`}>
       {isReadOnly && (
         <div className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-amber-700 bg-amber-50/80 dark:bg-amber-900/20 border-b border-amber-200/50 select-none"
           style={{ background: 'color-mix(in srgb, var(--editor-bg-color, #fff) 85%, #f59e0b 15%)' }}>
@@ -39,7 +39,10 @@ export function WriteView({ ydoc, documentId }: { ydoc: Y.Doc; documentId?: stri
           <span>Read-only — your group doesn't have write access to this document.</span>
         </div>
       )}
-      <div className="flex items-center justify-center w-full h-full min-h-[300px]">
+      {/* `data-stage` is how the inline-preview interaction layer knows which
+          stage it is in. Without it, `getStage()` returned null here and every
+          click on an image was swallowed with the caret left where it was. */}
+      <div className="flex items-center justify-center w-full h-full min-h-[300px]" data-stage="write">
         <div ref={containerRef} className="w-full h-full" style={{ maxWidth }} />
       </div>
       {createPortal(
@@ -72,7 +75,10 @@ export function WriteView({ ydoc, documentId }: { ydoc: Y.Doc; documentId?: stri
             handleRef.current.view.focus();
             setContextMenuPos(null);
           }}
-          onAddNote={() => setContextMenuPos(null)}
+          onAddNote={(note) => {
+            void handleAddNote(note);
+            setContextMenuPos(null);
+          }}
           onInsertLink={() => {
             if (handleRef.current) {
               linkCommand.apply(handleRef.current.view);

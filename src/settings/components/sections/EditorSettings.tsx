@@ -69,9 +69,27 @@ export function EditorSettings({ matches }: Props) {
         </SettingRow>
       )}
 
-      {matches('Prose Lint', 'Vale inline highlights for grammar and style issues', 'showProseLint') && (
-        <SettingRow settingKey="showProseLint" label="Editor: Prose Lint" description="Shows colored squiggly underlines for Vale style, grammar, and accessibility issues." modified={isModified('showProseLint')} onReset={() => resetSetting('showProseLint')}>
+      {matches('Prose Lint', 'Readability highlights for hard sentences, adverbs and passive voice', 'showProseLint') && (
+        <SettingRow settingKey="showProseLint" label="Editor: Prose Lint" description="Highlights hard-to-read sentences, adverbs, passive voice and wordy phrases so you can see what is slowing a reader down." modified={isModified('showProseLint')} onReset={() => resetSetting('showProseLint')}>
           <Toggle settingKey="showProseLint" />
+        </SettingRow>
+      )}
+
+      {matches('Grammar Check', 'Offline grammar and spelling checking', 'grammarCheck') && (
+        <SettingRow settingKey="grammarCheck" label="Editor: Grammar Check" description="Checks grammar and spelling while revising. Runs entirely on this machine — nothing you write is sent anywhere." modified={isModified('grammarCheck')} onReset={() => resetSetting('grammarCheck')}>
+          <Toggle settingKey="grammarCheck" />
+        </SettingRow>
+      )}
+
+      {matches('Auto Correct', 'Fix typos and capitalization while revising', 'autoCorrect') && (
+        <SettingRow settingKey="autoCorrect" label="Editor: Auto Correct" description="In Revise mode, fixes common misspellings, capitalizes the start of a sentence, and removes a stray double space. Never runs inside code, links or front matter." modified={isModified('autoCorrect')} onReset={() => resetSetting('autoCorrect')}>
+          <Toggle settingKey="autoCorrect" />
+        </SettingRow>
+      )}
+
+      {matches('Smart Punctuation', 'Curly quotes, em dashes and ellipses while revising', 'smartPunctuation') && (
+        <SettingRow settingKey="smartPunctuation" label="Editor: Smart Punctuation" description="In Revise mode, converts straight quotes to curly ones, a double hyphen to an em dash, and three dots to an ellipsis." modified={isModified('smartPunctuation')} onReset={() => resetSetting('smartPunctuation')}>
+          <Toggle settingKey="smartPunctuation" />
         </SettingRow>
       )}
     </div>

@@ -30,6 +30,16 @@ export const useDirtyDocsStore = create<DirtyDocsStore>((set) => ({
 
 const dmp = new diff_match_patch();
 
+/** How often the autosave loop runs, and so how often anything is written. */
+const AUTOSAVE_INTERVAL_MS = 5000;
+
+/**
+ * Floor between automatic snapshots. History is capped per document
+ * (`MAX_SNAPSHOTS` in `commands/snapshots.rs`), so cadence buys depth: at one
+ * per autosave the cap held minutes, at one per two minutes it holds hours.
+ */
+const AUTO_SNAPSHOT_INTERVAL_MS = 2 * 60 * 1000;
+
 export class DocumentRegistry {
   private acquiring = new Map<string, Promise<Y.Doc>>();
   private docs = new Map<string, { doc: Y.Doc; refs: number; interval?: any; isCloud: boolean }>();
@@ -175,11 +185,21 @@ export class DocumentRegistry {
         const handleUpdate = () => useDirtyDocsStore.getState().setDirty(documentId, true);
         ytext.observe(handleUpdate);
         draftText.observe(handleUpdate);
+
+        // Text is not the only thing worth saving. Replies, resolutions,
+        // suggestion records and hidden lint rules all live in these maps, and
+        // the autosave interval below returns early unless the document is
+        // dirty — so without these, resolving a note and closing the document
+        // threw the resolution away unless you happened to type afterwards.
+        doc.getMap("annotations").observeDeep(handleUpdate);
+        doc.getMap("suggestions").observeDeep(handleUpdate);
+        doc.getMap("meta").observeDeep(handleUpdate);
       } catch (e) {
         console.error("Failed to acquire document:", e);
       }
 
       let lastSnapshotText = doc.getText("markdown").toString();
+      let lastSnapshotAt = 0;
       const interval = setInterval(async () => {
         const text = doc.getText("markdown").toString();
         const isDirty = useDirtyDocsStore.getState().dirtyDocs.has(documentId);
@@ -201,16 +221,31 @@ export class DocumentRegistry {
         }
         useDirtyDocsStore.getState().setDirty(documentId, false);
 
-        if (text !== lastSnapshotText && text.trim().length > 0) {
+        // Autosave runs on this interval, but history does not need to. At one
+        // snapshot per save the fifty-entry cap held only a few minutes of
+        // work, so the oldest — and most useful — versions were always the
+        // first to go. The floor buys hours of depth from the same cap.
+        const now = Date.now();
+        const changed = text !== lastSnapshotText && text.trim().length > 0;
+        if (changed && now - lastSnapshotAt >= AUTO_SNAPSHOT_INTERVAL_MS) {
           lastSnapshotText = text;
+          lastSnapshotAt = now;
           const wordCount = text.trim().split(/\s+/).length;
-          await invoke("save_snapshot", {
-            documentId,
-            snapshot: Array.from(Y.encodeStateAsUpdate(doc)),
-            word_count: wordCount,
-          });
+          try {
+            await invoke("save_snapshot", {
+              documentId,
+              snapshot: Array.from(Y.encodeStateAsUpdate(doc)),
+              // The IPC contract is camelCase. Sent as `word_count` this was
+              // silently dropped, and every version showed a blank word count.
+              wordCount,
+            });
+          } catch (e) {
+            // No workspace open, most often. Unhandled, this rejected the
+            // interval callback with nothing to catch it.
+            console.error("Auto-snapshot failed:", e);
+          }
         }
-      }, 5000);
+      }, AUTOSAVE_INTERVAL_MS);
 
       // Settle any releases that landed while this was in flight.
       const deferred = this.pendingReleases.get(documentId) ?? 0;

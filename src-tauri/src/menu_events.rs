@@ -8,8 +8,8 @@
 use crate::{commands, menu, window_ops};
 use tauri::{Emitter, Manager};
 
-const DOCUMENTATION_URL: &str = "https://marktype.app/docs";
-const ISSUES_URL: &str = "https://github.com/marktype/marktype/issues/new";
+const DOCUMENTATION_URL: &str = "https://frontmatter.app/docs";
+const ISSUES_URL: &str = "https://github.com/frontmatter/frontmatter/issues/new";
 
 /// Menu ids that only notify the focused window: `(menu id, event name)`.
 const FORWARDED: &[(&str, &str)] = &[

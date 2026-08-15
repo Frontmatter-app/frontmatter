@@ -4,7 +4,7 @@ import { UserMetricsData, getEmptyMetrics } from './metricsTypes';
 // Load from localStorage (synchronous fallback used for instant renders)
 export function loadMetricsFromLocalStorage(uid: string): UserMetricsData {
   try {
-    const raw = localStorage.getItem(`marktype_metrics_${uid}`);
+    const raw = localStorage.getItem(`frontmatter_metrics_${uid}`);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<UserMetricsData>;
       return {
@@ -32,7 +32,7 @@ export function loadMetricsFromLocalStorage(uid: string): UserMetricsData {
 // Persist metrics to localStorage (synchronous cache for instant UI)
 export function persistToLocalStorage(uid: string, data: UserMetricsData) {
   try {
-    localStorage.setItem(`marktype_metrics_${uid}`, JSON.stringify(data));
+    localStorage.setItem(`frontmatter_metrics_${uid}`, JSON.stringify(data));
   } catch (e) {
     console.error('Failed to write metrics to localStorage cache:', e);
   }
@@ -148,7 +148,7 @@ export async function migrateLocalStorageToSqlite(uid: string): Promise<void> {
   _migrated = true;
 
   try {
-    const raw = localStorage.getItem(`marktype_metrics_${uid}`);
+    const raw = localStorage.getItem(`frontmatter_metrics_${uid}`);
     if (!raw) return;
 
     const parsed = JSON.parse(raw) as Partial<UserMetricsData>;

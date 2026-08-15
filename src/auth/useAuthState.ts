@@ -69,7 +69,7 @@ export function useAuthState() {
       photoURL: mockUser.avatar_url || null,
       lastUsed: new Date().toISOString(),
     });
-    localStorage.setItem('marktype_saved_accounts', JSON.stringify(filtered));
+    localStorage.setItem('frontmatter_saved_accounts', JSON.stringify(filtered));
     setSavedAccounts(filtered);
   }, []);
 
@@ -101,7 +101,7 @@ export function useAuthState() {
           if (event.payload.state !== state) return;
           try {
             const redirectUri = `http://127.0.0.1:${port}/callback`;
-            const backendUrl = import.meta.env.VITE_MODAL_BASE_URL || 'https://iamspruce--marktype-backend-fastapi-app.modal.run';
+            const backendUrl = import.meta.env.VITE_MODAL_BASE_URL || 'https://iamspruce--frontmatter-backend-fastapi-app.modal.run';
             const res = await fetch(`${backendUrl}/exchange-google-code`, {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ code: event.payload.code, redirectUri }),

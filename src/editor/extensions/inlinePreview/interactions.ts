@@ -34,18 +34,19 @@ export const inlinePreviewInteractions = EditorView.domEventHandlers({
   mousedown(event, view) {
     const image = findElement(event.target, '[data-inline-preview-image]');
     if (image?.dataset.imageUrl && image.dataset.sourceFrom) {
-      const stage = getStage(view);
       event.preventDefault();
       event.stopPropagation();
 
-      if (stage === 'write') {
-        const pos = Number(image.dataset.sourceFrom);
-        view.dispatch({
-          selection: { anchor: pos, head: pos },
-          scrollIntoView: true,
-        });
-        view.focus();
-      }
+      // Placing the caret used to be gated on the write stage while the event
+      // was swallowed in every stage, so clicking an image anywhere else did
+      // nothing at all — the editor did not even take focus. Revealing the
+      // source is the right response wherever the document is editable.
+      const pos = Number(image.dataset.sourceFrom);
+      view.dispatch({
+        selection: { anchor: pos, head: pos },
+        scrollIntoView: true,
+      });
+      view.focus();
       return true;
     }
 
@@ -56,17 +57,22 @@ export const inlinePreviewInteractions = EditorView.domEventHandlers({
 
       const sourceFrom = checkbox.dataset.sourceFrom;
       if (sourceFrom) {
-        const pos = Number(sourceFrom);
-        const lineObj = view.state.doc.lineAt(pos);
-        const raw = lineObj.text;
-        const checked = raw.includes('[x]') || raw.includes('[X]');
-        const newText = checked
-          ? raw.replace(/\[x\]/i, '[ ]')
-          : raw.replace('[ ]', '[x]');
-        if (newText !== raw) {
+        // `sourceFrom` is the start of this task marker, whose text is exactly
+        // `[ ]` or `[x]`, so the state is one character at `from + 1`.
+        //
+        // This used to rewrite the whole line with `raw.replace('[ ]', '[x]')`,
+        // which toggled the *first* marker-shaped thing on the line — the wrong
+        // box when a line held two, and a literal `[x]` in prose when it held
+        // one. Replacing the entire line was also a delete-and-insert of every
+        // character on it, which under Yjs discards a collaborator's concurrent
+        // edit to the same line; a one-character change merges cleanly.
+        const from = Number(sourceFrom);
+        const marker = view.state.doc.sliceString(from, from + 3);
+        if (/^\[[ xX]\]$/.test(marker)) {
+          const checked = marker[1] !== ' ';
           view.dispatch({
-            changes: { from: lineObj.from, to: lineObj.to, insert: newText },
-            selection: { anchor: pos, head: pos },
+            changes: { from: from + 1, to: from + 2, insert: checked ? ' ' : 'x' },
+            selection: { anchor: from, head: from },
           });
         }
       }
@@ -116,8 +122,11 @@ export const inlinePreviewInteractions = EditorView.domEventHandlers({
     const image = findElement(event.target, '[data-inline-preview-image]');
     if (!image?.dataset.imageUrl) return false;
 
+    // Draft is an outline, not a place to edit images. Write and Revise both
+    // are — this was limited to Revise, so the image menu was unreachable from
+    // the stage where images are actually placed.
     const stage = getStage(view);
-    if (stage !== 'revise') return false;
+    if (stage !== 'revise' && stage !== 'write') return false;
 
     event.preventDefault();
     event.stopPropagation();

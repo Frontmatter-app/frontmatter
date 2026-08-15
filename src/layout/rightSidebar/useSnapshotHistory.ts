@@ -3,7 +3,7 @@ import { invoke } from "../../filesystem/tauriCommands";
 import * as Y from "yjs";
 import { restoreSnapshot } from "../../yjs/restoreSnapshot";
 import { SnapshotMeta } from "../../types";
-import { showConfirmDialog } from "../../lib/tauriDialog";
+import { showAlertDialog, showConfirmDialog } from "../../lib/tauriDialog";
 
 interface UseSnapshotHistoryOpts {
   currentDocumentId: string | null;
@@ -32,8 +32,10 @@ export function useSnapshotHistory({ currentDocumentId, activeVersionId, setActi
       await invoke<SnapshotMeta>("create_snapshot", {
         documentId: currentDocumentId,
         snapshot: Array.from(Y.encodeStateAsUpdate(ydoc)),
-        label,
-        word_count: wordCount,
+        // A present label exempts the version from automatic pruning, which is
+        // the point of creating one by hand — see `commands/snapshots.rs`.
+        label: label ?? "",
+        wordCount,
         author: currentUserName,
       });
       await fetchSnapshots();
@@ -47,7 +49,12 @@ export function useSnapshotHistory({ currentDocumentId, activeVersionId, setActi
         const data: number[] = await invoke("get_snapshot_data", { id: snapId });
         restoreSnapshot(ydoc, new Uint8Array(data));
         setActiveVersionId(null);
-      } catch (e) { console.error("Failed to restore snapshot:", e); }
+      } catch (e) {
+        // A restore that quietly does nothing reads as "this version was
+        // identical", which is the wrong conclusion to leave someone with.
+        console.error("Failed to restore snapshot:", e);
+        await showAlertDialog("Restore Failed", "This version could not be restored. Your document has not been changed.");
+      }
     }
   };
 

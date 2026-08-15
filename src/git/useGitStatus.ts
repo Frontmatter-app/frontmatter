@@ -16,6 +16,9 @@ const STATUS_DEBOUNCE_MS = 500;
  */
 const REMOTE_POLL_MS = 5 * 60 * 1000;
 
+/** Workspaces whose `.gitignore` has already been checked this session. */
+const ignoresEnsured = new Set<string>();
+
 export function useGitStatus(workspacePath: string | null, currentDocumentPath: string | null) {
   const workspacePathRef = useRef(workspacePath);
   const currentDocumentPathRef = useRef(currentDocumentPath);
@@ -49,8 +52,13 @@ export function useGitStatus(workspacePath: string | null, currentDocumentPath: 
       store.setError(null);
 
       // The workspace database lives inside the workspace folder, so a
-      // repository that predates the app would otherwise commit it.
-      ensureGitIgnores(path).catch(() => {});
+      // repository that predates the app would otherwise commit it. The write
+      // itself is idempotent, but it was being reconsidered on every file
+      // change; once per workspace is all this can ever accomplish.
+      if (!ignoresEnsured.has(path)) {
+        ignoresEnsured.add(path);
+        ensureGitIgnores(path).catch(() => ignoresEnsured.delete(path));
+      }
 
       try { store.setCommits(await getGitLog(path, documentPath || undefined)); } catch { /* history is optional */ }
     } catch (e) {

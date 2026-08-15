@@ -3,7 +3,7 @@ import { yCollab, yUndoManagerKeymap } from 'y-codemirror.next';
 import { Prec } from '@codemirror/state';
 import { keymap } from '@codemirror/view';
 import { inlinePreviewPlugin } from '../editor/extensions/inlinePreview';
-import { inlinePreviewTheme } from '../editor/themes/marktype';
+import { inlinePreviewTheme } from '../editor/themes/frontmatter';
 import { focusModeExtension } from '../editor/extensions/focusMode';
 import { annotationsExtension } from '../editor/extensions/annotationsExtension';
 import type { AnnotationManager } from '../yjs/annotations';

@@ -99,7 +99,7 @@ export function AccountSignInPanel({ busy, signingIn, onGoogle, onMagicLink }: A
       )}
 
       <p className="account__note">
-        You can keep using MarkType without an account — documents stay on this device only.
+        You can keep using Frontmatter without an account — documents stay on this device only.
       </p>
     </div>
   );

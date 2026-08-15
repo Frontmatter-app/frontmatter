@@ -181,6 +181,14 @@ export class AnnotationManager {
       text: replyText,
       created_at: new Date().toISOString(),
     }]);
+
+    // The Y.Array is the merge point; the row is the cold-start copy. Without
+    // this write, replies existed only for as long as the document was open —
+    // `loadInitial` has always read a `replies` column that nothing filled in.
+    invoke('save_annotation_replies', {
+      id: annotationId,
+      replies: JSON.stringify(replies.toArray()),
+    }).catch((e) => console.error('Failed to persist reply', e));
   }
 
   getAnnotations(): Annotation[] {

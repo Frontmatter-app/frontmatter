@@ -6,9 +6,9 @@ import { isTauri } from '../lib/env';
 
 const firebaseConfig = {
   apiKey:            import.meta.env.VITE_FIREBASE_API_KEY            || 'AIzaSyFakeKeyForCompiling',
-  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN        || 'marktype-app-demo.firebaseapp.com',
-  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID         || 'marktype-app-demo',
-  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET     || 'marktype-app-demo.appspot.com',
+  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN        || 'frontmatter-app-demo.firebaseapp.com',
+  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID         || 'frontmatter-app-demo',
+  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET     || 'frontmatter-app-demo.appspot.com',
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '1234567890',
   appId:             import.meta.env.VITE_FIREBASE_APP_ID             || '1:1234567890:web:1234567890',
 };

@@ -5,7 +5,6 @@ import { Suggestion, SuggestionManager } from '../../yjs/suggestions';
 import { toAbsolute } from '../../yjs/relativePositions';
 
 export const setSuggestionsEffect = StateEffect.define<Suggestion[]>();
-export const suggestionApplyEffect = StateEffect.define<void>();
 
 export const suggestionState = StateField.define<Suggestion[]>({
   create() {
@@ -90,12 +89,10 @@ export const suggestionsExtension = (
 
   // Transaction filter to intercept edits in suggest mode
   const filter = EditorState.transactionFilter.of((tr) => {
-    // 1. Let programmatic suggestion applications through
-    if (tr.effects.some(e => e.is(suggestionApplyEffect))) {
-      return tr;
-    }
-
-    // 2. Only intercept user edits
+    // Only intercept user edits. Applying a suggestion from the sidebar goes
+    // through Yjs and arrives here without a user event, so it passes straight
+    // through — there is no need for the separate opt-out effect that used to
+    // guard this, which nothing ever dispatched.
     const isUser = tr.annotation(Transaction.userEvent);
     if (!isUser || !suggestionManager || !authorId) {
       return tr;

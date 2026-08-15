@@ -10,6 +10,9 @@ import { DiagramWidget } from './diagramWidget';
 import { getSettings } from '../../../settings/settingsStore';
 import { refreshInlinePreviewEffect } from './settingsRefresh';
 
+/** How close the caret has to be before a block preview reveals its source. */
+const PROXIMITY_MARGIN = 1;
+
 function buildBlockDecorations(state: EditorState): DecorationSet {
   try {
     const doc = state.doc;
@@ -20,8 +23,6 @@ function buildBlockDecorations(state: EditorState): DecorationSet {
     const builder: Range<Decoration>[] = [];
 
     const lp = getSettings().livePreview;
-
-    const PROXIMITY_MARGIN = 1;
 
     if (lp.tables) {
       for (const table of tables) {
@@ -123,13 +124,49 @@ function buildBlockDecorations(state: EditorState): DecorationSet {
   }
 }
 
+/**
+ * Which blocks the caret is currently suppressing, as a comparable string.
+ *
+ * A block preview collapses to its source when the caret comes within
+ * `PROXIMITY_MARGIN` lines of it. That is the *only* way the selection affects
+ * this decoration set, so moving the caret anywhere else — which is most
+ * keystrokes and every arrow press — need not rebuild anything. Walking the
+ * block list is cheap; building the set means constructing every widget in the
+ * document, including rendering each table through markdown-it.
+ */
+function suppressionKey(state: EditorState): string {
+  const doc = state.doc;
+  const selection = state.selection.main;
+  const activeStartLine = doc.lineAt(selection.from).number;
+  const activeEndLine = doc.lineAt(selection.to).number;
+  const { tables, blockImages, mathBlocks, diagrams } = state.field(docMetaField);
+
+  let key = '';
+  for (const group of [tables, blockImages, mathBlocks, diagrams]) {
+    for (const block of group) {
+      const isNearby = rangesOverlap(
+        activeStartLine - PROXIMITY_MARGIN,
+        activeEndLine + PROXIMITY_MARGIN,
+        block.startLine,
+        block.endLine,
+      );
+      key += isNearby ? '1' : '0';
+    }
+    key += '|';
+  }
+  return key;
+}
+
 export const blockDecorationsField = StateField.define<DecorationSet>({
   create(state) {
     return buildBlockDecorations(state);
   },
   update(decorations, tr) {
     const settingsChanged = tr.effects.some(effect => effect.is(refreshInlinePreviewEffect));
-    if (!tr.docChanged && !tr.selection && !settingsChanged) return decorations.map(tr.changes);
+    if (tr.docChanged || settingsChanged) return buildBlockDecorations(tr.state);
+    // No document change means no positions to map.
+    if (!tr.selection) return decorations;
+    if (suppressionKey(tr.startState) === suppressionKey(tr.state)) return decorations;
     return buildBlockDecorations(tr.state);
   },
   provide: field => EditorView.decorations.from(field),

@@ -2,7 +2,7 @@
 // Produced by scripts/generate-ipc.mjs from the #[tauri::command] definitions
 // in src-tauri/src. Run `npm run ipc:gen` after changing a command.
 //
-// 103 commands registered in main.rs.
+// 104 commands registered in main.rs.
 //
 // `unknown` means the Rust type is not a serialisable struct this generator
 // could resolve; narrow it with a cast at the call site.
@@ -129,6 +129,10 @@ export interface GitStatusEntry {
   path: string;
   staged: boolean;
   status: string;
+}
+
+export interface GrammarLint {
+  message: string;
 }
 
 export interface HeadingNode {
@@ -277,6 +281,7 @@ export interface IpcArgsMap {
   'create_snapshot': { documentId: string; snapshot: number[]; label?: string | null; wordCount?: number | null; author?: string | null };
   'save_annotation': { annotation: AnnotationRecord };
   'resolve_annotation': { id: string };
+  'save_annotation_replies': { id: string; replies: string };
   'get_annotations': { documentId: string };
   'get_metrics_date_range': { args: unknown };
   'save_daily_metrics': { args: unknown };
@@ -341,7 +346,7 @@ export interface IpcArgsMap {
   'get_recent_projects': Record<string, never>;
   'add_recent_project': { path: string };
   'clear_recent_projects': Record<string, never>;
-  'scan_prose': { text: string; filename: string };
+  'check_grammar': { text: string };
   'get_system_fonts': Record<string, never>;
 }
 
@@ -384,6 +389,7 @@ export interface IpcResultMap {
   'create_snapshot': SnapshotMeta;
   'save_annotation': null;
   'resolve_annotation': null;
+  'save_annotation_replies': null;
   'get_annotations': AnnotationRecord[];
   'get_metrics_date_range': DailyMetricsRow[];
   'save_daily_metrics': null;
@@ -448,7 +454,7 @@ export interface IpcResultMap {
   'get_recent_projects': string[];
   'add_recent_project': null;
   'clear_recent_projects': null;
-  'scan_prose': unknown;
+  'check_grammar': GrammarLint[];
   'get_system_fonts': string[];
 }
 
@@ -495,6 +501,7 @@ export const IPC_COMMANDS = [
   'create_snapshot',
   'save_annotation',
   'resolve_annotation',
+  'save_annotation_replies',
   'get_annotations',
   'get_metrics_date_range',
   'save_daily_metrics',
@@ -559,6 +566,6 @@ export const IPC_COMMANDS = [
   'get_recent_projects',
   'add_recent_project',
   'clear_recent_projects',
-  'scan_prose',
+  'check_grammar',
   'get_system_fonts',
 ] as const;

@@ -11,7 +11,7 @@
 export const MOCK_AUTH_ENABLED =
   import.meta.env.DEV && import.meta.env.VITE_ALLOW_MOCK_AUTH === 'true';
 
-export const ACTIVE_MOCK_KEY = 'marktype_active_mock_id';
+export const ACTIVE_MOCK_KEY = 'frontmatter_active_mock_id';
 
 /** Drops a mock session left behind by a build that had mock auth enabled. */
 export function clearStaleMockSession() {

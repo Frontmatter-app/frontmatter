@@ -31,7 +31,7 @@ import {
 import { cn } from '../lib/utils';
 import { useChromeTheme } from '../design/useChromeTheme';
 
-const APP_NAME = 'Marktype';
+const APP_NAME = 'Frontmatter';
 const isMac =
   typeof navigator !== 'undefined' &&
   /Mac|iPod|iPhone|iPad/.test(navigator.platform);

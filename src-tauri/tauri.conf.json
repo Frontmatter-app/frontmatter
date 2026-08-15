@@ -31,9 +31,6 @@
       "signingIdentity": null
     },
     "resources": [
-      "assets/.vale.ini",
-      "assets/styles/**/*",
-      "bin/**/*",
       "binaries/*"
     ],
     "shortDescription": "",
@@ -43,10 +40,10 @@
       }
     }
   },
-  "productName": "MarkType",
-  "mainBinaryName": "MarkType",
+  "productName": "Frontmatter",
+  "mainBinaryName": "Frontmatter",
   "version": "1.0.0",
-  "identifier": "com.marktype.dev",
+  "identifier": "com.frontmatter.app",
   "plugins": {},
   "app": {
     "windows": [

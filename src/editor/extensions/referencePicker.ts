@@ -7,5 +7,3 @@ export { referencePickerTooltip } from './referencePickerTooltip';
 export { referencePickerKeymap, referencePickerTheme } from './referencePickerKeymap';
 export { referencePickerField, setReferencePickerStateEffect, dismissPicker } from './referencePickerCore';
 export { referencePickerExtension } from './referencePickerBundle';
-
-export const documentPathFacet = { of: (_: string) => [] as any[] };

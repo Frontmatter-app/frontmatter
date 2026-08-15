@@ -59,7 +59,7 @@ pub async fn open_account_window(
     #[cfg(not(target_os = "macos"))]
     let _win = {
         let home = dirs::home_dir().ok_or("Could not determine home directory")?;
-        let data_dir = home.join("MarkType").join(".data").join(&account_uid);
+        let data_dir = home.join("Frontmatter").join(".data").join(&account_uid);
         crate::window_ops::build_window_with_data_dir(&app, &label, WebviewUrl::App(url.into()), data_dir)?
     };
 

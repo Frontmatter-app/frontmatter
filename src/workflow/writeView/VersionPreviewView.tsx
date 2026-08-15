@@ -7,9 +7,10 @@ import { EditorState } from '@codemirror/state';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { Table } from '@lezer/markdown';
 import { languages } from '@codemirror/language-data';
-import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language';
+import { syntaxHighlighting } from '@codemirror/language';
+import { frontmatterHighlightStyle } from '../../editor/themes/highlightStyle';
 import { inlinePreviewPlugin } from '../../editor/extensions/inlinePreview';
-import { marktypeTheme } from '../../editor/themes/themeConfig';
+import { frontmatterTheme } from '../../editor/themes/themeConfig';
 import { diff_match_patch } from 'diff-match-patch';
 import { SnapshotMeta } from '../../types';
 import { showFileAtCommit } from '../../git/gitCommands';
@@ -212,10 +213,7 @@ export function VersionPreviewView({ ydoc, versionId, documentId, onExit, worksp
         } catch {}
 
         if (!snapMeta && workspacePath && filePath) {
-          const relativePath = filePath.startsWith(workspacePath + '/')
-            ? filePath.slice(workspacePath.length + 1)
-            : filePath;
-          const gitText = await showFileAtCommit(workspacePath, versionId, relativePath);
+          const gitText = await showFileAtCommit(workspacePath, versionId, filePath);
           pText = gitText;
           if (active) {
             setVersionLabel(`Commit: ${versionId.substring(0, 7)}`);
@@ -364,9 +362,9 @@ export function VersionPreviewView({ ydoc, versionId, documentId, onExit, worksp
           codeLanguages: languages,
           extensions: [Table]
         }),
-        syntaxHighlighting(defaultHighlightStyle),
+        syntaxHighlighting(frontmatterHighlightStyle),
         inlinePreviewPlugin,
-        marktypeTheme,
+        frontmatterTheme,
         diffDecorationExtension(diffLines),
         diffGutterExtension(diffLines),
         clickHandler,

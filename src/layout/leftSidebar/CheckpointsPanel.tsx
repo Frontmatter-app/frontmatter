@@ -69,8 +69,12 @@ export function CheckpointsPanel({ ydoc, documentId, title }: CheckpointsPanelPr
       await invoke('create_snapshot', {
         documentId,
         snapshot: Array.from(Y.encodeStateAsUpdate(ydoc)),
-        label: label.trim() || undefined,
-        word_count: text.trim() ? text.trim().split(/\s+/).length : 0,
+        // Always a string, even when unnamed. A present label is what marks a
+        // version as deliberately created, and so exempt from the automatic
+        // pruning in `commands/snapshots.rs`; every display site already falls
+        // back to a timestamp when it is empty.
+        label: label.trim(),
+        wordCount: text.trim() ? text.trim().split(/\s+/).length : 0,
         author: currentUserName,
       });
       await refresh();

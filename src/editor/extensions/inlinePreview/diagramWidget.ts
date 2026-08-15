@@ -57,7 +57,7 @@ export class DiagramWidget extends WidgetType {
     body.textContent = 'Rendering diagram...';
     wrap.appendChild(body);
 
-    const id = `marktype-mermaid-${Date.now()}-${mermaidId++}`;
+    const id = `frontmatter-mermaid-${Date.now()}-${mermaidId++}`;
     getMermaid()
       .then(mermaid => mermaid.render(id, this.source))
       .then(({ svg }) => {

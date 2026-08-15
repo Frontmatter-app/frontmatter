@@ -56,6 +56,7 @@ macro_rules! app_command_handlers {
             $crate::commands::snapshots::create_snapshot,
             $crate::commands::annotations::save_annotation,
             $crate::commands::annotations::resolve_annotation,
+            $crate::commands::annotations::save_annotation_replies,
             $crate::commands::annotations::get_annotations,
             // -- Metrics and focus ----------------------------------------
             $crate::commands::metrics::get_metrics_date_range,
@@ -127,7 +128,7 @@ macro_rules! app_command_handlers {
             $crate::commands::project::get_recent_projects,
             $crate::commands::project::add_recent_project,
             $crate::commands::project::clear_recent_projects,
-            $crate::commands::prose::scan_prose,
+            $crate::commands::grammar::check_grammar,
             $crate::commands::fonts::get_system_fonts,
         ]
     };

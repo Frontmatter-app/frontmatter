@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { registry } from "../../yjs/DocumentRegistry";
 import type { Stage } from "../../types";
-import type { LintIgnoreState } from "../../review/reviewIssues";
+import { EMPTY_IGNORE_STATE, type LintIgnoreState } from "../../review/lintTypes";
 import * as Y from "yjs";
 
 function readStringArray(value: unknown): string[] {
@@ -22,9 +22,7 @@ export function useYjsDocument(currentDocumentId: string | null) {
   const [stage, setStage] = useState<Stage>("write");
   const [docText, setDocText] = useState("");
   const [focusMode, setFocusMode] = useState(false);
-  const [lintIgnoreState, setLintIgnoreState] = useState<LintIgnoreState>({
-    ignoredItemIds: [], ignoredRules: [], resolvedItemIds: [],
-  });
+  const [lintIgnoreState, setLintIgnoreState] = useState<LintIgnoreState>(EMPTY_IGNORE_STATE);
 
   useEffect(() => {
     if (!currentDocumentId) { setYdoc(null); setDocText(""); return; }
@@ -32,6 +30,7 @@ export function useYjsDocument(currentDocumentId: string | null) {
     let acquiredDoc: Y.Doc | null = null;
     let metaObs: (() => void) | null = null;
     let textObs: (() => void) | null = null;
+    let textTimer: ReturnType<typeof setTimeout> | null = null;
 
     registry.acquire(currentDocumentId).then((doc) => {
       if (!active) return;
@@ -49,11 +48,23 @@ export function useYjsDocument(currentDocumentId: string | null) {
         setLintIgnoreState(readLintIgnoreState(doc));
       };
       doc.getMap("meta").observe(metaObs);
-      textObs = () => setDocText(ytext.toString());
+
+      // Settled text, not every keystroke.
+      //
+      // The only thing reading this is the review analysis, and it used to
+      // re-render the whole sidebar and re-parse the whole document once per
+      // character. The delay matches the editor's, so both sides analyse the
+      // same string and the second one to ask reuses the first one's result
+      // instead of repeating the work.
+      textObs = () => {
+        if (textTimer) clearTimeout(textTimer);
+        textTimer = setTimeout(() => setDocText(ytext.toString()), 150);
+      };
       ytext.observe(textObs);
     });
     return () => {
       active = false;
+      if (textTimer) clearTimeout(textTimer);
       if (acquiredDoc && metaObs) acquiredDoc.getMap("meta").unobserve(metaObs);
       if (acquiredDoc && textObs) acquiredDoc.getText("markdown").unobserve(textObs);
       registry.release(currentDocumentId);

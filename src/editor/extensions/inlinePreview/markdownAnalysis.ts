@@ -2,7 +2,7 @@ import { EditorState, StateField } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
 import { DecorationSet } from '@codemirror/view';
 import { collectMarkdownReferences, parseMarkdownImageToken, type MarkdownReferences } from './markdown';
-import { isMarkdownTableSeparator, isMarkdownTableRow, parseFenceInfo, stripInlineAttrs, stripBlockMathFence } from './markdownUtils';
+import { isMarkdownTableSeparator, isMarkdownTableRow, parseFenceInfo, stripBlockMathFence } from './markdownUtils';
 
 const KNOWN_BLOCK_TAGS = new Set([
   'tabs', 'tab', 'note', 'info', 'summary',
@@ -18,20 +18,81 @@ export interface DocMetaCache {
   mathBlocks: Array<{ startLine: number; endLine: number; from: number; to: number; formula: string }>;
   diagrams: Array<{ startLine: number; endLine: number; from: number; to: number; diagramType: string; source: string }>;
   references: MarkdownReferences;
+  /** Fingerprint of the lines `references` was derived from. */
+  referenceSignature: string;
 }
 
-export function buildDocMeta(state: EditorState): DocMetaCache {
+/** Shared so a document with no reference definitions keeps one stable object. */
+const EMPTY_REFERENCES: MarkdownReferences = {};
+
+/** Non-overlapping occurrences, so `$$$$` counts as two. */
+function countOccurrences(text: string, needle: string) {
+  let count = 0;
+  for (let at = text.indexOf(needle); at !== -1; at = text.indexOf(needle, at + needle.length)) count++;
+  return count;
+}
+
+/**
+ * Lines that could define a link reference — `[label]: destination "title"`,
+ * indented no more than three spaces.
+ */
+const REFERENCE_DEFINITION = /^ {0,3}\[[^\]]+\]:/;
+
+/**
+ * A cheap fingerprint of everything that can affect link references.
+ *
+ * Collecting references means a full `markdown-it` parse of the whole document,
+ * which was happening on every keystroke to read a field that almost never
+ * changes — most documents define no references at all. Scanning for candidate
+ * lines is linear and cheap; the parse only runs when one of them moves.
+ */
+function referenceSignature(doc: EditorState['doc']): string {
+  const parts: string[] = [];
+  for (let i = 1; i <= doc.lines; i++) {
+    const text = doc.line(i).text;
+    if (REFERENCE_DEFINITION.test(text)) parts.push(text);
+  }
+  return parts.join('\n');
+}
+
+export function buildDocMeta(state: EditorState, previous?: DocMetaCache): DocMetaCache {
   const doc = state.doc;
   const fencedLines = new Set<number>();
-  const references = collectMarkdownReferences(doc.toString());
 
+  // Reusing the previous object rather than an equal copy also keeps widget
+  // identity stable — `TableWidget.eq` compares references.
+  const signature = referenceSignature(doc);
+  const references = previous && previous.referenceSignature === signature
+    ? previous.references
+    : signature === ''
+      ? EMPTY_REFERENCES
+      : collectMarkdownReferences(doc.toString());
+
+  const diagrams: DocMetaCache['diagrams'] = [];
+
+  // One walk for both, rather than two passes over the same nodes.
   syntaxTree(state).iterate({
     enter(node) {
       if (node.name !== 'FencedCode') return;
 
-      const start = doc.lineAt(node.from).number;
-      const end = doc.lineAt(node.to).number;
-      for (let line = start; line <= end; line++) fencedLines.add(line);
+      const startLine = doc.lineAt(node.from);
+      const endLine = doc.lineAt(node.to);
+      for (let line = startLine.number; line <= endLine.number; line++) fencedLines.add(line);
+
+      const info = parseFenceInfo(startLine.text);
+      if (info.language !== 'mermaid') return false;
+      if (endLine.number <= startLine.number) return false;
+
+      const sourceFrom = startLine.number + 1 <= endLine.number - 1 ? doc.line(startLine.number + 1).from : startLine.to;
+      const sourceTo = startLine.number + 1 <= endLine.number - 1 ? doc.line(endLine.number - 1).to : startLine.to;
+      diagrams.push({
+        startLine: startLine.number,
+        endLine: endLine.number,
+        from: startLine.from,
+        to: endLine.to,
+        diagramType: info.language,
+        source: doc.sliceString(sourceFrom, sourceTo).trim(),
+      });
       return false;
     },
   });
@@ -51,7 +112,10 @@ export function buildDocMeta(state: EditorState): DocMetaCache {
     const line = doc.line(i);
     const text = line.text.trim();
 
-    const singleLineMath = text.match(/^\$\$\s*([\s\S]*?)\s*\$\$\s*(?:\{[^}]*\}\s*)?$/);
+    // The formula may not itself contain `$$`. With a plain lazy `[\s\S]*?` the
+    // pattern still had to reach the end of the line, so `$$x$$ and $$y$$`
+    // matched as one block whose formula was `x$$ and $$y`.
+    const singleLineMath = text.match(/^\$\$\s*((?:(?!\$\$)[\s\S])*?)\s*\$\$\s*(?:\{[^}]*\}\s*)?$/);
     if (singleLineMath) {
       mathBlocks.push({
         startLine: i,
@@ -64,7 +128,10 @@ export function buildDocMeta(state: EditorState): DocMetaCache {
       continue;
     }
 
-    if (text.startsWith('$$')) {
+    // Exactly one `$$` opens a multi-line block. A line carrying several is a
+    // crowded single line, not a fence, and scanning forward from it for a
+    // closing delimiter would swallow the paragraphs underneath.
+    if (text.startsWith('$$') && countOccurrences(text, '$$') === 1) {
       const startLine = i;
       let endLine = i;
       let next = i + 1;
@@ -143,31 +210,7 @@ export function buildDocMeta(state: EditorState): DocMetaCache {
   }
 
   const blockImages: DocMetaCache['blockImages'] = [];
-  const diagrams: DocMetaCache['diagrams'] = [];
-  syntaxTree(state).iterate({
-    enter(node) {
-      if (node.name !== 'FencedCode') return;
-
-      const startLine = doc.lineAt(node.from);
-      const endLine = doc.lineAt(node.to);
-      const info = parseFenceInfo(startLine.text);
-      if (info.language !== 'mermaid') return false;
-      if (endLine.number <= startLine.number) return false;
-
-      const sourceFrom = startLine.number + 1 <= endLine.number - 1 ? doc.line(startLine.number + 1).from : startLine.to;
-      const sourceTo = startLine.number + 1 <= endLine.number - 1 ? doc.line(endLine.number - 1).to : startLine.to;
-      diagrams.push({
-        startLine: startLine.number,
-        endLine: endLine.number,
-        from: startLine.from,
-        to: endLine.to,
-        diagramType: info.language,
-        source: doc.sliceString(sourceFrom, sourceTo).trim(),
-      });
-      return false;
-    },
-  });
-
+  // Separate from the walk above because it needs `fencedLines` complete.
   syntaxTree(state).iterate({
     enter(node) {
       if (node.name !== 'Image') return;
@@ -192,14 +235,15 @@ export function buildDocMeta(state: EditorState): DocMetaCache {
     },
   });
 
-  return { fencedLines, blockTags, tables, blockImages, mathBlocks, diagrams, references };
+  return { fencedLines, blockTags, tables, blockImages, mathBlocks, diagrams, references, referenceSignature: signature };
 }
 
 export const docMetaField = StateField.define<DocMetaCache>({
   create: buildDocMeta,
   update(cache, tr) {
     if (!tr.docChanged) return cache;
-    return buildDocMeta(tr.state);
+    // The previous cache lets the link-reference parse be skipped.
+    return buildDocMeta(tr.state, cache);
   },
 });
 

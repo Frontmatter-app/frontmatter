@@ -76,6 +76,12 @@ export interface Settings {
   typewriterMode: boolean;
   spellCheck: boolean;
   showProseLint: boolean;
+  /** Offline grammar and spelling checking via Harper. */
+  grammarCheck: boolean;
+  /** Revise-mode autocorrect: typos, sentence capitalization, stray spacing. */
+  autoCorrect: boolean;
+  /** Revise-mode curly quotes, em dashes and ellipses. */
+  smartPunctuation: boolean;
   iconStyle: "clean" | "minimal" | "bold";
   livePreview: LivePreviewSettings;
   versionControl: VersionControlSettings;
@@ -146,6 +152,9 @@ export const DEFAULT_SETTINGS: Settings = {
   typewriterMode: false,
   spellCheck: true,
   showProseLint: true,
+  grammarCheck: true,
+  autoCorrect: true,
+  smartPunctuation: true,
   iconStyle: "clean",
   livePreview: { ...DEFAULT_LIVE_PREVIEW },
   versionControl: { ...DEFAULT_VERSION_CONTROL },
@@ -208,7 +217,7 @@ export function applyThemeFromSettings(settings: Settings) {
 
 const loadSettings = (): Settings => {
   try {
-    const saved = localStorage.getItem("marktype_settings");
+    const saved = localStorage.getItem("frontmatter_settings");
     if (saved) {
       const parsed = JSON.parse(saved);
       const merged = { ...DEFAULT_SETTINGS, ...parsed };
@@ -245,7 +254,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     set((state) => {
       const updated = { ...state.settings, ...newSettings };
       try {
-        localStorage.setItem("marktype_settings", JSON.stringify(updated));
+        localStorage.setItem("frontmatter_settings", JSON.stringify(updated));
       } catch (e) {}
       applyThemeFromSettings(updated);
       return { settings: updated };

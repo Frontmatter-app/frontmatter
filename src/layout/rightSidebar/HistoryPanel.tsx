@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import { ChevronDown, RotateCcw, Trash2, GitBranch, FileText, Search, X } from "lucide-react";
+import { ChevronDown, RotateCcw, Trash2, GitBranch, FileText, Search, X, BookmarkPlus } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { SnapshotMeta } from "../../types";
 import { GitCommit } from "../../git/types";
@@ -274,6 +274,21 @@ export function HistoryPanel({
                 <X className="w-3 h-3" />
               </button>
             )}
+            {/* This callback was accepted, destructured and never rendered, so
+                naming a version was only ever possible for cloud documents —
+                and named versions are the ones automatic pruning spares. */}
+            {onCreateSnapshot && (
+              <button
+                onClick={() => { void onCreateSnapshot(); }}
+                title="Save a named checkpoint of the current document"
+                className="flex-shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition"
+                style={{ color: 'var(--editor-caret-color)' }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--editor-secondary-bg)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+              >
+                <BookmarkPlus className="w-3 h-3" /> Checkpoint
+              </button>
+            )}
           </div>
 
           {/* List */}
@@ -281,7 +296,10 @@ export function HistoryPanel({
             {!hasHistory && !searchQuery && (
               <div className="px-3 py-4 text-[10px] text-right" style={{ color: 'var(--editor-deleted-text-color)' }}>
                 <div className="font-medium mb-1">No history yet</div>
-                <div className="opacity-70">Snapshots are saved automatically as you edit.</div>
+                <div className="opacity-70">
+                  Versions are saved automatically as you edit
+                  {onCreateSnapshot ? ", or save a named checkpoint above." : "."}
+                </div>
               </div>
             )}
 

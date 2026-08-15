@@ -3,8 +3,8 @@ import { User as FirebaseUser } from 'firebase/auth';
 import { db } from './firebase';
 import type { User } from '../types';
 
-const TOKEN_STORAGE_KEY = 'marktype_account_tokens';
-const ACCOUNTS_STORAGE_KEY = 'marktype_saved_accounts';
+const TOKEN_STORAGE_KEY = 'frontmatter_account_tokens';
+const ACCOUNTS_STORAGE_KEY = 'frontmatter_saved_accounts';
 
 export interface SavedAccount {
   uid:         string;

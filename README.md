@@ -1,4 +1,4 @@
-# Marktype Markdown Test Tutorial
+# Frontmatter Markdown Test Tutorial
 
 Paste this whole document into the editor to test markdown preview, syntax highlighting, math, diagrams, tables, images, custom blocks, and referenceable objects.
 
@@ -98,7 +98,7 @@ CodeMirror already handles editor-side syntax highlighting for many fenced langu
 Referenceable JavaScript:
 
 ```javascript id="hello-js" ref="hello-js"
-const name = "Marktype";
+const name = "Frontmatter";
 function greet(person) {
   return `Hello, ${person}!`;
 }
@@ -133,7 +133,7 @@ JSON:
 
 ```json ref="sample-json"
 {
-  "name": "Marktype",
+  "name": "Frontmatter",
   "features": ["markdown", "math", "diagrams", "references"],
   "ready": true
 }

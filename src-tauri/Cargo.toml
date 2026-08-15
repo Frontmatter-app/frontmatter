@@ -1,5 +1,5 @@
 [package]
-name = "marktype"
+name = "frontmatter"
 version = "1.0.0"
 description = "A Tauri App"
 authors = ["you"]
@@ -31,4 +31,5 @@ tracing = "0.1"
 linguist = "0.1.10"
 serde_yaml = "0.9"
 glob = "0.3"
+harper-core = "2.8.0"
 

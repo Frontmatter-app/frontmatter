@@ -15,7 +15,7 @@ pub mod indexer;
 pub mod metrics;
 pub mod new_window;
 pub mod project;
-pub mod prose;
+pub mod grammar;
 pub mod references;
 pub mod runtimes;
 pub mod snapshots;

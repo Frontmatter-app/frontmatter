@@ -26,7 +26,7 @@ else:
     from fastapi.middleware.cors import CORSMiddleware
     from firebase import init_firebase
 
-    web_app = FastAPI(title="MarkType Backend API")
+    web_app = FastAPI(title="Frontmatter Backend API")
     web_app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],

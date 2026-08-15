@@ -1,4 +1,4 @@
-import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
+import { syntaxTree } from '@codemirror/language';
 import { Decoration, DecorationSet, EditorView } from '@codemirror/view';
 import { Range } from '@codemirror/state';
 import { blockDecorationsField } from './blockDecorations';
@@ -30,9 +30,12 @@ export function buildInlineDecorations(view: EditorView): { decorations: Decorat
     const { blockTags, fencedLines, references } = state.field(docMetaField);
     const lp = getSettings().livePreview;
 
-    let treeEnd = 0;
-    for (const { to } of view.visibleRanges) treeEnd = Math.max(treeEnd, to);
-    const tree = ensureSyntaxTree(state, treeEnd, 1500) ?? syntaxTree(state);
+    // The parse-ahead this used to force — `ensureSyntaxTree(state, treeEnd,
+    // 1500)` — ran on every caret move as well as every keystroke, and a 1.5
+    // second budget on the main thread is a visible stall. CodeMirror parses in
+    // the background anyway, and the plugin now rebuilds when that finishes, so
+    // taking whatever is ready costs at most one frame of missing preview.
+    const tree = syntaxTree(state);
 
     addBlockTagDecorations(builder, blockTags, activeStartLine, activeEndLine, blocked, doc, view, lp);
     addTreeDecorations(builder, atomicBuilder, view, tree, doc, activeStartLine, activeEndLine, blocked, references, lp);

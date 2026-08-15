@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS annotations (
     author_id TEXT NOT NULL,
     resolved INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
+    replies TEXT NOT NULL DEFAULT '[]',
     FOREIGN KEY(document_id) REFERENCES documents(id) ON DELETE CASCADE
 );
 
@@ -209,6 +210,18 @@ pub async fn migrate_database(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     ];
     for (i, col) in dcols.iter().enumerate() {
         if !dflags[i] { sqlx::query(&format!("ALTER TABLE documents ADD COLUMN {col}")).execute(pool).await?; }
+    }
+
+    // Replies on annotations. They lived only in the Yjs document before, so a
+    // local file lost every reply the moment the document was reloaded.
+    let arows = sqlx::query("PRAGMA table_info(annotations)").fetch_all(pool).await?;
+    let has_replies = arows.iter().any(|row| {
+        row.try_get::<String, _>("name").map(|name| name == "replies").unwrap_or(false)
+    });
+    if !has_replies {
+        sqlx::query("ALTER TABLE annotations ADD COLUMN replies TEXT NOT NULL DEFAULT '[]'")
+            .execute(pool)
+            .await?;
     }
 
     // Focus sessions table

@@ -11,12 +11,14 @@ import { highlightSelectionMatches, search, searchKeymap } from '@codemirror/sea
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { Table } from '@lezer/markdown';
 import { languages } from '@codemirror/language-data';
-import { syntaxHighlighting, defaultHighlightStyle, bracketMatching } from '@codemirror/language';
+import { syntaxHighlighting, bracketMatching } from '@codemirror/language';
+import { frontmatterHighlightStyle } from './themes/highlightStyle';
 import { setAnnotationsEffect } from './extensions/annotationsExtension';
 import { AnnotationManager } from '../yjs/annotations';
-import { setValeAlertsEffect } from './extensions/valeLintExtension';
+import { setLintIssuesEffect } from './extensions/proseLintExtension';
+import type { LintIssue } from '../review/lintTypes';
 import { getThemeConfig, createFontTheme } from './themes/themeConfig';
-import { setActiveEditorView } from './activeEditor';
+import { clearActiveEditorView, setActiveEditorView } from './activeEditor';
 import { createRegistry } from '../features/registry';
 import { editorFeatures } from '../features/editorFeatures';
 import * as Y from 'yjs';
@@ -25,7 +27,7 @@ export interface EditorHandle {
   view: EditorView;
   fontCompartment: Compartment;
   destroy: () => void;
-  updateValeAlerts: (alerts: any[]) => void;
+  updateLintIssues: (issues: LintIssue[]) => void;
 }
 
 export function createEditor(
@@ -68,7 +70,7 @@ export function createEditor(
       codeLanguages: languages,
       extensions: [Table],
     }),
-    syntaxHighlighting(defaultHighlightStyle),
+    syntaxHighlighting(frontmatterHighlightStyle),
     // Font configuration isolated for fast, fluid dynamic resizing runtime swaps
     fontCompartment.of(createFontTheme(config.fontFamily, config.fontSize, config.lineHeight)),
     ...featureExtensions,
@@ -119,12 +121,13 @@ export function createEditor(
     fontCompartment,
     destroy: () => {
       if (unobserveAnnotations) unobserveAnnotations();
-      setActiveEditorView(null);
+      clearActiveEditorView(view);
       view.destroy();
     },
-    updateValeAlerts: (alerts: any[]) => {
+    updateLintIssues: (issues: LintIssue[]) => {
+      if (!view.dom.isConnected) return;
       view.dispatch({
-        effects: setValeAlertsEffect.of(alerts),
+        effects: setLintIssuesEffect.of(issues),
       });
     },
   };

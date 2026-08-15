@@ -106,7 +106,10 @@ fn ensure_gitignore_entries(root: &str) -> Result<(), String> {
     let ignore_path = Path::new(root).join(".gitignore");
     let existing = std::fs::read_to_string(&ignore_path).unwrap_or_default();
 
-    let required = [".app/", ".DS_Store"];
+    // `.app/` only. Whether `.DS_Store` belongs in a repository is the
+    // project's business, and adding it uninvited put an unexplained diff in
+    // repositories this app merely opened.
+    let required = [".app/"];
     let missing: Vec<&str> = required
         .iter()
         .filter(|entry| !existing.lines().any(|line| line.trim() == **entry))
@@ -486,7 +489,7 @@ mod tests {
 
     #[test]
     fn adds_missing_ignore_entries_without_dropping_existing_ones() {
-        let dir = std::env::temp_dir().join(format!("marktype_gitignore_{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("frontmatter_gitignore_{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join(".gitignore"), "node_modules/\n").unwrap();
 
@@ -495,13 +498,17 @@ mod tests {
         let content = std::fs::read_to_string(dir.join(".gitignore")).unwrap();
         assert!(content.contains("node_modules/"));
         assert!(content.contains(".app/"));
-        assert!(content.contains(".DS_Store"));
+        // `.DS_Store` is deliberately not added. The workspace database is the
+        // app's own artifact and must never be committed; whether a project
+        // ignores macOS metadata is the project's decision, and adding it put
+        // an unexplained diff in repositories this app merely opened.
+        assert!(!content.contains(".DS_Store"));
         std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
     fn does_not_duplicate_existing_ignore_entries() {
-        let dir = std::env::temp_dir().join(format!("marktype_gitignore2_{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("frontmatter_gitignore2_{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join(".gitignore"), ".app/\n.DS_Store\n").unwrap();
 
@@ -509,6 +516,8 @@ mod tests {
 
         let content = std::fs::read_to_string(dir.join(".gitignore")).unwrap();
         assert_eq!(content.matches(".app/").count(), 1);
+        // An entry the project already chose is left exactly as it is.
+        assert_eq!(content.matches(".DS_Store").count(), 1);
         std::fs::remove_dir_all(&dir).ok();
     }
 }

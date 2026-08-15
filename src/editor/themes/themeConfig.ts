@@ -292,7 +292,7 @@ let activeThemeConfig = { ...githubLightDefault };
 
 // Try to load initial saved custom theme if active
 try {
-  const saved = localStorage.getItem('marktype_custom_theme');
+  const saved = localStorage.getItem('frontmatter_custom_theme');
   if (saved) {
     activeThemeConfig = { ...activeThemeConfig, ...JSON.parse(saved) };
   }
@@ -305,7 +305,7 @@ export function getThemeConfig(): EditorThemeConfig {
 export function updateThemeConfig(newConfig: Partial<EditorThemeConfig>) {
   activeThemeConfig = { ...activeThemeConfig, ...newConfig };
   try {
-    localStorage.setItem('marktype_custom_theme', JSON.stringify(activeThemeConfig));
+    localStorage.setItem('frontmatter_custom_theme', JSON.stringify(activeThemeConfig));
   } catch (e) {}
   applyThemeVariablesToDOM();
 }
@@ -366,7 +366,7 @@ export function getThemeCSSVariables(config: EditorThemeConfig = activeThemeConf
  */
 export function applyThemeVariablesToDOM() {
   if (typeof document === 'undefined') return;
-  const styleId = 'marktype-theme-variables';
+  const styleId = 'frontmatter-theme-variables';
   let styleEl = document.getElementById(styleId) as HTMLStyleElement;
   if (!styleEl) {
     styleEl = document.createElement('style');
@@ -374,7 +374,7 @@ export function applyThemeVariablesToDOM() {
     document.head.appendChild(styleEl);
   }
   styleEl.innerHTML = `
-    :root, body, .marktype-editor-container {
+    :root, body, .frontmatter-editor-container {
       ${getThemeCSSVariables()}
     }
     /* Apply selected font across the entire app, including sidebars */
@@ -390,7 +390,7 @@ applyThemeVariablesToDOM();
 // CodeMirror base theme (colors, layout — stable, doesn't change per-font).
 // Font-specific styles are handled via createFontTheme() + Compartment so they
 // can be reconfigured live without rebuilding the entire editor.
-export const marktypeTheme = EditorView.theme({
+export const frontmatterTheme = EditorView.theme({
   "&": {
     color: 'var(--editor-text-color)',
     backgroundColor: 'transparent',

@@ -9,9 +9,10 @@ import { VersionPreviewView } from '../workflow/writeView/VersionPreviewView';
 import { ArrowUp } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Stage } from '../types';
-import { useValeLintStore } from '../settings/valeLintStore';
+import { useProseScanStore } from '../review/proseScanStore';
+import type { GrammarLint } from '../review/grammarIssues';
+import { useSettingsStore } from '../settings/settingsStore';
 import { invoke } from '@tauri-apps/api/core';
-import type { ValeAlert } from '../types';
 import { useChromeStore } from './chromeStore';
 
 export function CenterColumn({ className, style }: { className?: string; style?: React.CSSProperties }) {
@@ -71,85 +72,95 @@ export function CenterColumn({ className, style }: { className?: string; style?:
     };
   }, [currentDocumentId]);
 
+  const showProseLint = useSettingsStore(state => state.settings.showProseLint);
+  const grammarCheck = useSettingsStore(state => state.settings.grammarCheck);
+
   useEffect(() => {
     if (!ydoc || !currentDocumentId) return;
 
+    const { setGrammarLints, setGrammarError, clear } = useProseScanStore.getState();
+
+    // Readability and inclusive language are computed in the renderer and need
+    // no scan at all. Only grammar crosses the IPC boundary, and only in
+    // Revise, which is the one stage that draws any of this.
+    if (!showProseLint || !grammarCheck || stage !== 'revise') {
+      clear();
+      return;
+    }
+
     const ytextMd = ydoc.getText('markdown');
-    const ytextDraft = ydoc.getText('draft');
-    const setValeAlerts = useValeLintStore.getState().setAlerts;
 
     let timer: ReturnType<typeof setTimeout> | null = null;
     let active = true;
     let scanInProgress = false;
     let pendingScan = false;
     let latestText = '';
-    let latestFilename = '';
+    let lastScannedText: string | null = null;
 
     const runScan = async () => {
       if (scanInProgress) {
         pendingScan = true;
         return;
       }
+      // Checking text already checked asks for work to be told nothing
+      // changed. Selection moves reach the observer as document events, so
+      // this is not a rare case.
+      if (latestText === lastScannedText) return;
 
       scanInProgress = true;
       pendingScan = false;
-
       const textToScan = latestText;
-      const filenameToScan = latestFilename;
 
       try {
-        const results = await invoke<Record<string, ValeAlert[]>>('scan_prose', {
-          text: textToScan,
-          filename: filenameToScan,
-        });
+        const lints = await invoke<GrammarLint[]>('check_grammar', { text: textToScan });
         if (active && textToScan === latestText) {
-          setValeAlerts(results);
+          lastScannedText = textToScan;
+          setGrammarLints(lints);
         }
       } catch (e) {
-        console.error('Vale scan failed:', e);
-        if (active) {
-          setValeAlerts({});
-        }
+        console.error('Grammar check failed:', e);
+        // Surfaced rather than swallowed. The commonest cause is an app binary
+        // built before `check_grammar` existed, and from the outside that is
+        // indistinguishable from prose with nothing wrong in it.
+        if (active) setGrammarError(e instanceof Error ? e.message : String(e));
       } finally {
         scanInProgress = false;
-        if (active && pendingScan) {
-          runScan();
-        }
+        if (active && pendingScan) runScan();
       }
     };
 
     const scheduleScan = () => {
       if (timer) clearTimeout(timer);
 
-      const text = ytextMd.toString().trim() || ytextDraft.toString().trim() || '';
-      const filename = documents.find(d => d.id === currentDocumentId)?.file_path || 'document.md';
+      // Never trimmed, and never the draft.
+      //
+      // `.trim()` removed leading blank lines from the text the checker saw but
+      // not from the document the results were drawn on, so a file that began
+      // with a blank line had every highlight one line out. The `|| draft`
+      // fallback was worse: with an empty markdown body it returned results for
+      // a completely different piece of text, positioned against this one.
+      const text = ytextMd.toString();
 
-      if (!text) {
+      if (!text.trim()) {
         latestText = '';
-        latestFilename = filename;
-        setValeAlerts({});
+        lastScannedText = null;
+        clear();
         return;
       }
 
       latestText = text;
-      latestFilename = filename;
-
-      timer = setTimeout(() => {
-        runScan();
-      }, 800);
+      timer = setTimeout(runScan, 800);
     };
 
     scheduleScan();
     ytextMd.observe(scheduleScan);
-    ytextDraft.observe(scheduleScan);
 
     return () => {
       active = false;
       if (timer) clearTimeout(timer);
       ytextMd.unobserve(scheduleScan);
-      ytextDraft.unobserve(scheduleScan);
     };
-  }, [ydoc, currentDocumentId, documents]);
+  }, [ydoc, currentDocumentId, showProseLint, grammarCheck, stage]);
 
   if (openTabs.length === 0) {
     return (
@@ -157,7 +168,7 @@ export function CenterColumn({ className, style }: { className?: string; style?:
         <div className="flex flex-col items-center justify-center select-none pointer-events-none">
           <img
             src="/app-logo.png"
-            alt="Marktype"
+            alt="Frontmatter"
             style={{
               width: '572px',
               height: '572px',

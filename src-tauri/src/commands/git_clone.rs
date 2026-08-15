@@ -40,7 +40,11 @@ pub async fn git_clone(url: String, destination: String) -> Result<CloneResult, 
 
     let gitignore_path = dest_path.join(".gitignore");
     if dest_path.is_dir() && !gitignore_path.exists() {
-        let content = ".DS_Store\n*.app\nnode_modules/\n";
+        // `.app/` — the workspace database directory. This wrote `*.app`, which
+        // matches nothing of the sort, so a freshly cloned workspace committed
+        // the SQLite file and its write-ahead log until something else repaired
+        // the entry. Keep it in step with `ensure_gitignore_entries` in `git.rs`.
+        let content = ".app/\nnode_modules/\n";
         let _ = std::fs::write(&gitignore_path, content);
     }
 

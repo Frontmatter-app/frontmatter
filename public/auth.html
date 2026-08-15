@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sign in — MarkType</title>
+  <title>Sign in — Frontmatter</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -97,7 +97,7 @@
 </head>
 <body>
   <div class="card">
-    <div class="logo">MarkType</div>
+    <div class="logo">Frontmatter</div>
     <p class="subtitle">Sign in to sync your work across devices</p>
 
     <button id="btn-google">
@@ -170,7 +170,7 @@
         const idToken     = credential?.idToken     || '';
         const accessToken = credential?.accessToken || '';
 
-        setStatus('Signed in! Returning to MarkType…', 'success');
+        setStatus('Signed in! Returning to Frontmatter…', 'success');
 
         // ── Send token back to the Tauri main window ──────────────────────
         // We store in localStorage as a fallback for the Tauri window to read,

@@ -10,8 +10,8 @@ interface UseWorkspaceTabRestoreOptions {
   refreshDirectoryTree: () => Promise<void>;
 }
 
-export const tabsStorageKey = (workspacePath: string) => `marktype_tabs_${workspacePath}`;
-export const activeStorageKey = (workspacePath: string) => `marktype_active_${workspacePath}`;
+export const tabsStorageKey = (workspacePath: string) => `frontmatter_tabs_${workspacePath}`;
+export const activeStorageKey = (workspacePath: string) => `frontmatter_active_${workspacePath}`;
 
 interface PendingRestore {
   workspacePath: string;

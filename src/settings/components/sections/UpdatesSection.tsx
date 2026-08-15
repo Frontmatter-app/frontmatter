@@ -19,7 +19,7 @@ export function UpdatesSection({ checkingUpdates, updateStatus, onCheckUpdates, 
           <RefreshCw className={`w-6 h-6 ${checkingUpdates ? 'animate-spin' : ''}`} />
         </div>
         <div>
-          <span className="font-bold text-sm block">MarkType Workspace App</span>
+          <span className="font-bold text-sm block">Frontmatter Workspace App</span>
           <span className="text-xs opacity-50 block mt-0.5">Current Version: v1.0.0</span>
         </div>
         {checkingUpdates && <p className="text-xs text-blue-500 font-semibold animate-pulse">Contacting updates server...</p>}
@@ -30,7 +30,7 @@ export function UpdatesSection({ checkingUpdates, updateStatus, onCheckUpdates, 
         )}
         {updateStatus === 'none' && (
           <div className="text-xs font-semibold text-emerald-500 bg-emerald-500/10 px-4 py-2 rounded-2xl border border-emerald-500/10">
-            ✓ You are using the latest release of MarkType.
+            ✓ You are using the latest release of Frontmatter.
           </div>
         )}
         {updateStatus === 'available' && (

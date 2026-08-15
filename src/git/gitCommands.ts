@@ -86,8 +86,25 @@ export async function writeGitignore(path: string, patterns: string[]): Promise<
   await invoke('git_write_gitignore', { path, patterns });
 }
 
+/**
+ * Makes a workspace path repository-relative, which is the only form
+ * `git show <commit>:<path>` accepts. Already-relative paths pass through.
+ */
+export function toRepoRelativePath(workspacePath: string, filePath: string): string {
+  if (!workspacePath || !filePath.startsWith(workspacePath)) return filePath;
+  return filePath.slice(workspacePath.length).replace(/^\/+/, '');
+}
+
+/**
+ * Reads a file as it stood at a commit.
+ *
+ * The path is relativised here rather than at the call site. `git show` fails
+ * on an absolute path, and of the two callers only one remembered to convert —
+ * so restoring a version worked from the diff view and silently did nothing
+ * from the history dropdown.
+ */
 export async function showFileAtCommit(path: string, commit: string, filePath: string): Promise<string> {
-  return invoke('git_show_file', { path, commit, filePath });
+  return invoke('git_show_file', { path, commit, filePath: toRepoRelativePath(path, filePath) });
 }
 
 export async function addRemote(path: string, name: string, url: string): Promise<void> {

@@ -53,7 +53,7 @@ pub async fn export_file_html(markdown: String) -> Result<ExportResult, String> 
 #[tauri::command]
 pub async fn export_file_pdf(app: tauri::AppHandle, markdown: String) -> Result<ExportResult, String> {
     let html = render_html(&markdown);
-    let temp_dir = std::env::temp_dir().join("marktype-export");
+    let temp_dir = std::env::temp_dir().join("frontmatter-export");
     std::fs::create_dir_all(&temp_dir).map_err(|e| e.to_string())?;
     let file_path = temp_dir.join("preview.html");
     std::fs::write(&file_path, &html).map_err(|e| e.to_string())?;

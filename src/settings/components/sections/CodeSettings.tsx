@@ -147,7 +147,7 @@ export function CodeSettings({ matches }: CodeSettingsProps) {
           </button>
         </div>
         <p className="text-xs text-[var(--editor-muted-color,#6a737d)]">
-          Provide the path to the runtime executable. Marktype will use this to run code blocks.
+          Provide the path to the runtime executable. Frontmatter will use this to run code blocks.
         </p>
       </div>
     </div>

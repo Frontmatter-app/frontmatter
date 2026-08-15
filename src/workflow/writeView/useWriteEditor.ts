@@ -1,16 +1,13 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import * as Y from 'yjs';
 import { createEditor, EditorHandle } from '../../editor/createEditor';
-import { Awareness } from 'y-protocols/awareness';
 import { EditorView } from '@codemirror/view';
 import { EditorState, Compartment } from '@codemirror/state';
-import { applyThemeVariablesToDOM, createFontTheme } from '../../editor/themes/themeConfig';
+import { applyThemeVariablesToDOM } from '../../editor/themes/themeConfig';
 import { useSettingsStore } from '../../settings/settingsStore';
-import { registry } from '../../yjs/DocumentRegistry';
 import { useTeamPermissions } from '../../auth/teamPermissions';
 import { usePlan } from '../../billing/PlanProvider';
 import { referencePickerExtension, setPickerDocumentPath } from '../../editor/extensions/referencePicker';
-import { refreshInlinePreviewEffect } from '../../editor/extensions/inlinePreview/settingsRefresh';
 import { formattingKeymap } from '../../editor/formatting/keymap';
 import { setCurrentDocId } from '../../keyboard/useGlobalShortcuts';
 import type { ImageContext } from '../../images/imageTypes';
@@ -21,7 +18,25 @@ import { usePlanStore } from '../../billing/PlanProvider';
 import { useSyncStatusStore } from '../../cloud/syncStatusStore';
 import { auth } from '../../auth/firebase';
 import { SuggestionManager } from '../../yjs/suggestions';
-import { toAbsolute } from '../../yjs/relativePositions';
+import { AnnotationManager } from '../../yjs/annotations';
+import {
+  setCurrentExcalidrawDocumentId,
+  setImageAnnotationManager,
+  setImageAuthorId,
+  setImageYdoc,
+} from '../../editor/extensions/inlinePreview/interactions';
+import { useAuth } from '../../auth/AuthProvider';
+import { guardTeamPermission } from '../../auth/permissionGuards';
+import { v4 as uuid } from 'uuid';
+import {
+  useAwareness,
+  useEditorAppearance,
+  useEditorNavigation,
+  useFocusModeAttribute,
+  useTransclusionDocument,
+  setEditorReadOnly as setEditorReadOnlyOn,
+} from '../../editor/useEditorShell';
+import { AnchorIndex } from '../../yjs/anchorIndex';
 import { suggestionsExtension, setSuggestionsEffect } from '../../editor/extensions/suggestionsExtension';
 import { useWorkspace } from '../../workspace/WorkspaceProvider';
 
@@ -47,7 +62,6 @@ export function useWriteEditor(
   const savedSel = useRef<{ from: number; to: number } | null>(null);
   const [focusMode, setFocusMode] = useState(false);
   const [isReadOnly, setIsReadOnly] = useState(false);
-  const [awareness, setAwareness] = useState<Awareness | null>(null);
   const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [hasSelection, setHasSelection] = useState(false);
   const [selToolbar, setSelToolbar] = useState<{ from: number; to: number } | null>(null);
@@ -58,29 +72,12 @@ export function useWriteEditor(
   const { settings } = useSettingsStore();
   const teamPerms = useTeamPermissions();
   const { isTeam, teamId } = usePlan();
-
-  useEffect(() => {
-    if (!ydoc) { setAwareness(null); return; }
-    if (!documentId) { setAwareness(new Awareness(ydoc)); return; }
-    // The registry attaches the provider synchronously as `acquire` resolves,
-    // and this effect runs with the resolved doc, so one check is enough. It
-    // used to retry every 50ms forever whenever `isTeam` was set and no provider
-    // ever appeared — a permanent 20Hz timer for anyone signed out mid-session.
-    const provider = registry.getProvider(documentId);
-    if (provider) {
-      setAwareness(provider.awareness);
-      return;
-    }
-
-    // Local-only document: a standalone awareness keeps the editor's cursor
-    // extension working with no peers. Destroyed on unmount — these leaked an
-    // interval each before.
-    const local = new Awareness(ydoc);
-    setAwareness(local);
-    return () => {
-      local.destroy();
-    };
-  }, [ydoc, documentId]);
+  const { user } = useAuth();
+  const authorId = user?.display_name || user?.email?.split('@')[0] || 'You';
+  const awareness = useAwareness(ydoc, documentId);
+  // Notes are anchored to the shared document, so the manager has to outlive
+  // any one editor mount — the sidebar reads the same map.
+  const [annManager, setAnnManager] = useState<AnnotationManager | null>(null);
 
   /**
    * Resolved per event rather than captured: a document can gain cloud status,
@@ -95,10 +92,8 @@ export function useWriteEditor(
     return getContextFromYdoc(ydoc, isCloud, plan.teamId || undefined, auth.currentUser?.uid);
   }, [ydoc, documentId]);
 
-  useEffect(() => {
-    document.body.setAttribute('data-focus-mode', focusMode ? 'true' : 'false');
-    return () => document.body.removeAttribute('data-focus-mode');
-  }, [focusMode]);
+  useFocusModeAttribute(focusMode);
+  useTransclusionDocument(ydoc);
 
   useEffect(() => {
     if (!documentId) return;
@@ -120,16 +115,34 @@ export function useWriteEditor(
     ydoc.getMap('meta').observe(observer);
 
     const suggestionManager = documentId ? new SuggestionManager(ydoc, documentId) : null;
+    // Notes were readable in Revise and invisible here: the manager was never
+    // handed to `createEditor`, so the annotation decorations had nothing to
+    // draw and the "Add a Note" menu item had nowhere to put what you typed.
+    const annotationManager = documentId ? new AnnotationManager(ydoc, documentId) : null;
+    setAnnManager(annotationManager);
+
+    // The image context menu reaches these through module state rather than
+    // through the view. Only Revise ever set them, so the menu had no document
+    // to act on here even once it was allowed to open.
+    setCurrentExcalidrawDocumentId(documentId ?? null);
+    setImageYdoc(ydoc);
+    setImageAuthorId(authorId);
+    setImageAnnotationManager(annotationManager);
+
+    // Rebuilt when the list changes or the document does, not on every caret
+    // move — see `AnchorIndex`.
+    let sugIndex = new AnchorIndex(suggestionManager?.getSuggestions() ?? [], ydoc);
+    const reindexSuggestions = () => {
+      sugIndex = new AnchorIndex(suggestionManager?.getSuggestions() ?? [], ydoc);
+    };
+    suggestionManager?.observe(reindexSuggestions);
+
     const cursorListener = EditorView.updateListener.of((update) => {
       if (update.selectionSet || update.docChanged) {
+        if (update.docChanged) reindexSuggestions();
         setActiveHeading(getActiveHeading(update.state));
         const pos = update.state.selection.main.head;
-        const activeSug = suggestionManager?.getSuggestions().find((sug) => {
-          const startAbs = toAbsolute(sug.start_pos, ydoc);
-          const endAbs = toAbsolute(sug.end_pos, ydoc);
-          return startAbs && endAbs && pos >= startAbs.index && pos <= endAbs.index && !sug.resolved;
-        });
-        setActiveSuggestionId(activeSug ? activeSug.id : null);
+        setActiveSuggestionId(sugIndex.at(pos));
         if (update.state.selection.main.empty) {
           const sel = update.state.selection.main;
           const line = update.state.doc.lineAt(sel.head);
@@ -151,17 +164,19 @@ export function useWriteEditor(
       spellCheckCompartmentRef.current.of(EditorView.contentAttributes.of({ spellcheck: String(settings.spellCheck ?? true) })),
       ...referencePickerExtension(),
       formattingKeymap,
-    ]);
+    ], annotationManager ?? undefined);
     handleRef.current = handle;
     setEditorView(handle.view);
 
-    if (suggestionManager) {
-      const sync = () => {
-        if (!handle.view.dom.isConnected) return;
-        handle.view.dispatch({ effects: setSuggestionsEffect.of(suggestionManager.getSuggestions()) });
-      };
-      sync();
-      suggestionManager.observe(sync);
+    const syncSuggestions = suggestionManager
+      ? () => {
+          if (!handle.view.dom.isConnected) return;
+          handle.view.dispatch({ effects: setSuggestionsEffect.of(suggestionManager.getSuggestions()) });
+        }
+      : null;
+    if (suggestionManager && syncSuggestions) {
+      syncSuggestions();
+      suggestionManager.observe(syncSuggestions);
     }
 
     const pendingLine = (window as any).__pendingScrollLine;
@@ -172,29 +187,6 @@ export function useWriteEditor(
       handle.view.dispatch({ effects: EditorView.scrollIntoView(line.from, { y: 'start', yMargin: 40 }), selection: { anchor: line.from } });
       handle.view.focus();
     }
-
-    const handleScrollToLine = (e: Event) => {
-      const lineIndex = (e as CustomEvent).detail?.lineIndex;
-      const view = handle.view;
-      if (view && typeof lineIndex === 'number') {
-        const lineNum = Math.min(Math.max(1, lineIndex + 1), view.state.doc.lines);
-        const line = view.state.doc.line(lineNum);
-        view.dispatch({ effects: EditorView.scrollIntoView(line.from, { y: 'start', yMargin: 40 }), selection: { anchor: line.from } });
-        view.focus();
-      }
-    };
-    window.addEventListener('editor-scroll-to-line', handleScrollToLine);
-
-    const handleSelectRange = (e: Event) => {
-      const { from, to } = (e as CustomEvent).detail;
-      const view = handle.view;
-      if (view && typeof from === 'number' && typeof to === 'number') {
-        view.dispatch({ selection: { anchor: from, head: to }, effects: EditorView.scrollIntoView(from, { y: 'center', yMargin: 80 }) });
-        requestAnimationFrame(() => { const node = view.domAtPos(from).node; (node.nodeType === Node.ELEMENT_NODE ? node as Element : node.parentElement!)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); });
-        view.focus();
-      }
-    };
-    window.addEventListener('editor-select-range', handleSelectRange);
 
     const onMouseUp = () => {
       const view = handle.view;
@@ -217,10 +209,19 @@ export function useWriteEditor(
 
     return () => {
       ydoc.getMap('meta').unobserve(observer);
-      window.removeEventListener('editor-scroll-to-line', handleScrollToLine);
-      window.removeEventListener('editor-select-range', handleSelectRange);
-      handle.view.destroy();
+      if (suggestionManager && syncSuggestions) suggestionManager.unobserve(syncSuggestions);
+      suggestionManager?.unobserve(reindexSuggestions);
+      // `handle.destroy()`, not `handle.view.destroy()`. The former also drops
+      // the annotation observer and clears the active-editor pointer; going
+      // straight to the view left one live observer per stage switch, each
+      // dispatching into a destroyed editor.
+      handle.destroy();
       handleRef.current = null;
+      setAnnManager(null);
+      setCurrentExcalidrawDocumentId(null);
+      setImageYdoc(null);
+      setImageAuthorId('');
+      setImageAnnotationManager(null);
       setActiveHeading(null);
       setActiveSuggestionId(null);
       containerRef.current?.removeEventListener('mouseup', onMouseUp);
@@ -229,24 +230,8 @@ export function useWriteEditor(
     };
   }, [ydoc, awareness, setActiveHeading, setActiveSuggestionId, documentId]);
 
-  useEffect(() => {
-    if (!handleRef.current) return;
-    handleRef.current.view.dispatch({ effects: refreshInlinePreviewEffect.of() });
-  }, [settings.livePreview]);
-
-  useEffect(() => {
-    if (!handleRef.current) return;
-    handleRef.current.view.dispatch({
-      effects: spellCheckCompartmentRef.current.reconfigure(EditorView.contentAttributes.of({ spellcheck: String(settings.spellCheck ?? true) })),
-    });
-  }, [settings.spellCheck]);
-
-  useEffect(() => {
-    if (!handleRef.current) return;
-    handleRef.current.view.dispatch({
-      effects: handleRef.current.fontCompartment.reconfigure(createFontTheme(settings.fontFamily, settings.fontSize, settings.lineHeight ?? '1.8')),
-    });
-  }, [settings.fontFamily, settings.fontSize, settings.lineHeight]);
+  useEditorNavigation(handleRef);
+  useEditorAppearance(handleRef, settings, spellCheckCompartmentRef.current);
 
   useEffect(() => {
     if (!documentId) { setIsReadOnly(false); return; }
@@ -254,20 +239,44 @@ export function useWriteEditor(
     const filePerms = (doc as any)?.filePermissions;
     const readOnly = !teamPerms.canWriteFile(filePerms);
     setIsReadOnly(readOnly);
-    if (!handleRef.current) return;
-    handleRef.current.view.dispatch({
-      effects: readOnlyCompartmentRef.current.reconfigure(EditorState.readOnly.of(readOnly)),
-    });
+    setEditorReadOnlyOn(handleRef.current, readOnlyCompartmentRef.current, readOnly);
   }, [documentId, documents, teamPerms]);
 
   const setEditorReadOnly = useCallback((ro: boolean) => {
-    if (!handleRef.current) return;
-    handleRef.current.view.dispatch({ effects: readOnlyCompartmentRef.current.reconfigure(EditorState.readOnly.of(ro)) });
+    setEditorReadOnlyOn(handleRef.current, readOnlyCompartmentRef.current, ro);
   }, []);
+
+  /**
+   * Anchors a note to the selection.
+   *
+   * The context menu has always rendered the whole compose UI here; the
+   * callback it was given threw the text away and closed the menu, so the note
+   * looked accepted and never existed.
+   */
+  const handleAddNote = useCallback(async (noteText: string) => {
+    const view = handleRef.current?.view;
+    const selection = savedSel.current;
+    if (!annManager || !view || !selection || !documentId) return;
+    if (!(await guardTeamPermission(isTeam, teamPerms.canWriteFile(), 'add notes'))) return;
+
+    const ytext = ydoc.getText('markdown');
+    const start = Y.createRelativePositionFromTypeIndex(ytext, selection.from, -1);
+    const end = Y.createRelativePositionFromTypeIndex(ytext, selection.to, -1);
+    annManager.addAnnotation(
+      uuid(),
+      documentId,
+      authorId,
+      start,
+      end,
+      view.state.doc.sliceString(selection.from, selection.to),
+      noteText,
+    );
+  }, [annManager, ydoc, documentId, authorId, isTeam, teamPerms]);
 
   return {
     containerRef, handleRef, focusMode, isReadOnly, contextMenuPos, hasSelection,
     savedSel, readOnlyCompartmentRef, spellCheckCompartmentRef, setEditorReadOnly,
     teamPerms, settings, setContextMenuPos, setHasSelection, selToolbar, setSelToolbar,
+    handleAddNote,
   };
 }

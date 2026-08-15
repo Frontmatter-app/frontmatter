@@ -46,7 +46,7 @@ export function ReviseView({
 
   return (
     <div
-      className={`w-full h-full pb-32 marktype-editor-container ${focusMode ? "focus-mode-active" : ""}`}
+      className={`w-full h-full pb-32 frontmatter-editor-container ${focusMode ? "focus-mode-active" : ""}`}
     >
       {isReadOnly && (
         <div

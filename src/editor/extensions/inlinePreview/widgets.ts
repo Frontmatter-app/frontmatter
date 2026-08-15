@@ -129,6 +129,25 @@ export class ImageWidget extends WidgetType {
   }
 }
 
+/**
+ * Structural comparison of two link-reference maps.
+ *
+ * This was an identity check, and `docMetaField` allocates a fresh map on every
+ * document change — so `eq` was always false and every table in the document
+ * was torn down and re-rendered through `markdown.render` on each keystroke.
+ * Most documents define no link references at all, which makes this O(1).
+ */
+function sameReferences(a: MarkdownReferences, b: MarkdownReferences) {
+  if (a === b) return true;
+  const keys = Object.keys(a);
+  if (keys.length !== Object.keys(b).length) return false;
+  return keys.every((key) => {
+    const left = a[key];
+    const right = b[key];
+    return right !== undefined && left.href === right.href && left.title === right.title;
+  });
+}
+
 export class TableWidget extends WidgetType {
   constructor(
     readonly rawMarkdown: string,
@@ -139,7 +158,11 @@ export class TableWidget extends WidgetType {
   }
 
   eq(other: TableWidget) {
-    return other.rawMarkdown === this.rawMarkdown && other.references === this.references && other.from === this.from;
+    return (
+      other.rawMarkdown === this.rawMarkdown &&
+      other.from === this.from &&
+      sameReferences(other.references, this.references)
+    );
   }
 
   ignoreEvent() {

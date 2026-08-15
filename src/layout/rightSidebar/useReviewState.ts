@@ -3,10 +3,10 @@ import { useWorkspace } from "../../workspace/WorkspaceProvider";
 import { AnnotationManager, Annotation } from "../../yjs/annotations";
 import { SuggestionManager, Suggestion } from "../../yjs/suggestions";
 import { toAbsolute } from "../../yjs/relativePositions";
-import { useValeLintStore } from "../../settings/valeLintStore";
-import { parseDocumentMetrics } from "../../settings/metrics/metricsParser";
-import { buildMetricLintAlerts, filterLintAlerts, sanitizeMarkdownForLint } from "../../review/reviewIssues";
-import type { LintIgnoreState, ReviewKind } from "../../review/reviewIssues";
+import { useProseScanStore } from "../../review/proseScanStore";
+import { analyzeDocument } from "../../review/lintPipeline";
+import { useLintSelection, REVEAL_LINT_ISSUE, APPLY_LINT_FIX } from "../../review/lintSelectionStore";
+import type { LintIgnoreState, LintIssue, ReviewKind } from "../../review/lintTypes";
 import { useSidebarContext } from "../SidebarContext";
 import { guardTeamAuth, guardTeamPermission } from "../../auth/permissionGuards";
 import * as Y from "yjs";
@@ -33,14 +33,19 @@ export function useReviewState({ ydoc, stage, currentDocumentId, currentUserName
   const [reviewFilter, setReviewFilter] = useState<ReviewKind | "all">("all");
   const cardRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
-  const metrics = useMemo(
-    () => parseDocumentMetrics(sanitizeMarkdownForLint(docText)),
-    [docText],
+  const grammarLints = useProseScanStore((s) => s.grammarLints);
+  const grammarError = useProseScanStore((s) => s.grammarError);
+  const activeLintIssueId = useLintSelection((s) => s.activeIssueId);
+
+  // Same call the editor makes, memoized inside the pipeline: whichever of the
+  // two runs second in a tick reuses the first one's result rather than
+  // re-parsing the document.
+  const analysis = useMemo(
+    () => analyzeDocument(docText, grammarLints, lintIgnoreState),
+    [docText, grammarLints, lintIgnoreState],
   );
-  const valeAlerts = useValeLintStore((s) => s.alerts);
-  const lintAlerts = useMemo(() => {
-    return filterLintAlerts([...Object.values(valeAlerts).flat(), ...buildMetricLintAlerts(metrics)], lintIgnoreState, docText);
-  }, [docText, lintIgnoreState, metrics, valeAlerts]);
+  const lintIssues = analysis.issues;
+  const readabilityStats = analysis.stats;
 
   useEffect(() => {
     setAnnotations([]); setSuggestions([]);
@@ -52,27 +57,36 @@ export function useReviewState({ ydoc, stage, currentDocumentId, currentUserName
     const updateSugs = () => setSuggestions(sugMgr.getSuggestions().filter((s) => !s.resolved));
     sugMgr.observe(updateSugs); updateSugs();
 
-    let annMgr: AnnotationManager | null = null;
-    let updateAnns: (() => void) | null = null;
-    if (stage === "revise") {
-      annMgr = new AnnotationManager(ydoc, currentDocumentId);
-      annotationManagerRef.current = annMgr;
-      updateAnns = () => setAnnotations(annMgr!.getAnnotations().filter((a) => !a.resolved));
-      annMgr.observe(updateAnns); updateAnns();
-    }
+    // Both stages. Notes can be written from Write as well as Revise, and
+    // building the manager only for Revise meant the review badge counted none
+    // of them from the other side.
+    const annMgr = new AnnotationManager(ydoc, currentDocumentId);
+    annotationManagerRef.current = annMgr;
+    const updateAnns = () => setAnnotations(annMgr.getAnnotations().filter((a) => !a.resolved));
+    annMgr.observe(updateAnns); updateAnns();
 
     return () => {
-      if (annMgr && updateAnns) annMgr.unobserve(updateAnns);
+      annMgr.unobserve(updateAnns);
       sugMgr.unobserve(updateSugs);
       annotationManagerRef.current = null;
       sugManagerRef.current = null;
     };
   }, [stage, ydoc, currentDocumentId]);
 
+  /**
+   * Scrolls the card for whatever the caret is in.
+   *
+   * Lint issues are in this list now. They were not, so moving through a
+   * flagged sentence left the sidebar showing an unrelated part of the review
+   * — the editor knew which issue was under the cursor and had no way to say
+   * so.
+   */
   useEffect(() => {
-    const activeId = activeAnnotationId || activeSuggestionId;
-    if (activeId) { const el = cardRefs.current[activeId]; if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
-  }, [activeAnnotationId, activeSuggestionId]);
+    const activeId = activeAnnotationId || activeSuggestionId || activeLintIssueId;
+    if (!activeId) return;
+    const el = cardRefs.current[activeId];
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, [activeAnnotationId, activeSuggestionId, activeLintIssueId]);
 
   const handleCardClick = (item: { start_pos: Y.RelativePosition; end_pos: Y.RelativePosition }) => {
     if (!ydoc) return;
@@ -81,53 +95,57 @@ export function useReviewState({ ydoc, stage, currentDocumentId, currentUserName
     if (startAbs && endAbs) window.dispatchEvent(new CustomEvent('editor-select-range', { detail: { from: startAbs.index, to: endAbs.index } }));
   };
 
-  const handleAcceptSuggestion = async (sug: Suggestion) => {
-    if (!isTeamContext) {
-      if (!sugManagerRef.current) return;
-      const ytext = ydoc!.getText('markdown');
-      const startAbs = toAbsolute(sug.start_pos, ydoc!);
-      const endAbs = toAbsolute(sug.end_pos, ydoc!);
-      if (sug.type === 'delete' && startAbs && endAbs && startAbs.index < endAbs.index) {
-        ydoc!.transact(() => { ytext.delete(startAbs.index, endAbs.index - startAbs.index); }, 'suggestion-apply');
-      }
-      sugManagerRef.current.resolveSuggestion(sug.id, 'accepted');
-      return;
-    }
-    if (!(await guardTeamAuth(isTeamContext, user, 'accept suggestions'))) return;
-    if (!(await guardTeamPermission(isTeamContext, teamPerms.canWriteFile(), 'accept suggestions'))) return;
-    if (!sugManagerRef.current) return;
-    const ytext = ydoc!.getText('markdown');
-    const startAbs = toAbsolute(sug.start_pos, ydoc!);
-    const endAbs = toAbsolute(sug.end_pos, ydoc!);
-    if (sug.type === 'delete' && startAbs && endAbs && startAbs.index < endAbs.index) {
-      ydoc!.transact(() => { ytext.delete(startAbs.index, endAbs.index - startAbs.index); }, 'suggestion-apply');
-    }
-    sugManagerRef.current.resolveSuggestion(sug.id, 'accepted');
+  /**
+   * Selects the exact flagged text, not the start of its line.
+   *
+   * The old handler sent a line index, so clicking "very hard to read
+   * sentence" put the caret at the left margin and left the writer to find
+   * which of the four sentences on that line was meant.
+   */
+  const handleJumpToIssue = (issue: LintIssue) => {
+    useLintSelection.getState().setActiveIssueId(issue.id);
+    window.dispatchEvent(new CustomEvent(REVEAL_LINT_ISSUE, { detail: { issue } }));
   };
 
-  const handleRejectSuggestion = async (sug: Suggestion) => {
-    if (!isTeamContext) {
-      if (!sugManagerRef.current) return;
-      const ytext = ydoc!.getText('markdown');
-      const startAbs = toAbsolute(sug.start_pos, ydoc!);
-      const endAbs = toAbsolute(sug.end_pos, ydoc!);
-      if (sug.type === 'insert' && startAbs && endAbs && startAbs.index < endAbs.index) {
-        ydoc!.transact(() => { ytext.delete(startAbs.index, endAbs.index - startAbs.index); }, 'suggestion-apply');
-      }
-      sugManagerRef.current.resolveSuggestion(sug.id, 'rejected');
-      return;
-    }
-    if (!(await guardTeamAuth(isTeamContext, user, 'reject suggestions'))) return;
-    if (!(await guardTeamPermission(isTeamContext, teamPerms.canReviseFile(), 'reject suggestions'))) return;
-    if (!sugManagerRef.current) return;
-    const ytext = ydoc!.getText('markdown');
-    const startAbs = toAbsolute(sug.start_pos, ydoc!);
-    const endAbs = toAbsolute(sug.end_pos, ydoc!);
-    if (sug.type === 'insert' && startAbs && endAbs && startAbs.index < endAbs.index) {
-      ydoc!.transact(() => { ytext.delete(startAbs.index, endAbs.index - startAbs.index); }, 'suggestion-apply');
-    }
-    sugManagerRef.current.resolveSuggestion(sug.id, 'rejected');
+  const handleApplyFix = (issue: LintIssue, replacement: string) => {
+    window.dispatchEvent(new CustomEvent(APPLY_LINT_FIX, { detail: { issue, replacement } }));
   };
+
+  /**
+   * Settles a suggestion, removing text only when the outcome calls for it.
+   *
+   * Accepting a delete removes the text; rejecting an insert removes it again.
+   * The other two outcomes leave the document alone — an accepted insert is
+   * already in the text, and a rejected delete was never applied.
+   *
+   * Written once. Both handlers used to carry the whole body twice, once for
+   * the non-team early return and once after the guards, so every fix here had
+   * to be made in four places — and the two copies had already drifted on which
+   * permission they checked.
+   */
+  const settleSuggestion = async (sug: Suggestion, outcome: 'accepted' | 'rejected') => {
+    const action = outcome === 'accepted' ? 'accept suggestions' : 'reject suggestions';
+    if (!(await guardTeamAuth(isTeamContext, user, action))) return;
+    // Both outcomes can rewrite the document, so both need the same permission.
+    // Reject asked only for `canReviseFile`, which let a reviser delete text a
+    // writer had added.
+    if (!(await guardTeamPermission(isTeamContext, teamPerms.canWriteFile(), action))) return;
+    if (!sugManagerRef.current || !ydoc) return;
+
+    const removesText = outcome === 'accepted' ? sug.type === 'delete' : sug.type === 'insert';
+    if (removesText) {
+      const startAbs = toAbsolute(sug.start_pos, ydoc);
+      const endAbs = toAbsolute(sug.end_pos, ydoc);
+      if (startAbs && endAbs && startAbs.index < endAbs.index) {
+        const ytext = ydoc.getText('markdown');
+        ydoc.transact(() => { ytext.delete(startAbs.index, endAbs.index - startAbs.index); }, 'suggestion-apply');
+      }
+    }
+    sugManagerRef.current.resolveSuggestion(sug.id, outcome);
+  };
+
+  const handleAcceptSuggestion = (sug: Suggestion) => settleSuggestion(sug, 'accepted');
+  const handleRejectSuggestion = (sug: Suggestion) => settleSuggestion(sug, 'rejected');
 
   const onAddSuggestionReply = (sugId: string, text: string) => {
     if (!sugManagerRef.current) return;
@@ -152,9 +170,9 @@ export function useReviewState({ ydoc, stage, currentDocumentId, currentUserName
 
   return {
     annotations, suggestions, reviewFilter, setReviewFilter, cardRefs,
-    lintAlerts,
-    activeAnnotationId, activeSuggestionId,
-    handleCardClick,
+    lintIssues, readabilityStats, grammarError,
+    activeAnnotationId, activeSuggestionId, activeLintIssueId,
+    handleCardClick, handleJumpToIssue, handleApplyFix,
     handleAcceptSuggestion, handleRejectSuggestion,
     onAddSuggestionReply, onAddAnnotationReply, onResolveAnnotation,
   };

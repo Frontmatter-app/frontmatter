@@ -1,19 +1,16 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import * as Y from "yjs";
 import { createEditor, EditorHandle } from "../../editor/createEditor";
-import { Awareness } from "y-protocols/awareness";
 import { AnnotationManager } from "../../yjs/annotations";
 import { SuggestionManager } from "../../yjs/suggestions";
-import { toAbsolute } from "../../yjs/relativePositions";
+import { AnchorIndex } from "../../yjs/anchorIndex";
 import { useWorkspace } from "../../workspace/WorkspaceProvider";
 import { useAuth } from "../../auth/AuthProvider";
 import { usePlan } from "../../billing/PlanProvider";
 import { EditorView } from "@codemirror/view";
 import { EditorState, Compartment } from "@codemirror/state";
-import { createFontTheme } from "../../editor/themes/themeConfig";
 import { useSettingsStore } from "../../settings/settingsStore";
-import { useValeLintStore } from "../../settings/valeLintStore";
-import { registry } from "../../yjs/DocumentRegistry";
+import { useProseScanStore } from "../../review/proseScanStore";
 import { useDocumentAssets } from "../../images/useDocumentAssets";
 import { getContextFromYdoc } from "../../excalidraw/excalidrawService";
 import { usePlanStore } from "../../billing/PlanProvider";
@@ -21,13 +18,47 @@ import { useSyncStatusStore } from "../../cloud/syncStatusStore";
 import { auth } from "../../auth/firebase";
 import { setCurrentExcalidrawDocumentId, setImageAnnotationManager, setImageAuthorId, setImageYdoc } from "../../editor/extensions/inlinePreview/interactions";
 import { linkCommand } from "../../editor/formatting/commands";
-import { refreshInlinePreviewEffect } from "../../editor/extensions/inlinePreview/settingsRefresh";
-import { valeLintExtension } from "../../editor/extensions/valeLintExtension";
-import { parseDocumentMetrics } from "../../settings/metrics/metricsParser";
+import { proseLintExtension, revealLintIssue } from "../../editor/extensions/proseLintExtension";
+import { autoCorrectExtension } from "../../editor/extensions/autoCorrectExtension";
+import type { AutoCorrectOptions } from "../../editor/extensions/autoCorrect";
 import { suggestionsExtension, setSuggestionsEffect } from "../../editor/extensions/suggestionsExtension";
-import { buildMetricLintAlerts, filterLintAlerts, sanitizeMarkdownForLint } from "../../review/reviewIssues";
-import type { LintIgnoreState } from "../../review/reviewIssues";
+import { analyzeDocument } from "../../review/lintPipeline";
+import { useLintSelection, REVEAL_LINT_ISSUE, APPLY_LINT_FIX } from "../../review/lintSelectionStore";
+import { EMPTY_IGNORE_STATE, type LintIgnoreState, type LintIssue } from "../../review/lintTypes";
 import { getActiveHeading } from "./headingUtils";
+import { guardTeamPermission } from "../../auth/permissionGuards";
+import {
+  useAwareness,
+  useEditorAppearance,
+  useEditorNavigation,
+  useFocusModeAttribute,
+  useTransclusionDocument,
+  setEditorReadOnly as setEditorReadOnlyOn,
+} from "../../editor/useEditorShell";
+import { useTeamPermissions } from "../../auth/teamPermissions";
+import { Transaction } from "@codemirror/state";
+import { v4 as uuid } from "uuid";
+
+/**
+ * Applies an edit the way a keystroke would.
+ *
+ * Two things a bare `view.dispatch({ changes })` skips, both of which the
+ * context menu was skipping:
+ *
+ *  - `EditorState.readOnly` only stops user input, not programmatic dispatch,
+ *    so Cut and Delete still mutated a document the banner called read-only.
+ *  - Suggest mode keys off `Transaction.userEvent`. Without it, an edit made
+ *    from the menu bypassed tracked changes and altered the text outright.
+ */
+function dispatchEdit(
+  view: EditorView,
+  spec: { changes: { from: number; to: number; insert: string }; selection?: { anchor: number } },
+  userEvent: string,
+): boolean {
+  if (view.state.readOnly) return false;
+  view.dispatch({ ...spec, annotations: Transaction.userEvent.of(userEvent) });
+  return true;
+}
 
 const readStr = (v: unknown): string[] => Array.isArray(v) ? v.filter((i): i is string => typeof i === "string") : [];
 const readIgnore = (doc: Y.Doc): LintIgnoreState => { const m = doc.getMap("meta"); return { ignoredItemIds: readStr(m.get("ignored_lint_item_ids")), ignoredRules: readStr(m.get("ignored_lint_rules")), resolvedItemIds: readStr(m.get("resolved_lint_item_ids")) }; };
@@ -39,37 +70,33 @@ export function useReviseEditor(ydoc: Y.Doc, documentId: string) {
   const sc = useRef(new Compartment());
   const [annManager, setAnnManager] = useState<AnnotationManager | null>(null);
   const [focusMode, setFocusMode] = useState(false);
-  const [lintIgnore, setLintIgnore] = useState<LintIgnoreState>({ ignoredItemIds: [], ignoredRules: [], resolvedItemIds: [] });
-  const [awareness, setAwareness] = useState<Awareness | null>(null);
+  const [lintIgnore, setLintIgnore] = useState<LintIgnoreState>(EMPTY_IGNORE_STATE);
   const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [hasSelection, setHasSelection] = useState(false);
   const saved = useRef<{ from: number; to: number } | null>(null);
   const [editorView, setEditorView] = useState<EditorView | null>(null);
   const { setActiveHeading, setActiveAnnotationId, setActiveSuggestionId } = useWorkspace();
   const { settings } = useSettingsStore();
-  const valeAlerts = useValeLintStore((s) => s.alerts);
+  const grammarLints = useProseScanStore((s) => s.grammarLints);
+
+  // The editor is built once, so anything the extensions read at keystroke
+  // time has to come through a ref. Passing the values directly would freeze
+  // whatever they were when the document opened — which is exactly why
+  // toggling prose lint on used to do nothing until the view was remounted.
+  const autoCorrectRef = useRef<AutoCorrectOptions>({ corrections: true, smartPunctuation: true });
+  autoCorrectRef.current = {
+    corrections: settings.autoCorrect ?? true,
+    smartPunctuation: settings.smartPunctuation ?? true,
+  };
   const { user } = useAuth();
   const { isTeam } = usePlan();
+  const teamPerms = useTeamPermissions();
+  const isTeamContext = isTeam;
   const authorId = user?.display_name || user?.email?.split('@')[0] || 'Teammate';
 
-  useEffect(() => {
-    if (!ydoc) { setAwareness(null); return; }
-    if (!documentId) { setAwareness(new Awareness(ydoc)); return; }
-    let active = true, tid: any;
-    const check = () => {
-      const p = registry.getProvider(documentId);
-      if (p) { if (active) setAwareness(p.awareness); }
-      else if (isTeam) tid = setTimeout(check, 50);
-      else if (active) setAwareness(new Awareness(ydoc));
-    };
-    check();
-    return () => { active = false; if (tid) clearTimeout(tid); };
-  }, [ydoc, documentId, isTeam]);
-
-  useEffect(() => {
-    document.body.setAttribute("data-focus-mode", focusMode ? "true" : "false");
-    return () => document.body.removeAttribute("data-focus-mode");
-  }, [focusMode]);
+  const awareness = useAwareness(ydoc, documentId);
+  useFocusModeAttribute(focusMode);
+  useTransclusionDocument(ydoc);
 
   useEffect(() => {
     setCurrentExcalidrawDocumentId(documentId);
@@ -104,29 +131,35 @@ export function useReviseEditor(ydoc: Y.Doc, documentId: string) {
 
     const sMgr = new SuggestionManager(ydoc, documentId);
 
+    // Rebuilt when the lists change or the document does, not on every caret
+    // move — resolving an anchor means decoding it, and this ran once per note
+    // per keystroke.
+    let annIndex = new AnchorIndex(aMgr.getAnnotations(), ydoc);
+    let sugIndex = new AnchorIndex(sMgr.getSuggestions(), ydoc);
+    const reindexAnnotations = () => { annIndex = new AnchorIndex(aMgr.getAnnotations(), ydoc); };
+    const reindexSuggestions = () => { sugIndex = new AnchorIndex(sMgr.getSuggestions(), ydoc); };
+    aMgr.observe(reindexAnnotations);
+    sMgr.observe(reindexSuggestions);
+
     const cl = EditorView.updateListener.of((u) => {
       if (!u.selectionSet && !u.docChanged) return;
+      if (u.docChanged) { reindexAnnotations(); reindexSuggestions(); }
       setActiveHeading(getActiveHeading(u.state));
       const pos = u.state.selection.main.head;
-      const activeAnn = aMgr.getAnnotations().find((a) => {
-        const sa = toAbsolute(a.start_pos, ydoc);
-        const ea = toAbsolute(a.end_pos, ydoc);
-        return sa && ea && pos >= sa.index && pos <= ea.index && !a.resolved;
-      });
-      setActiveAnnotationId(activeAnn ? activeAnn.id : null);
-      const activeSug = sMgr.getSuggestions().find((s) => {
-        const sa = toAbsolute(s.start_pos, ydoc);
-        const ea = toAbsolute(s.end_pos, ydoc);
-        return sa && ea && pos >= sa.index && pos <= ea.index && !s.resolved;
-      });
-      setActiveSuggestionId(activeSug ? activeSug.id : null);
+      setActiveAnnotationId(annIndex.at(pos));
+      setActiveSuggestionId(sugIndex.at(pos));
     });
 
     const handle = createEditor(containerRef.current, ydoc.getText("markdown"), awareness, [
       cl,
       suggestionsExtension(ydoc.getText("markdown"), sMgr, authorId),
       sc.current.of(EditorView.contentAttributes.of({ spellcheck: String(settings.spellCheck ?? true) })),
-      valeLintExtension(settings.showProseLint),
+      // Revise is the only stage that lints and the only stage that corrects.
+      // Write stays a blank page you can type into without being argued with.
+      proseLintExtension({
+        onActivate: (issue) => useLintSelection.getState().setActiveIssueId(issue?.id ?? null),
+      }),
+      autoCorrectExtension(() => autoCorrectRef.current),
     ], aMgr);
     handleRef.current = handle;
     setEditorView(handle.view);
@@ -134,27 +167,6 @@ export function useReviseEditor(ydoc: Y.Doc, documentId: string) {
     handle.view.dispatch({ effects: setSuggestionsEffect.of(sMgr.getSuggestions()) });
     const sugCb = () => { if (handle.view.dom.isConnected) handle.view.dispatch({ effects: setSuggestionsEffect.of(sMgr.getSuggestions()) }); };
     sMgr.observe(sugCb);
-
-    const hScroll = (e: Event) => {
-      const li = (e as CustomEvent).detail?.lineIndex;
-      if (!handleRef.current || typeof li !== "number") return;
-      const v = handleRef.current.view;
-      const ln = Math.min(Math.max(1, li + 1), v.state.doc.lines);
-      const l = v.state.doc.line(ln);
-      v.dispatch({ effects: EditorView.scrollIntoView(l.from, { y: "start", yMargin: 40 }), selection: { anchor: l.from } });
-      v.focus();
-    };
-    window.addEventListener("editor-scroll-to-line", hScroll);
-
-    const hSel = (e: Event) => {
-      const { from, to } = (e as CustomEvent).detail;
-      const v = handle.view;
-      if (typeof from !== "number" || typeof to !== "number") return;
-      v.dispatch({ selection: { anchor: from, head: to }, effects: EditorView.scrollIntoView(from, { y: "center", yMargin: 80 }) });
-      requestAnimationFrame(() => { const n = v.domAtPos(from).node; ((n.nodeType === Node.ELEMENT_NODE ? n : n.parentElement) as Element)?.scrollIntoView({ behavior: "smooth", block: "center" }); });
-      v.focus();
-    };
-    window.addEventListener("editor-select-range", hSel);
 
     const cm = (e: MouseEvent) => {
       e.preventDefault();
@@ -170,8 +182,8 @@ export function useReviseEditor(ydoc: Y.Doc, documentId: string) {
     return () => {
       ydoc.getMap("meta").unobserve(obs);
       sMgr.unobserve(sugCb);
-      window.removeEventListener("editor-scroll-to-line", hScroll);
-      window.removeEventListener("editor-select-range", hSel);
+      aMgr.unobserve(reindexAnnotations);
+      sMgr.unobserve(reindexSuggestions);
       containerRef.current?.removeEventListener("contextmenu", cm);
       handle.destroy();
       handleRef.current = null;
@@ -180,39 +192,86 @@ export function useReviseEditor(ydoc: Y.Doc, documentId: string) {
     };
   }, [ydoc, documentId, awareness, setActiveHeading, setActiveAnnotationId, setActiveSuggestionId, authorId]);
 
-  useEffect(() => { handleRef.current?.view.dispatch({ effects: refreshInlinePreviewEffect.of() }); }, [settings.livePreview]);
+  useEditorNavigation(handleRef);
+  useEditorAppearance(handleRef, settings, sc.current);
 
+  /**
+   * Keeps the highlights current.
+   *
+   * Readability and inclusive language are computed here and cost nothing but
+   * a short debounce, which is why the sentence colours track the sentence you
+   * are editing. Grammar results arriving from Rust, an ignore choice being
+   * made, and the setting being toggled all push through the same function, so
+   * there is one code path instead of the two that had already drifted apart.
+   */
   useEffect(() => {
-    if (!handleRef.current) return;
-    handleRef.current.view.dispatch({ effects: sc.current.reconfigure(EditorView.contentAttributes.of({ spellcheck: String(settings.spellCheck ?? true) })) });
-  }, [settings.spellCheck]);
+    if (!ydoc) return;
+    const ytext = ydoc.getText("markdown");
+    let timer: ReturnType<typeof setTimeout> | null = null;
 
-  useEffect(() => {
-    if (!handleRef.current) return;
-    handleRef.current.view.dispatch({ effects: handleRef.current.fontCompartment.reconfigure(createFontTheme(settings.fontFamily, settings.fontSize, settings.lineHeight ?? "1.8")) });
-  }, [settings.fontFamily, settings.fontSize, settings.lineHeight]);
-
-  useEffect(() => {
-    if (!handleRef.current) return;
-    if (!settings.showProseLint) { handleRef.current.updateValeAlerts([]); return; }
-    const text = ydoc.getText("markdown")?.toString() || "";
-    const metrics = parseDocumentMetrics(sanitizeMarkdownForLint(text));
-    const flat = Object.values(valeAlerts).flat();
-    handleRef.current.updateValeAlerts(filterLintAlerts([...flat, ...buildMetricLintAlerts(metrics)], lintIgnore, text));
-  }, [settings.showProseLint, valeAlerts, ydoc, lintIgnore]);
-
-  useEffect(() => {
-    const refresh = () => {
-      if (!handleRef.current || !settings.showProseLint) { handleRef.current?.updateValeAlerts([]); return; }
-      const text = ydoc.getText("markdown")?.toString() || "";
-      const li = readIgnore(ydoc);
-      setLintIgnore(li);
-      const flat = Object.values(useValeLintStore.getState().alerts).flat();
-      handleRef.current.updateValeAlerts(filterLintAlerts([...flat, ...buildMetricLintAlerts(parseDocumentMetrics(sanitizeMarkdownForLint(text)))], li, text));
+    const push = () => {
+      const handle = handleRef.current;
+      if (!handle) return;
+      if (!settings.showProseLint) {
+        handle.updateLintIssues([]);
+        return;
+      }
+      const { issues } = analyzeDocument(
+        ytext.toString(),
+        useProseScanStore.getState().grammarLints,
+        readIgnore(ydoc),
+      );
+      handle.updateLintIssues(issues);
     };
-    window.addEventListener("editor-refresh-lint", refresh);
-    return () => window.removeEventListener("editor-refresh-lint", refresh);
-  }, [settings.showProseLint, ydoc]);
+
+    const schedule = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(push, 150);
+    };
+
+    push();
+    ytext.observe(schedule);
+    window.addEventListener("editor-refresh-lint", push);
+    return () => {
+      if (timer) clearTimeout(timer);
+      ytext.unobserve(schedule);
+      window.removeEventListener("editor-refresh-lint", push);
+    };
+  }, [ydoc, settings.showProseLint, grammarLints, lintIgnore]);
+
+  /** The sidebar half of the round trip: a card click scrolls the editor. */
+  useEffect(() => {
+    const reveal = (event: Event) => {
+      const issue = (event as CustomEvent<{ issue?: LintIssue }>).detail?.issue;
+      const view = handleRef.current?.view;
+      if (issue && view) revealLintIssue(view, issue);
+    };
+
+    /**
+     * A quick fix taken from a card.
+     *
+     * Unlike autocorrect this carries a user event, so in Revise it becomes a
+     * tracked change like any other edit a reviewer makes — the point of the
+     * stage is that nothing is rewritten behind the writer's back.
+     */
+    const applyFix = (event: Event) => {
+      const { issue, replacement } = (event as CustomEvent<{ issue?: LintIssue; replacement?: string }>).detail ?? {};
+      const view = handleRef.current?.view;
+      if (!issue || replacement === undefined || !view) return;
+      const to = Math.min(issue.to, view.state.doc.length);
+      const from = Math.min(issue.from, to);
+      if (view.state.doc.sliceString(from, to) !== issue.match) return;
+      dispatchEdit(view, { changes: { from, to, insert: replacement }, selection: { anchor: from + replacement.length } }, "input.replace");
+    };
+
+    window.addEventListener(REVEAL_LINT_ISSUE, reveal);
+    window.addEventListener(APPLY_LINT_FIX, applyFix);
+    return () => {
+      window.removeEventListener(REVEAL_LINT_ISSUE, reveal);
+      window.removeEventListener(APPLY_LINT_FIX, applyFix);
+      useLintSelection.getState().setActiveIssueId(null);
+    };
+  }, []);
 
   const handleCopy = useCallback(async () => {
     const v = handleRef.current?.view, s = saved.current;
@@ -224,7 +283,7 @@ export function useReviseEditor(ydoc: Y.Doc, documentId: string) {
     const v = handleRef.current?.view, s = saved.current;
     if (!v || !s || s.from === s.to) return;
     try { await navigator.clipboard.writeText(v.state.doc.sliceString(s.from, s.to)); } catch { }
-    v.dispatch({ changes: { from: s.from, to: s.to, insert: "" }, selection: { anchor: s.from } });
+    dispatchEdit(v, { changes: { from: s.from, to: s.to, insert: "" }, selection: { anchor: s.from } }, "delete");
   }, []);
 
   const handlePaste = useCallback(async () => {
@@ -233,24 +292,27 @@ export function useReviseEditor(ydoc: Y.Doc, documentId: string) {
     let text = "";
     try { text = await navigator.clipboard.readText(); } catch { return; }
     const s = saved.current ?? v.state.selection.main;
-    v.dispatch({ changes: { from: s.from, to: s.to, insert: text }, selection: { anchor: s.from + text.length } });
+    dispatchEdit(v, { changes: { from: s.from, to: s.to, insert: text }, selection: { anchor: s.from + text.length } }, "input.paste");
   }, []);
 
   const handleDelete = useCallback(() => {
     const v = handleRef.current?.view, s = saved.current;
     if (!v || !s || s.from === s.to) return;
-    v.dispatch({ changes: { from: s.from, to: s.to, insert: "" }, selection: { anchor: s.from } });
+    dispatchEdit(v, { changes: { from: s.from, to: s.to, insert: "" }, selection: { anchor: s.from } }, "delete");
   }, []);
 
-  const handleAddNote = useCallback((noteText: string) => {
+  const handleAddNote = useCallback(async (noteText: string) => {
     if (!annManager) return;
     const v = handleRef.current?.view, s = saved.current;
     if (!v || !s) return;
+    // The sidebar guards every other way of touching a note; this path had none
+    // at all, so the context menu was a way around the permission check.
+    if (!(await guardTeamPermission(isTeamContext, teamPerms.canReviseFile(), "add notes"))) return;
     const ytext = ydoc.getText("markdown");
     const st = Y.createRelativePositionFromTypeIndex(ytext, s.from, -1);
     const en = Y.createRelativePositionFromTypeIndex(ytext, s.to, -1);
-    annManager.addAnnotation(Math.random().toString(36).substring(2, 9), documentId, authorId, st, en, v.state.doc.sliceString(s.from, s.to), noteText);
-  }, [annManager, ydoc, documentId, authorId]);
+    annManager.addAnnotation(uuid(), documentId, authorId, st, en, v.state.doc.sliceString(s.from, s.to), noteText);
+  }, [annManager, ydoc, documentId, authorId, isTeamContext, teamPerms]);
 
   const handleInsertLink = useCallback(() => {
     const v = handleRef.current?.view;
@@ -259,8 +321,7 @@ export function useReviseEditor(ydoc: Y.Doc, documentId: string) {
   }, []);
 
   const setEditorReadOnly = useCallback((ro: boolean) => {
-    if (!handleRef.current) return;
-    handleRef.current.view.dispatch({ effects: rc.current.reconfigure(EditorState.readOnly.of(ro)) });
+    setEditorReadOnlyOn(handleRef.current, rc.current, ro);
   }, []);
 
   return { containerRef, annManager, focusMode, contextMenuPos, hasSelection, setEditorReadOnly, handleCopy, handleCut, handlePaste, handleDelete, handleAddNote, handleInsertLink, onCloseContextMenu: useCallback(() => setContextMenuPos(null), []) };

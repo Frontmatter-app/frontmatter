@@ -30,7 +30,7 @@ const DOC = 'doc-1';
 
 beforeAll(async () => {
   testEnv = await initializeTestEnvironment({
-    projectId: 'marktype-rules-test',
+    projectId: 'frontmatter-rules-test',
     firestore: {
       rules: readFileSync('firestore.rules', 'utf8'),
       host: '127.0.0.1',

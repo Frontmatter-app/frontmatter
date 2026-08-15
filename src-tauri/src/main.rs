@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod app_data_migration;
 mod commands;
 mod export;
 mod menu;
@@ -38,6 +39,11 @@ pub struct AppState {
 }
 
 fn main() {
+    // Before Tauri builds anything: the webview opens its storage directory as
+    // it is created, so a previous install's data has to already be in place by
+    // then.
+    app_data_migration::migrate_legacy_app_data();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {

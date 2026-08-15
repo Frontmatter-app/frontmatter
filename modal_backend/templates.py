@@ -1,7 +1,7 @@
 CHECKOUT_SUCCESS = """<!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Checkout Successful | MarkType</title>
+<title>Checkout Successful | Frontmatter</title>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
 <style>*{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Outfit',sans-serif;background:radial-gradient(circle at center,#18181b 0%,#09090b 100%);color:#f4f4f5;min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
@@ -16,7 +16,7 @@ p{font-size:.95rem;color:#a1a1aa;line-height:1.6;margin-bottom:2.25rem}
 .btn{display:inline-block;width:100%;padding:.9rem 2rem;font-size:.95rem;font-weight:600;color:#09090b;background:linear-gradient(135deg,#fb923c 0%,#f59e0b 100%);border:none;border-radius:12px;cursor:pointer;text-decoration:none;box-shadow:0 4px 15px rgba(245,158,11,0.25);transition:all .2s cubic-bezier(0.16,1,0.3,1)}
 .btn:hover{transform:translateY(-2px);box-shadow:0 8px 25px rgba(245,158,11,0.35)}
 </style></head>
-<body><div class="glow"></div><div class="card"><div class="checkmark-wrapper"><svg viewBox="0 0 52 52" width="40" height="40"><circle cx="26" cy="26" r="25" fill="none" stroke="#10b981" stroke-width="3" stroke-dasharray="166" stroke-dashoffset="166"><animate attributeName="stroke-dashoffset" from="166" to="0" dur=".6s" begin=".2s" fill="freeze"/></circle><path d="M14.1 27.2l7.1 7.2 16.7-16.8" fill="none" stroke="#10b981" stroke-width="4" stroke-linecap="round" stroke-dasharray="48" stroke-dashoffset="48"><animate attributeName="stroke-dashoffset" from="48" to="0" dur=".3s" begin=".7s" fill="freeze"/></path></svg></div><h1>Payment Successful!</h1><div class="subtitle">Thank you for upgrading</div><p>Your subscription has been processed successfully. You can now close this tab and return to the MarkType app to access your new plan features.</p><button onclick="window.close()" class="btn">Close Window</button></div></body>
+<body><div class="glow"></div><div class="card"><div class="checkmark-wrapper"><svg viewBox="0 0 52 52" width="40" height="40"><circle cx="26" cy="26" r="25" fill="none" stroke="#10b981" stroke-width="3" stroke-dasharray="166" stroke-dashoffset="166"><animate attributeName="stroke-dashoffset" from="166" to="0" dur=".6s" begin=".2s" fill="freeze"/></circle><path d="M14.1 27.2l7.1 7.2 16.7-16.8" fill="none" stroke="#10b981" stroke-width="4" stroke-linecap="round" stroke-dasharray="48" stroke-dashoffset="48"><animate attributeName="stroke-dashoffset" from="48" to="0" dur=".3s" begin=".7s" fill="freeze"/></path></svg></div><h1>Payment Successful!</h1><div class="subtitle">Thank you for upgrading</div><p>Your subscription has been processed successfully. You can now close this tab and return to the Frontmatter app to access your new plan features.</p><button onclick="window.close()" class="btn">Close Window</button></div></body>
 </html>"""
 
 EMAIL_ADDED_TO_TEAM = """<!DOCTYPE html>
@@ -35,7 +35,7 @@ p{{font-size:15px;color:#a1a1aa;line-height:1.6;margin-bottom:30px}}
 .divider{{height:1px;background:rgba(255,255,255,0.08);margin:30px 0}}
 .footer{{font-size:12px;color:#52525b;margin-top:20px}}
 </style></head>
-<body><div class="wrapper"><div class="container"><div class="logo">MarkType</div><h1>Welcome to the Team!</h1><p><strong>{admin_name}</strong> has added you to the team <strong>"{team_name}"</strong> on MarkType.</p><p>You can now switch to the team workspace in the MarkType app to access shared files and collaborate.</p><a href="marktype://open" class="btn">Open MarkType</a><div class="divider"></div><div class="footer">Please sign the team agreement document on your first switch to the team workspace.</div></div></div></body>
+<body><div class="wrapper"><div class="container"><div class="logo">Frontmatter</div><h1>Welcome to the Team!</h1><p><strong>{admin_name}</strong> has added you to the team <strong>"{team_name}"</strong> on Frontmatter.</p><p>You can now switch to the team workspace in the Frontmatter app to access shared files and collaborate.</p><a href="marktype://open" class="btn">Open Frontmatter</a><div class="divider"></div><div class="footer">Please sign the team agreement document on your first switch to the team workspace.</div></div></div></body>
 </html>"""
 
 EMAIL_INVITATION = """<!DOCTYPE html>
@@ -53,5 +53,5 @@ p{{font-size:15px;color:#a1a1aa;line-height:1.6;margin-bottom:30px}}
 .btn{{display:inline-block;background:linear-gradient(135deg,#fb923c 0%,#f59e0b 100%);color:#09090b!important;font-weight:600;font-size:14px;text-decoration:none;padding:14px 30px;border-radius:12px;box-shadow:0 4px 15px rgba(245,158,11,0.25);margin-bottom:25px}}
 .footer{{font-size:12px;color:#52525b;margin-top:20px}}
 </style></head>
-<body><div class="wrapper"><div class="container"><div class="logo">MarkType</div><h1>You've been invited!</h1><p><strong>{admin_name}</strong> has invited you to join the team <strong>"{team_name}"</strong> on MarkType.</p><p>Once you join, you will be added to the team workspace automatically.</p><a href="https://app.marktype.io/join?token={token}" class="btn">View Invitation</a><div class="divider"></div><p style="font-size:12px;color:#71717a">Or open in the app: <a href="marktype://join?token={token}" style="color:#fb923c;text-decoration:none">marktype://join?token={token}</a></p><div class="footer">This invitation is valid for 7 days.</div></div></div></body>
+<body><div class="wrapper"><div class="container"><div class="logo">Frontmatter</div><h1>You've been invited!</h1><p><strong>{admin_name}</strong> has invited you to join the team <strong>"{team_name}"</strong> on Frontmatter.</p><p>Once you join, you will be added to the team workspace automatically.</p><a href="https://app.marktype.io/join?token={token}" class="btn">View Invitation</a><div class="divider"></div><p style="font-size:12px;color:#71717a">Or open in the app: <a href="marktype://join?token={token}" style="color:#fb923c;text-decoration:none">marktype://join?token={token}</a></p><div class="footer">This invitation is valid for 7 days.</div></div></div></body>
 </html>"""

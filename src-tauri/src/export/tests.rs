@@ -30,7 +30,7 @@ struct TempDir(PathBuf);
 impl TempDir {
     fn new(tag: &str) -> Self {
         let p = std::env::temp_dir().join(format!(
-            "marktype-export-test-{}-{}",
+            "frontmatter-export-test-{}-{}",
             tag,
             uuid::Uuid::new_v4().simple()
         ));

@@ -46,7 +46,7 @@ pub fn default_local_folder_for_context_json(
     workspace_context_json: Option<&str>,
 ) -> Result<std::path::PathBuf, String> {
     let home = dirs::home_dir().ok_or("Could not determine home directory")?;
-    let root = home.join("MarkType");
+    let root = home.join("Frontmatter");
 
     let Some(context_json) = workspace_context_json else {
         return Ok(root.join("Personal"));

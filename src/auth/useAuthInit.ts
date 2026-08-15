@@ -20,7 +20,7 @@ interface UseAuthInitCallbacks {
 export function useAuthInit({ setUser, setSavedAccounts, setAuthState, addAuthEvent, authStateRef, getCustomTokenViaGoogle }: UseAuthInitCallbacks) {
   useEffect(() => {
     let initDone = false;
-    const raw = localStorage.getItem('marktype_saved_accounts');
+    const raw = localStorage.getItem('frontmatter_saved_accounts');
     let list: SavedAccount[] = [];
     try { list = raw ? JSON.parse(raw) : []; setSavedAccounts(list); } catch (_) {}
 
@@ -69,7 +69,7 @@ export function useAuthInit({ setUser, setSavedAccounts, setAuthState, addAuthEv
             try {
               const accounts: SavedAccount[] = JSON.parse(decodeURIComponent(savedAccountsParam));
               if (Array.isArray(accounts) && accounts.length > 0) {
-                localStorage.setItem('marktype_saved_accounts', JSON.stringify(accounts));
+                localStorage.setItem('frontmatter_saved_accounts', JSON.stringify(accounts));
                 setSavedAccounts(accounts);
               }
             } catch {}
@@ -138,7 +138,17 @@ export function useAuthInit({ setUser, setSavedAccounts, setAuthState, addAuthEv
     });
 
     const handleMessage = async (event: MessageEvent) => {
-      if (event?.data?.type === 'marktype-auth' && event.data.payload?.customToken) {
+      // Both names, deliberately.
+      //
+      // The sign-in page is deployed separately from this app, so the two
+      // sides are never upgraded together: a new build will meet the old page
+      // and an old build will meet the new one. Accepting either name means
+      // neither combination locks anyone out. The legacy name can be dropped
+      // once the deployed page has been on the new one long enough that no
+      // stale build is still in use.
+      const isAuthMessage =
+        event?.data?.type === 'frontmatter-auth' || event?.data?.type === 'marktype-auth';
+      if (isAuthMessage && event.data.payload?.customToken) {
         try {
           setAuthState('switchingAccount');
           const payload = event.data.payload;

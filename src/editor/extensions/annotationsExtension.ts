@@ -53,17 +53,23 @@ export const annotationsExtension = (ytext: Y.Text): Extension => {
         const builder = [];
         const annotations = view.state.field(annotationState, false) || [];
 
-        try {
-          for (const ann of annotations) {
+        for (const ann of annotations) {
+          // Per annotation, not around the loop. One unreadable anchor used to
+          // abort the whole build and leave the document with no highlights at
+          // all, silently — the catch was empty.
+          try {
             const startAbs = toAbsolute(ann.start_pos, ytext.doc!);
             const endAbs = toAbsolute(ann.end_pos, ytext.doc!);
 
-            if (startAbs && endAbs && startAbs.index <= endAbs.index) {
+            // Strictly less: an annotation whose text was deleted resolves to an
+            // empty range, and CodeMirror throws on an empty mark decoration.
+            if (startAbs && endAbs && startAbs.index < endAbs.index) {
               const deco = ann.resolved ? resolvedDeco : highlightDeco;
               builder.push(deco.range(startAbs.index, endAbs.index));
             }
+          } catch (e) {
+            console.warn('[annotations] could not place annotation', ann.id, e);
           }
-        } catch (e) {
         }
 
         builder.sort((a, b) => a.from - b.from);

@@ -120,7 +120,7 @@ pub fn get_recent_projects() -> Vec<String> {
 #[tauri::command]
 pub fn add_recent_project(app: tauri::AppHandle, path: String) -> Result<(), String> {
     let home = dirs::home_dir().ok_or("Could not determine home directory")?;
-    let config_dir = home.join("MarkType").join(".app");
+    let config_dir = home.join("Frontmatter").join(".app");
     if !config_dir.exists() {
         std::fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
     }
@@ -151,7 +151,7 @@ pub fn add_recent_project(app: tauri::AppHandle, path: String) -> Result<(), Str
 #[tauri::command]
 pub fn clear_recent_projects(app: tauri::AppHandle) -> Result<(), String> {
     let home = dirs::home_dir().ok_or("Could not determine home directory")?;
-    let config_dir = home.join("MarkType").join(".app");
+    let config_dir = home.join("Frontmatter").join(".app");
     if !config_dir.exists() {
         std::fs::create_dir_all(&config_dir).map_err(|e| e.to_string())?;
     }

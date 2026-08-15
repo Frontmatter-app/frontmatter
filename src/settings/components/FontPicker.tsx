@@ -11,7 +11,7 @@ interface FontPickerProps {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const LAST_USED_KEY = 'marktype_last_used_fonts';
+const LAST_USED_KEY = 'frontmatter_last_used_fonts';
 const MAX_LAST_USED = 5;
 
 /** Curated fallback font list used when queryLocalFonts() is unavailable. */

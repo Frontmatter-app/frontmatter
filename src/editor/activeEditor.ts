@@ -13,6 +13,17 @@ export function setActiveEditorView(view: EditorView | null): void {
   activeView = view;
 }
 
+/**
+ * Clears the pointer only if it still refers to `view`.
+ *
+ * Mounting the next stage's editor happens before the previous one is torn
+ * down, so an unconditional clear on teardown wiped the registration the new
+ * editor had just made and left the menu commands with nothing to act on.
+ */
+export function clearActiveEditorView(view: EditorView): void {
+  if (activeView === view) activeView = null;
+}
+
 /** The focused editor, or `null` when no document is open. */
 export function getActiveEditorView(): EditorView | null {
   // A destroyed view keeps its reference but its DOM is detached.
