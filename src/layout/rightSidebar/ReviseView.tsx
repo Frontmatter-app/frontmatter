@@ -128,7 +128,12 @@ export function ReviseView(props: ReviseViewProps) {
     onUpdateLintIgnore((c) => ({ ...c, resolvedItemIds: addUnique(c.resolvedItemIds, issue.id) }));
 
   return (
-    <div className="flex-1 overflow-y-auto pt-2 flex flex-col gap-3 pb-24">
+    // `px-2 -mx-2` is room for the active card to lift into, not indentation.
+    // Setting `overflow-y` makes the browser compute `overflow-x: auto` too, so
+    // without the padding a tilted, slightly scaled card would clip against
+    // this edge and raise a horizontal scrollbar. The negative margin cancels
+    // the padding, leaving every card exactly the width it was.
+    <div className="flex-1 overflow-y-auto pt-2 px-2 -mx-2 flex flex-col gap-3 pb-24">
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-2">
           <h4 className="text-[10px] font-bold text-gray-400 tracking-wider text-right uppercase">Review</h4>
