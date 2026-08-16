@@ -1,6 +1,7 @@
 import React from 'react';
 import { GitBranch } from 'lucide-react';
 import { useSettingsStore, DEFAULT_VERSION_CONTROL, type VersionControlSettings } from '../../settingsStore';
+import { ConnectForgePanel } from '../../../forge/ConnectForgePanel';
 
 interface Props {
   matches: (label: string, desc: string, key?: string) => boolean;
@@ -37,6 +38,15 @@ export function VersionControlSettings({ matches }: Props) {
         <GitBranch className="w-5 h-5 text-blue-500" />
         Version Control Settings
       </h3>
+
+      {/* The provider connection belongs with git rather than under Accounts:
+          it authorises pushing to repositories, not signing in to Frontmatter,
+          and those are different grants with different consequences. */}
+      {matches('Git provider', 'Connect GitHub to open repositories and commit', 'forge.connection') && (
+        <div className="py-5 border-b border-black/5 dark:border-white/5" style={{ paddingLeft: '1rem' }}>
+          <ConnectForgePanel kind="github" />
+        </div>
+      )}
 
       {matches('Enable Version Control', 'Turn version control on or off for the current workspace', 'versionControl.enabled') && (
         <div className="group relative flex flex-col md:flex-row md:items-start justify-between py-5 border-b border-black/5 dark:border-white/5 transition-all"

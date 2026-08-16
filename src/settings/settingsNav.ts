@@ -107,14 +107,6 @@ export const SETTINGS_NAV: SettingsGroupSpec[] = [
         icon: GitBranch,
         keywords: ['git', 'commit', 'branch', 'remote', 'push', 'pull'],
       },
-      {
-        id: 'team',
-        label: 'Team',
-        description: 'Members, groups, and the membership agreement.',
-        icon: Users,
-        requires: 'team',
-        keywords: ['members', 'groups', 'permissions', 'agreement', 'invite'],
-      },
     ],
   },
   {
@@ -127,13 +119,6 @@ export const SETTINGS_NAV: SettingsGroupSpec[] = [
         description: 'Signed-in accounts and workspace switching.',
         icon: User,
         keywords: ['sign in', 'sign out', 'google', 'switch', 'profile'],
-      },
-      {
-        id: 'billing',
-        label: 'Plan & Billing',
-        description: 'Your subscription and invoices.',
-        icon: CreditCard,
-        keywords: ['plan', 'upgrade', 'subscription', 'invoice', 'payment'],
       },
       {
         id: 'updates',

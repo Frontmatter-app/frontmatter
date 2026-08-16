@@ -30,21 +30,46 @@ describe('settings navigation spec', () => {
 });
 
 describe('visibleSettingsNav', () => {
-  it('hides team settings without a team plan', () => {
-    const visible = visibleSettingsNav(SETTINGS_NAV, { isTeam: false });
-    expect(findCategory(visible, 'team')).toBeUndefined();
-    expect(findCategory(visible, 'general')).toBeDefined();
+  // No shipped category is gated today: the open-source build has every
+  // capability, so `requires` has no consumer in SETTINGS_NAV. The mechanism
+  // is kept because teams return with the git-backed work, derived from
+  // repository collaborators — so it is exercised against a synthetic fixture
+  // rather than by pinning a real category that is not gated any more.
+  const gatedNav = [
+    {
+      id: 'synthetic',
+      label: 'Synthetic',
+      categories: [
+        { id: 'open', label: 'Open', description: '', icon: undefined as never, keywords: [] },
+        {
+          id: 'gated',
+          label: 'Gated',
+          description: '',
+          icon: undefined as never,
+          requires: 'team' as const,
+          keywords: [],
+        },
+      ],
+    },
+  ];
+
+  it('hides a gated category without the capability', () => {
+    const visible = visibleSettingsNav(gatedNav, { isTeam: false });
+    expect(findCategory(visible, 'gated')).toBeUndefined();
+    expect(findCategory(visible, 'open')).toBeDefined();
   });
 
-  it('shows team settings on a team plan', () => {
-    const visible = visibleSettingsNav(SETTINGS_NAV, { isTeam: true });
-    expect(findCategory(visible, 'team')).toBeDefined();
+  it('shows a gated category with the capability', () => {
+    expect(findCategory(visibleSettingsNav(gatedNav, { isTeam: true }), 'gated')).toBeDefined();
+  });
+
+  it('gates nothing in the shipped navigation', () => {
+    // Every capability is available, so filtering must be a no-op.
+    expect(visibleSettingsNav(SETTINGS_NAV, { isTeam: false })).toEqual(SETTINGS_NAV);
   });
 
   it('drops a group whose only category was gated away', () => {
-    const groups = [
-      { id: 'solo', label: 'Solo', categories: [SETTINGS_NAV[2].categories[1]] },
-    ];
+    const groups = [{ id: 'solo', label: 'Solo', categories: [gatedNav[0].categories[1]] }];
     expect(visibleSettingsNav(groups, { isTeam: false })).toEqual([]);
   });
 });
@@ -56,8 +81,8 @@ describe('searchSettingsNav', () => {
   });
 
   it('matches on the label', () => {
-    const results = flattenCategories(searchSettingsNav(SETTINGS_NAV, 'billing'));
-    expect(results.map((c) => c.id)).toContain('billing');
+    const results = flattenCategories(searchSettingsNav(SETTINGS_NAV, 'Version Control'));
+    expect(results.map((c) => c.id)).toContain('versionControl');
   });
 
   it('matches on keywords that are not in the label', () => {
@@ -67,8 +92,8 @@ describe('searchSettingsNav', () => {
   });
 
   it('matches on the description', () => {
-    const results = flattenCategories(searchSettingsNav(SETTINGS_NAV, 'invoices'));
-    expect(results.map((c) => c.id)).toContain('billing');
+    const results = flattenCategories(searchSettingsNav(SETTINGS_NAV, 'remotes'));
+    expect(results.map((c) => c.id)).toContain('versionControl');
   });
 
   it('is case insensitive and ignores surrounding space', () => {
@@ -93,13 +118,12 @@ describe('resolveActiveCategory', () => {
   });
 
   it('falls back to the first category when the request was filtered away', () => {
-    const filtered = searchSettingsNav(SETTINGS_NAV, 'billing');
-    expect(resolveActiveCategory(filtered, 'editor')).toBe('billing');
+    const filtered = searchSettingsNav(SETTINGS_NAV, 'remotes');
+    expect(resolveActiveCategory(filtered, 'editor')).toBe('versionControl');
   });
 
-  it('falls back when the plan no longer includes the stored category', () => {
-    const visible = visibleSettingsNav(SETTINGS_NAV, { isTeam: false });
-    expect(resolveActiveCategory(visible, 'team')).toBe('general');
+  it('falls back when the stored category is not available', () => {
+    expect(resolveActiveCategory(SETTINGS_NAV, 'no-such-category')).toBe('general');
   });
 
   it('returns undefined when nothing is available', () => {
