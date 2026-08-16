@@ -1,0 +1,81 @@
+# Frontmatter Sync — self-hosted collaboration server.
+#
+#     docker compose up
+#
+# That is the whole setup. No cloud accounts, no identity provider, no object
+# storage: accounts are handled in-process, state is SQLite on a volume, and
+# snapshots are files. Postgres and S3 are available when you outgrow those,
+# but neither is required to start.
+#
+# Point the desktop app at it with:
+#     VITE_COLLAB_WS_URL=ws://localhost:8000/collab
+
+services:
+  server:
+    build:
+      context: ./server
+    image: frontmatter/sync:latest
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      # The database and snapshots. Back this up — it is the durability
+      # boundary for anything edited but not yet committed to git.
+      - frontmatter-data:/data
+    environment:
+      # ── Sessions ──────────────────────────────────────────────────────────
+      # CHANGE THIS. Without it a random key is generated per boot, so every
+      # restart signs everyone out. Generate one with:
+      #     python -c "import secrets; print(secrets.token_urlsafe(48))"
+      FM_SECRET_KEY: ${FM_SECRET_KEY:-}
+
+      # ── Identity ──────────────────────────────────────────────────────────
+      # builtin = accounts on this server. Also: oidc, forge.
+      FM_IDENTITY: builtin
+      FM_ALLOW_REGISTRATION: "true"
+      # Turn on once mail is configured, or nobody can confirm an address.
+      FM_REQUIRE_EMAIL_VERIFICATION: "false"
+
+      # ── Mail ──────────────────────────────────────────────────────────────
+      # `console` prints password-reset mail to the container log, so a first
+      # boot is usable before SMTP exists. Switch to `smtp` for real use.
+      FM_MAILER: ${FM_MAILER:-console}
+      FM_SMTP_HOST: ${FM_SMTP_HOST:-}
+      FM_SMTP_PORT: ${FM_SMTP_PORT:-587}
+      FM_SMTP_USERNAME: ${FM_SMTP_USERNAME:-}
+      FM_SMTP_PASSWORD: ${FM_SMTP_PASSWORD:-}
+      FM_MAIL_FROM: ${FM_MAIL_FROM:-Frontmatter <noreply@localhost>}
+
+      # ── Storage ───────────────────────────────────────────────────────────
+      FM_DATABASE_URL: sqlite+aiosqlite:////data/frontmatter.db
+      FM_SNAPSHOT_STORE: filesystem
+      FM_SNAPSHOT_PATH: /data/snapshots
+
+      # ── HTTP ──────────────────────────────────────────────────────────────
+      # Used in password-reset and verification links, so it must be the URL
+      # users actually reach — not localhost, once this is behind a proxy.
+      FM_PUBLIC_URL: ${FM_PUBLIC_URL:-http://localhost:8000}
+      FM_CORS_ORIGINS: ${FM_CORS_ORIGINS:-*}
+
+volumes:
+  frontmatter-data:
+
+# ── Postgres ─────────────────────────────────────────────────────────────────
+# SQLite is the default and is genuinely fine for a team: the server stores
+# accounts and session metadata, not documents. If you want Postgres, uncomment
+# `asyncpg` in server/requirements.txt, add the service below, and set
+# FM_DATABASE_URL=postgresql+asyncpg://frontmatter:CHANGEME@db:5432/frontmatter
+#
+#  db:
+#    image: postgres:16-alpine
+#    restart: unless-stopped
+#    environment:
+#      POSTGRES_USER: frontmatter
+#      POSTGRES_PASSWORD: CHANGEME
+#      POSTGRES_DB: frontmatter
+#    volumes:
+#      - frontmatter-db:/var/lib/postgresql/data
+#    healthcheck:
+#      test: ["CMD-SHELL", "pg_isready -U frontmatter"]
+#      interval: 10s
+#      retries: 5

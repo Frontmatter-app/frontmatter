@@ -76,26 +76,68 @@ jobs:
       - name: Test
         run: npm run test:rust
 
-  rules:
-    name: Firestore rules
+  server:
+    name: Server (pytest)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-python@v5
         with:
-          node-version: 20
-          cache: npm
+          python-version: "3.12"
+          cache: pip
 
-      # The rules suite runs against the Firebase emulator, which needs a JVM.
-      - uses: actions/setup-java@v4
+      - run: pip install -r server/requirements.txt pytest pytest-asyncio httpx
+      - run: python -m pytest tests -q
+        working-directory: server
+
+  container:
+    name: Container (real deployment artifact)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # This is the job that matters most: it builds the same image a
+      # self-hoster runs and drives it over HTTP and a real websocket. The
+      # pytest job above exercises the app in-process, which cannot catch
+      # packaging faults — a config value that only fails when it arrives from
+      # the environment, a missing file in the image, a wrong working
+      # directory. One such bug (FM_CORS_ORIGINS) was found by the container
+      # and invisible to the in-process tests.
+      - name: Build the image
+        run: docker compose build
+
+      - name: Start it
+        run: docker compose up -d
+
+      - name: Wait for health
+        run: |
+          for _ in $(seq 1 60); do
+            if curl -sf http://localhost:8000/health >/dev/null; then
+              echo "healthy"; exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::server never became healthy"
+          docker compose logs server
+          exit 1
+
+      - uses: actions/setup-python@v5
         with:
-          distribution: temurin
-          java-version: 17
+          python-version: "3.12"
 
-      - run: npm ci
-      - run: npm install -g firebase-tools
-      - run: npm run test:rules
+      - name: Verify the running server
+        run: |
+          pip install websockets pycrdt
+          ./scripts/verify-server.sh http://localhost:8000
+
+      - name: Server logs
+        if: always()
+        run: docker compose logs server
+
+      - name: Stop
+        if: always()
+        run: docker compose down -v
 
   licenses:
     name: License hygiene

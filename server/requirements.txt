@@ -1,0 +1,31 @@
+# Frontmatter Sync — collaboration server
+#
+# Nothing here requires a cloud account. boto3 is present only for the optional
+# S3 snapshot adapter; the default snapshot store is a directory.
+
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+websockets==14.1
+
+# Yjs CRDT, server side. Must stay wire-compatible with the `yjs` version the
+# desktop app bundles — a mismatch shows up as silent non-convergence rather
+# than an error, so bump the two together.
+#
+# 0.14 rather than the 0.10 the old backend pinned: 0.10 builds its native
+# extension through a PyO3 that refuses Python 3.13+, so it cannot be installed
+# on a current interpreter at all. The y-crdt wire format is unchanged.
+pycrdt==0.14.2
+
+# Identity. A library rather than a service, so the deployment stays one
+# process. Owns password hashing, verification and reset tokens.
+fastapi-users[sqlalchemy]==14.0.1
+
+sqlalchemy[asyncio]==2.0.52
+aiosqlite==0.20.0
+# Uncomment for Postgres:
+# asyncpg==0.30.0
+
+pydantic-settings==2.7.0
+
+# Optional: only imported when FM_SNAPSHOT_STORE=s3
+boto3==1.35.0
