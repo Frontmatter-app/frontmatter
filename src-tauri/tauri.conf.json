@@ -8,7 +8,7 @@
   "bundle": {
     "active": true,
     "category": "DeveloperTool",
-    "copyright": "",
+    "copyright": "Copyright © 2026 Frontmatter contributors. Licensed under the GNU AGPL v3 or later.",
     "targets": "all",
     "icon": [
       "icons/32x32.png",
@@ -22,7 +22,7 @@
       "digestAlgorithm": "sha256",
       "timestampUrl": ""
     },
-    "longDescription": "",
+    "longDescription": "Frontmatter is a markdown writing app built around a draft/write/revise workflow, with live preview, math, diagrams, prose linting, real-time collaboration, and static site publishing. Your documents stay plain markdown files in your own git repository.",
     "macOS": {
       "entitlements": null,
       "exceptionDomain": "",
@@ -33,7 +33,7 @@
     "resources": [
       "binaries/*"
     ],
-    "shortDescription": "",
+    "shortDescription": "Markdown writing, backed by your own git repository.",
     "linux": {
       "deb": {
         "depends": []

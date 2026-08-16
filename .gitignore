@@ -14,4 +14,7 @@ src-tauri/target/
 src-tauri/gen/
 src-tauri/node_modules/
 src-tauri/.tauri/
-src-tauri/binaries/
+# The Zola binary is fetched by scripts/fetch-zola.sh, not committed. Its
+# license text ships beside it in the bundle, so that one file is tracked.
+src-tauri/binaries/*
+!src-tauri/binaries/LICENSE-zola

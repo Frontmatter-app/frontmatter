@@ -1,9 +1,13 @@
 [package]
 name = "frontmatter"
 version = "1.0.0"
-description = "A Tauri App"
-authors = ["you"]
+description = "A markdown writing app where your documents are files in your own git repository."
+authors = ["Frontmatter contributors"]
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/frontmatter-app/frontmatter"
+homepage = "https://frontmatter.app"
 edition = "2021"
+publish = false
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

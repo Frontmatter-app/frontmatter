@@ -2,6 +2,13 @@
   "name": "frontmatter",
   "private": true,
   "version": "0.0.0",
+  "description": "A markdown writing app where your documents are files in your own git repository.",
+  "license": "AGPL-3.0-or-later",
+  "homepage": "https://frontmatter.app",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/frontmatter-app/frontmatter.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",

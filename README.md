@@ -1,355 +1,223 @@
-# Frontmatter Markdown Test Tutorial
+# Frontmatter
 
-Paste this whole document into the editor to test markdown preview, syntax highlighting, math, diagrams, tables, images, custom blocks, and referenceable objects.
+**A markdown writing app where your documents are files in your own git repository.**
 
----
+Frontmatter is a desktop writing environment for people who write seriously in
+markdown — documentation, books, blogs, knowledge bases. It has a real editor, a
+draft → write → revise workflow, prose linting, real-time collaboration, and a
+static-site publisher.
 
-## 1. Headings
+What makes it different is where your writing lives. There is no proprietary
+vault, no export button, no database you cannot read. **Your documents are plain
+markdown files in a git repository you control**, and collaborative editing
+commits to it.
 
-# Heading 1
+Free and open source under the [AGPL-3.0](LICENSE). Self-host the collaboration
+layer, or use [Frontmatter Cloud](https://frontmatter.app) and let us run it.
 
-## Heading 2
-
-### Heading 3
-
-#### Heading 4
-
-##### Heading 5
-
-###### Heading 6
-
----
-
-## 2. Inline Formatting
-
-This paragraph includes **bold text**, __also bold__, *italic text*, _also italic_, ***bold italic***, ~~strikethrough~~, `inline code`, and a normal sentence after it.
-
-You can mix links with emphasis: [OpenAI](https://openai.com), **[bold link](https://example.com)**, and an automatic-looking URL: https://example.com.
-
-Escaped markdown should remain literal: \*not italic\*, \`not code\`, and \$not math\$.
+> **Status:** the git-backed collaboration described below is being built in the
+> open. See [Roadmap](#roadmap) for what works today and what is in progress.
 
 ---
 
-## 3. Lists
+## Why
 
-Unordered list:
-
-- Apples
-- Oranges
-- Pears
-  - Green pears
-  - Red pears
-
-Ordered list:
-
-1. Draft
-2. Write
-3. Revise
-4. Publish
-
-Task list:
-
-- [x] Render checkboxes
-- [ ] Toggle incomplete task
-- [ ] Keep indentation stable
+| | Frontmatter |
+|---|---|
+| **vs. Obsidian** | Real-time collaboration, and sync is your own repo rather than a paid proprietary service |
+| **vs. Notion / Google Docs** | Plain markdown in a repo you own, with real version control — not an export button |
+| **vs. HackMD / Outline** | They collaborate, but *their* database is the source of truth. Here git is |
+| **vs. VS Code + Live Share** | That is a code tool. This has writing stages, prose linting, annotations, suggestions, and publishing themes |
 
 ---
 
-## 4. Blockquotes
+## Features
 
-> A blockquote should get a quiet left border.
-> It can continue across multiple lines.
+**Editor** — CodeMirror 6 with inline live preview, KaTeX math, Mermaid
+diagrams, syntax-highlighted code fences, callout blocks, and `@`-referenceable
+blocks you can transclude across documents.
 
-Nested blockquote:
+**Workflow** — three stages with different affordances. *Draft* for structure,
+*Write* for prose, *Revise* for editing passes with annotations and tracked
+suggestions.
 
-> Outer quote
->
-> > Inner quote
+**Prose linting** — readability scoring, offline grammar checking via
+[Harper](https://github.com/automattic/harper), and inclusive-language checks.
+No text leaves your machine.
 
----
+**Collaboration** — real-time multi-cursor editing built on
+[Yjs](https://yjs.dev), with presence, comment threads, and suggested edits.
 
-## 5. Tables
+**Publishing** — build a static site from your workspace across eight site
+types (docs, blog, book, slides, wiki, portfolio, changelog, knowledge base),
+each with themes, powered by a bundled [Zola](https://www.getzola.org).
 
-| Feature | Syntax | Expected Preview |
-| --- | --- | --- |
-| Bold | `**text**` | Strong text |
-| Inline math | `$x^2$` | Rendered KaTeX |
-| Diagrams | ```mermaid``` | Rendered Mermaid block |
-| References | `ref="id"` | Searchable with `@` |
-
-Referenceable table:
-
-| Name | Role | Status |
-| --- | --- | --- |
-| Ada | Research | Active |
-| Grace | Systems | Active |
-| Katherine | Analysis | Active |
-
-{ref="people-table"}
-
-After saving/indexing, type `@people-table` somewhere else to test table references.
+**Local-first** — a SQLite index per workspace, a file watcher that reconciles
+changes made outside the app, full-text search, and version snapshots.
 
 ---
 
-## 6. Code Blocks
+## Getting started
 
-CodeMirror already handles editor-side syntax highlighting for many fenced languages.
+### Requirements
 
-Referenceable JavaScript:
+- [Node.js](https://nodejs.org) 20+
+- [Rust](https://rustup.rs) stable
+- Platform prerequisites for [Tauri 2](https://v2.tauri.app/start/prerequisites/)
+- `git` on your `PATH` (Frontmatter drives the system `git` binary)
 
-```javascript id="hello-js" ref="hello-js"
-const name = "Frontmatter";
-function greet(person) {
-  return `Hello, ${person}!`;
-}
+### Run it
 
-console.log(greet(name));
+```bash
+# --recursive matters: the publishing themes are a submodule.
+git clone --recursive https://github.com/frontmatter-app/frontmatter.git
+cd frontmatter
+
+npm install
+./scripts/fetch-zola.sh     # downloads the bundled site generator (~34 MB)
+
+npm run tauri dev
 ```
 
-Referenceable Python:
+Already cloned without `--recursive`? `git submodule update --init` fills in
+`themes/`.
 
-```python id="hello-python" ref="hello-python"
-from dataclasses import dataclass
+You do **not** need a `.env` file, a Firebase project, or an account. An empty
+config gives you the full local app. Copy [`.env.example`](.env.example) to
+`.env` only when you want to point the app at a collaboration server.
 
-@dataclass
-class User:
-    name: str
-    active: bool = True
+### Build a release
 
-print(User("Ada"))
+```bash
+npm run tauri build
 ```
 
-Rust:
-
-```rust id="hello-rust" ref="hello-rust"
-fn main() {
-    let values = vec![1, 2, 3, 4];
-    let total: i32 = values.iter().sum();
-    println!("total = {}", total);
-}
-```
-
-JSON:
-
-```json ref="sample-json"
-{
-  "name": "Frontmatter",
-  "features": ["markdown", "math", "diagrams", "references"],
-  "ready": true
-}
-```
-
-Bash:
-
-```bash ref="sample-bash"
-echo "Listing markdown files"
-find . -name "*.md" -maxdepth 3
-```
-
-Plain text fallback:
-
-```text ref="plain-note"
-This is a plain text block.
-It should still be referenceable, even without language-specific highlighting.
-```
+Both `npm run dev` and `npm run build` run the full test suite first
+(`predev` / `prebuild`). A failing test or a stale IPC contract stops the build
+on purpose.
 
 ---
 
-## 7. Math
+## Self-hosting the collaboration layer
 
-Inline math should render inside text: $E = mc^2$, $a^2 + b^2 = c^2$, and $\int_0^1 x^2 dx = \frac{1}{3}$.
+Collaboration runs through a server that holds the live document state and
+persists it. It is part of this repository and carries the same AGPL license as
+the app — there is no separate "enterprise" server.
 
-Block math:
-
-$$
-\frac{d}{dx}\left( x^n \right) = n x^{n-1}
-$$
-
-Referenceable math block:
-
-$$ {ref="energy-equation"}
-E = mc^2
-$$
-
-Another referenceable math block:
-
-$$ {ref="bayes-rule"}
-P(A \mid B) = \frac{P(B \mid A)P(A)}{P(B)}
-$$
-
-After saving/indexing, type `@energy-equation` or `@bayes-rule` to test math references.
-
----
-
-## 8. Mermaid Diagrams
-
-Flowchart:
-
-```mermaid ref="flowchart-demo"
-flowchart TD
-  A[Start] --> B{Need markdown?}
-  B -- Yes --> C[Write content]
-  B -- No --> D[Keep thinking]
-  C --> E[Preview]
-  D --> E
+```bash
+docker compose up
 ```
 
-Sequence diagram:
+Then point the app at it by setting one variable:
 
-```mermaid ref="sequence-demo"
-sequenceDiagram
-  participant User
-  participant Editor
-  participant Indexer
-  User->>Editor: Type @
-  Editor->>Indexer: Search referenceable blocks
-  Indexer-->>Editor: Return matches
-  Editor-->>User: Insert selected reference
+```
+VITE_COLLAB_WS_URL=ws://localhost:8000/collab
 ```
 
-Class diagram:
+The default configuration needs **no cloud accounts and no third-party
+services**. It is one process you can put on a VM:
 
-```mermaid ref="class-demo"
-classDiagram
-  class Document {
-    +string title
-    +string markdown
-    +save()
-  }
-  class Reference {
-    +string refId
-    +sync()
-  }
-  Document --> Reference
+- **Accounts** are handled by the server itself — email and password, magic
+  links, verification and reset. Sign in with GitHub/GitLab, or plug in your own
+  OIDC provider (Keycloak, Authentik, Zitadel, Okta) if you prefer.
+- **Storage** is SQLite by default — one file — with Postgres available when you
+  outgrow it. Snapshots go to a local volume.
+- **Your documents never live here.** They are files in your git repository. The
+  server holds live editing state and nothing else. It never receives your git
+  credentials: commits are made by the app, from your machine.
+
+See [SELF_HOSTING.md](SELF_HOSTING.md) for deployment, identity, and storage
+options.
+
+**Frontmatter Cloud** is this same server, hosted by us, sold with a one-year
+license key. The key gates access to our servers — it does not unlock features
+in the binary. The self-hosted build has every feature, with no seat cap.
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────┐
+│  Desktop app (Tauri 2)                          │
+│                                                 │
+│  React 19 + CodeMirror 6      ←→   Rust core    │
+│  Yjs CRDT documents                SQLite index │
+│                                    File watcher │
+│                                    git, Zola    │
+└────────────────────┬────────────────────────────┘
+                     │ y-websocket
+┌────────────────────▼────────────────────────────┐
+│  Collaboration server (FastAPI + pycrdt)        │
+│                                                 │
+│  Rooms, accounts, snapshots. One process.       │
+│  SQLite or Postgres. No cloud dependencies.     │
+│  Holds no git credentials — the app commits.    │
+└─────────────────────────────────────────────────┘
 ```
 
-After saving/indexing, type `@flowchart-demo`, `@sequence-demo`, or `@class-demo` to test diagram references.
+| Path | What lives there |
+|---|---|
+| `src/editor/` | CodeMirror setup and extensions |
+| `src/workflow/` | Draft / Write / Revise stage views |
+| `src/yjs/` | CRDT documents, annotations, suggestions, anchors |
+| `src/review/` | Readability, grammar, inclusive-language linting |
+| `src/data/` | Ports-and-adapters data boundary |
+| `src/features/` | Feature registry — the only wiring point for optional features |
+| `src/ipc/` | Generated Rust↔TypeScript command contract |
+| `src-tauri/src/` | Rust core: SQLite, watcher, indexer, git, grammar, export |
+| `server/` | Collaboration server |
+| `themes/` | Publishing themes |
+
+Two conventions are load-bearing and enforced by tests:
+
+**Ports and adapters.** Every data port in [`src/data/ports.ts`](src/data/ports.ts)
+has at least two implementations — a real one and an in-memory fake — so UI
+components render without a network. Components never import a backend SDK
+directly.
+
+**The feature registry.** Nothing outside `src/features/` may import a feature
+module by path. A feature can be deleted by removing its directory and its line
+from the manifest, and the app still boots. Each feature carries a `selfTest()`
+that the build gate runs.
 
 ---
 
-## 9. Images
+## Roadmap
 
-Remote image:
+Frontmatter is mid-way through becoming git-native. Today the local app and the
+collaboration layer are separate systems; the work in progress joins them so
+that live collaborative edits land as real commits in your repository.
 
-![Small placeholder image](https://placehold.co/600x240/png)
-
-Reference-style image:
-
-![Reference image][sample-image]
-
-[sample-image]: https://placehold.co/480x180/png "Reference image title"
-
-Referenceable standalone image:
-
-![Referenceable image](https://placehold.co/500x220/png) {ref="placeholder-image"}
-
-After saving/indexing, type `@placeholder-image` to test image references.
-
----
-
-## 10. Reference-Style Links
-
-This is a [reference-style link][docs-link].
-
-[docs-link]: https://commonmark.org/help/ "CommonMark help"
-
-This should preserve the existing markdown reference-definition behavior used by links and images.
+- [x] Local workspaces, SQLite index, full-text search, snapshots
+- [x] Editor, workflow stages, prose linting, publishing
+- [x] Real-time collaboration over Yjs
+- [ ] Connect a git provider (GitHub, GitLab, Gitea) and open a repo
+- [ ] Commit and push as your connected identity
+- [ ] Standalone server with built-in accounts and no cloud dependencies
+- [ ] **Git-backed rooms** — collaborative edits committed to your repo
+- [ ] Teams derived from repository collaborators
+- [ ] Publish straight to GitHub / GitLab Pages
+- [ ] Remove Firebase entirely
 
 ---
 
-## 11. Custom Block Tags
+## Contributing
 
-<note>
-This is a note block. The opening and closing tags should collapse or show based on live preview settings.
-</note>
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the
+development setup, testing requirements, and the architectural conventions
+above. Security issues go to [SECURITY.md](SECURITY.md), not the public issue
+tracker.
 
-<warning>
-This is a warning block. It should have a different accent from the note block.
-</warning>
+## License
 
-<tip>
-This is a tip block. Use it for helpful side information.
-</tip>
+Frontmatter is licensed under the **GNU Affero General Public License v3.0 or
+later** — see [LICENSE](LICENSE).
 
-<details>
-This is a details block. It should keep the content visually grouped.
-</details>
+The AGPL means you may use, modify, self-host, and redistribute Frontmatter
+freely. If you run a modified version as a network service for others, you must
+offer those users its source. Third-party components ship under their own
+licenses, listed in [NOTICE](NOTICE).
 
----
-
-## 12. Mixed Content Stress Test
-
-Here is a paragraph with **bold**, `inline code`, inline math $\sqrt{144} = 12$, a [link](https://example.com), and a reference-style image below.
-
-| Metric | Formula | Result |
-| --- | --- | --- |
-| Area | `$A = \pi r^2$` | Circle area |
-| Energy | `$E = mc^2$` | Mass-energy |
-
-```typescript ref="mixed-typescript"
-type MarkdownFeature = {
-  name: string;
-  enabled: boolean;
-};
-
-const features: MarkdownFeature[] = [
-  { name: "math", enabled: true },
-  { name: "diagrams", enabled: true },
-  { name: "references", enabled: true },
-];
-
-console.table(features);
-```
-
-$$ {ref="quadratic-formula"}
-x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}
-$$
-
-```mermaid ref="mixed-diagram"
-flowchart LR
-  Markdown --> Preview
-  Preview --> References
-  References --> Sync
-```
-
----
-
-## 13. Reference Picker Checklist
-
-After saving or letting the workspace index this document, try typing `@` and searching for:
-
-- `hello-js`
-- `hello-python`
-- `hello-rust`
-- `sample-json`
-- `energy-equation`
-- `bayes-rule`
-- `flowchart-demo`
-- `sequence-demo`
-- `placeholder-image`
-- `people-table`
-- `quadratic-formula`
-- `mixed-diagram`
-
-Expected behavior:
-
-1. Code blocks appear as `CodeBlock` entries and may offer insert or run actions.
-2. Mermaid blocks appear as `Diagram` entries.
-3. Math blocks appear as `MathBlock` entries.
-4. Tables and images remain referenceable when they include `ref="..."`.
-5. Inserted references should preserve their original markdown shape.
-
----
-
-## 14. Editing Test
-
-Move your cursor into each preview block. Nearby block previews should reveal the source markdown so you can edit it. Move the cursor away and the preview should return.
-
-Try changing:
-
-- `$E = mc^2$` to `$F = ma$`
-- `graph TD` to `flowchart LR`
-- A table cell value
-- A code block language from `javascript` to `python`
-- A `ref="..."` id, then search for the new id with `@`
-
+For a commercial license that lifts the AGPL's source-sharing requirement,
+contact [licensing@frontmatter.app](mailto:licensing@frontmatter.app).

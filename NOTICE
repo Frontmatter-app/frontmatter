@@ -1,0 +1,156 @@
+Frontmatter
+Copyright © 2026 Frontmatter contributors
+
+This product is licensed under the GNU Affero General Public License,
+version 3 or later. The full license text is in the LICENSE file at the
+root of this repository.
+
+Frontmatter bundles, links, or redistributes the third-party components
+listed below. Each remains under its own license, and nothing in this
+NOTICE alters those terms.
+
+
+================================================================================
+1. Redistributed binaries
+================================================================================
+
+These ship inside the installed application, so their license text must
+accompany every distributed build.
+
+  Zola 0.19.2 — static site generator
+      Copyright © 2017-2018 Vincent Prouillet
+      License: MIT
+      https://github.com/getzola/zola
+
+      Bundled at `src-tauri/binaries/zola` and declared as a Tauri resource
+      in `src-tauri/tauri.conf.json`. It is invoked as a subprocess by
+      `src-tauri/src/export/zola.rs` to build published sites. It is not
+      linked into Frontmatter and is not a derived work of it.
+
+      A verbatim copy of the MIT license as published for v0.19.2 is kept
+      alongside the binary at `src-tauri/binaries/LICENSE-zola`, and ships
+      in every build via the `binaries/*` resource glob.
+
+      ⚠ THE VERSION PIN IS A LICENSING DECISION, NOT ONLY A COMPATIBILITY ONE.
+      Zola relicensed from MIT to the European Union Public Licence v1.2
+      after v0.19.2. EUPL-1.2 is a copyleft license with its own distribution
+      obligations. Do not bump the bundled Zola without re-reviewing those
+      terms and updating this NOTICE; `scripts/fetch-zola.sh` pins the
+      version for exactly this reason.
+
+
+================================================================================
+2. Rust crates linked into the desktop application
+================================================================================
+
+Statically linked into the Frontmatter binary. Full dependency versions are
+pinned in `src-tauri/Cargo.lock`.
+
+  harper-core 2.8.0 ......................... Apache-2.0
+      Offline grammar and style checking. Copyright © Elijah Potter and
+      Harper contributors. https://github.com/automattic/harper
+
+  tauri 2.11.2 .............................. Apache-2.0 OR MIT
+  sqlx 0.7.4 ................................ Apache-2.0 OR MIT
+  tokio 1.52.3 .............................. MIT
+  serde 1.0.228 ............................. Apache-2.0 OR MIT
+  pulldown-cmark 0.11.3 ..................... MIT
+  notify 6.1.1 .............................. CC0-1.0 OR Artistic-2.0
+  rfd 0.14.1 ................................ MIT
+  zip 2.4.2 ................................. MIT
+  regex 1.12.3 .............................. Apache-2.0 OR MIT
+  chrono 0.4.44 ............................. Apache-2.0 OR MIT
+  uuid 1.23.1 ............................... Apache-2.0 OR MIT
+  window-vibrancy 0.6.0 ..................... Apache-2.0 OR MIT
+  linguist 0.1.10 ........................... MIT
+  serde_yaml 0.9.34 ......................... Apache-2.0 OR MIT
+  toml 0.8.2 ................................ Apache-2.0 OR MIT
+  glob 0.3.3 ................................ Apache-2.0 OR MIT
+  sha2 0.10.9 ............................... Apache-2.0 OR MIT
+  url 2.5.8 ................................. Apache-2.0 OR MIT
+  rand 0.8.6 ................................ Apache-2.0 OR MIT
+  dirs 5.0.1 ................................ Apache-2.0 OR MIT
+  once_cell 1.21.4 .......................... Apache-2.0 OR MIT
+  tracing 0.1.44 ............................ MIT
+
+  Where a crate offers a choice of licenses, Frontmatter relies on the MIT
+  option unless stated otherwise.
+
+
+================================================================================
+3. JavaScript packages bundled into the application frontend
+================================================================================
+
+Compiled into the shipped frontend bundle by Vite. Versions are pinned in
+`package-lock.json`.
+
+  Editor
+    @codemirror/* .......................... MIT   (CodeMirror 6)
+    @lezer/markdown ........................ MIT
+    y-codemirror.next ...................... MIT
+
+  Collaboration
+    yjs .................................... MIT
+    y-websocket ............................ MIT
+    y-protocols ............................ MIT
+
+  Rendering
+    katex .................................. MIT
+    mermaid ................................ MIT
+    markdown-it ............................ MIT
+    react, react-dom ....................... MIT
+
+  Prose analysis
+    unified ................................ MIT
+    retext-english ......................... MIT
+    retext-equality ........................ MIT
+
+  Drawing
+    @excalidraw/excalidraw ................. MIT
+        The Excalidraw source is MIT licensed, but the Excalidraw name and
+        logo are trademarks of Excalidraw Inc. Frontmatter uses the library
+        only; it does not use Excalidraw branding and is not affiliated with
+        or endorsed by Excalidraw.
+
+  Platform and utilities
+    firebase ............................... Apache-2.0
+    diff-match-patch ....................... Apache-2.0
+    zustand ................................ MIT
+    motion ................................. MIT
+    lucide-react ........................... ISC
+    clsx, tailwind-merge ................... MIT
+    uuid ................................... MIT
+    tailwindcss ............................ MIT
+
+  Build-time only (not redistributed): vite, typescript, vitest, esbuild,
+  jsdom, @testing-library/*, autoprefixer, tsx, @tauri-apps/cli.
+
+
+================================================================================
+4. Server components
+================================================================================
+
+The collaboration server under `server/` is part of Frontmatter and is
+covered by the AGPL. Its Python dependencies are installed at deploy time
+rather than redistributed:
+
+  fastapi ................................. MIT
+  pycrdt .................................. MIT
+  firebase-admin .......................... Apache-2.0
+  httpx ................................... BSD-3-Clause
+  boto3 ................................... Apache-2.0
+
+
+================================================================================
+5. Themes
+================================================================================
+
+The publishing themes under `themes/` are authored for Frontmatter and are
+covered by this repository's AGPL license. Individual themes that vendor
+third-party CSS or fonts carry their own attribution in the theme directory.
+
+
+================================================================================
+
+To regenerate the dependency portions of this file after changing
+dependencies, see the "Third-party licenses" section of CONTRIBUTING.md.
