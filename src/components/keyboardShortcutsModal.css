@@ -24,11 +24,11 @@
 .shortcuts__heading {
   margin: 0;
   font-family: var(--ds-font);
-  font-size: var(--ds-text-xs);
-  font-weight: 700;
-  letter-spacing: 0.07em;
+  font-size: var(--ds-text-sm);
+  font-weight: 500;
+  letter-spacing: var(--ds-tracking-eyebrow);
   text-transform: uppercase;
-  color: var(--ds-fg-muted);
+  color: var(--ds-fg-meta);
 }
 
 .shortcuts__list {
@@ -53,7 +53,7 @@
 
 .shortcuts__description {
   font-family: var(--ds-font);
-  font-size: var(--ds-text-sm);
+  font-size: var(--ds-text-base);
   color: var(--ds-fg-secondary);
 }
 
@@ -65,21 +65,22 @@
   flex-shrink: 0;
 }
 
-/* Keys read as small caps of glass sitting on the panel. */
+/* Keys read as printed key caps: warm sand, ringed, never lifted. */
 .shortcuts__key {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 24px;
-  height: 24px;
+  min-width: 22px;
+  height: 22px;
   padding: 0 var(--ds-space-2);
-  border-radius: 8px;
-  background: var(--ds-surface-strong);
-  box-shadow: var(--ds-ring), var(--ds-sheen);
-  font-family: var(--ds-font);
+  border-radius: var(--ds-radius-sm);
+  background: var(--ds-surface-warm);
+  box-shadow: var(--ds-ring);
+  font-family: var(--ds-font-mono);
   font-size: var(--ds-text-xs);
-  font-weight: 600;
-  color: var(--ds-fg);
+  font-weight: 400;
+  letter-spacing: var(--ds-tracking-label);
+  color: var(--ds-fg-secondary);
   user-select: none;
 }
 
@@ -88,6 +89,6 @@
   padding: var(--ds-space-8) var(--ds-space-4);
   text-align: center;
   font-family: var(--ds-font);
-  font-size: var(--ds-text-sm);
+  font-size: var(--ds-text-base);
   color: var(--ds-fg-muted);
 }

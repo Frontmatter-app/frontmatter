@@ -24,11 +24,11 @@
   margin: 0 0 var(--ds-space-1);
   padding: 0 var(--ds-space-3);
   font-family: var(--ds-font);
-  font-size: var(--ds-text-xs);
-  font-weight: 700;
-  letter-spacing: 0.07em;
+  font-size: var(--ds-text-sm);
+  font-weight: 500;
+  letter-spacing: var(--ds-tracking-eyebrow);
   text-transform: uppercase;
-  color: var(--ds-fg-muted);
+  color: var(--ds-fg-meta);
 }
 
 .settings-nav__list {
@@ -46,8 +46,8 @@
   border: 0;
   background: transparent;
   font-family: var(--ds-font);
-  font-size: var(--ds-text-sm);
-  font-weight: 550;
+  font-size: var(--ds-text-base);
+  font-weight: 400;
   color: var(--ds-fg-secondary);
   text-align: left;
   padding: var(--ds-space-2) var(--ds-space-3);
@@ -68,14 +68,14 @@
 }
 
 .settings-nav__item[data-active='true']:hover {
-  background: var(--ds-surface-strong);
+  background: var(--ds-tint-strong);
 }
 
-/* The active item is the brightest pane in the rail. */
+/* The active item is the one place ink enters the rail. */
 .settings-nav__item[data-active='true'] {
-  color: var(--ds-fg);
-  background: var(--ds-surface-strong);
-  box-shadow: var(--ds-ring), var(--ds-sheen);
+  color: var(--ds-primary);
+  font-weight: 500;
+  background: var(--ds-tint-strong);
 }
 
 .settings-nav__item:focus-visible {
@@ -105,8 +105,8 @@
   margin: 0;
   padding: var(--ds-space-4) var(--ds-space-3);
   font-family: var(--ds-font);
-  font-size: var(--ds-text-xs);
+  font-size: var(--ds-text-sm);
   color: var(--ds-fg-muted);
-  line-height: var(--ds-leading);
+  line-height: 1.45;
   text-align: center;
 }

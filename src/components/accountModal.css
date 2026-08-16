@@ -8,25 +8,28 @@
  * platform account panel already has. The material and spacing come from the
  * design tokens, so it sits in the same system as the rest of the chrome
  * instead of carrying its own hand-tuned `--editor-*` colours.
+ *
+ * The lists are grouped on the parchment ground rather than lifted as cards,
+ * which is how kami separates a run of rows from the panel holding them.
  */
 
 /* ----------------------------------------------------------------- avatars */
 
 .account-avatar {
   flex-shrink: 0;
-  border-radius: var(--ds-radius-pill);
+  border-radius: var(--ds-radius-md);
   object-fit: cover;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-family: var(--ds-font);
-  font-weight: 650;
+  font-weight: 500;
   color: var(--ds-fg-secondary);
   background: var(--ds-surface-sunken);
   box-shadow: var(--ds-ring);
 }
 
-.account-avatar--sm { width: 28px; height: 28px; font-size: 11px; }
+.account-avatar--sm { width: 28px; height: 28px; font-size: var(--ds-text-xs); }
 .account-avatar--md { width: 36px; height: 36px; font-size: var(--ds-text-sm); }
 .account-avatar--lg { width: 48px; height: 48px; font-size: var(--ds-text-base); }
 
@@ -44,10 +47,10 @@
   align-items: flex-start;
   gap: var(--ds-space-2);
   padding: var(--ds-space-3);
-  border-radius: var(--ds-radius-sm);
+  border-radius: var(--ds-radius-md);
   font-family: var(--ds-font);
-  font-size: var(--ds-text-xs);
-  line-height: var(--ds-leading);
+  font-size: var(--ds-text-sm);
+  line-height: 1.45;
   background: var(--ds-surface-sunken);
   box-shadow: var(--ds-ring);
   color: var(--ds-fg-secondary);
@@ -77,8 +80,8 @@
   align-items: center;
   gap: var(--ds-space-2);
   font-family: var(--ds-font);
-  font-size: var(--ds-text-sm);
-  font-weight: 650;
+  font-size: var(--ds-text-base);
+  font-weight: 500;
   color: var(--ds-fg);
 }
 
@@ -91,7 +94,7 @@
 .account__identity-email {
   margin: 2px 0 0;
   font-family: var(--ds-font);
-  font-size: var(--ds-text-xs);
+  font-size: var(--ds-text-sm);
   color: var(--ds-fg-muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -101,14 +104,14 @@
 .account__badge {
   flex-shrink: 0;
   padding: 2px var(--ds-space-2);
-  border-radius: var(--ds-radius-pill);
+  border-radius: var(--ds-radius-sm);
   font-family: var(--ds-font);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-size: var(--ds-text-xs);
+  font-weight: 500;
+  letter-spacing: var(--ds-tracking-label);
   text-transform: uppercase;
-  color: var(--ds-primary-contrast);
-  background: var(--ds-primary);
+  color: var(--ds-primary);
+  background: var(--ds-tint-strong);
 }
 
 /* --------------------------------------------------------------- sections */
@@ -127,17 +130,18 @@
 .account__section-title {
   margin: 0;
   font-family: var(--ds-font);
-  font-size: var(--ds-text-xs);
-  font-weight: 650;
+  font-size: var(--ds-text-sm);
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--ds-fg-muted);
+  letter-spacing: var(--ds-tracking-eyebrow);
+  color: var(--ds-fg-meta);
 }
 
 .account__section-meta {
   font-family: var(--ds-font);
-  font-size: var(--ds-text-xs);
-  color: var(--ds-fg-muted);
+  font-size: var(--ds-text-sm);
+  color: var(--ds-fg-meta);
+  font-variant-numeric: tabular-nums;
 }
 
 /* A grouped list: one hairline-separated block rather than floating cards. */
@@ -183,7 +187,9 @@
 
 .account__row:disabled { cursor: not-allowed; opacity: 0.5; }
 
-.account__row[aria-current='true'] { background: var(--ds-surface-warm); }
+.account__row[aria-current='true'] { background: var(--ds-tint-strong); }
+
+.account__row[aria-current='true'] .account__row-title { color: var(--ds-primary); }
 
 .account__row-icon {
   flex-shrink: 0;
@@ -199,8 +205,8 @@
   display: flex;
   align-items: center;
   gap: var(--ds-space-2);
-  font-size: var(--ds-text-sm);
-  font-weight: 550;
+  font-size: var(--ds-text-base);
+  font-weight: 500;
   color: var(--ds-fg);
 }
 
@@ -213,7 +219,7 @@
 .account__row-subtitle {
   display: block;
   margin: 2px 0 0;
-  font-size: var(--ds-text-xs);
+  font-size: var(--ds-text-sm);
   color: var(--ds-fg-muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -225,19 +231,20 @@
   display: flex;
   align-items: center;
   gap: var(--ds-space-2);
-  font-size: var(--ds-text-xs);
-  color: var(--ds-fg-muted);
+  font-size: var(--ds-text-sm);
+  color: var(--ds-fg-meta);
 }
 
 .account__row-check { color: var(--ds-primary); }
 
 .account__kbd {
   font-family: var(--ds-font-mono);
-  font-size: 10px;
+  font-size: var(--ds-text-xs);
+  letter-spacing: var(--ds-tracking-label);
   padding: 1px 5px;
-  border-radius: 6px;
+  border-radius: var(--ds-radius-sm);
   color: var(--ds-fg-muted);
-  background: var(--ds-surface);
+  background: var(--ds-surface-warm);
   box-shadow: var(--ds-ring);
 }
 
@@ -256,7 +263,7 @@
   justify-content: center;
   padding: var(--ds-space-2);
   margin-right: var(--ds-space-2);
-  border-radius: var(--ds-radius-pill);
+  border-radius: var(--ds-radius-sm);
   cursor: pointer;
   transition:
     background var(--ds-motion-fast) var(--ds-ease),
@@ -265,7 +272,7 @@
 
 .account__row-action:hover:not(:disabled) {
   color: var(--ds-danger);
-  background: color-mix(in srgb, var(--ds-danger) 12%, transparent);
+  background: color-mix(in srgb, var(--ds-danger) 12%, var(--ds-surface-sunken));
 }
 
 .account__row-action:focus-visible { outline: none; box-shadow: var(--ds-ring-focus); }
@@ -278,7 +285,7 @@
 .account__signin-lead {
   margin: 0;
   font-family: var(--ds-font);
-  font-size: var(--ds-text-sm);
+  font-size: var(--ds-text-base);
   line-height: var(--ds-leading);
   color: var(--ds-fg-secondary);
 }
@@ -288,8 +295,10 @@
   align-items: center;
   gap: var(--ds-space-3);
   font-family: var(--ds-font);
-  font-size: var(--ds-text-xs);
-  color: var(--ds-fg-muted);
+  font-size: var(--ds-text-sm);
+  text-transform: uppercase;
+  letter-spacing: var(--ds-tracking-eyebrow);
+  color: var(--ds-fg-meta);
 }
 
 .account__divider::before,
@@ -321,16 +330,16 @@
 .account__note {
   margin: 0;
   font-family: var(--ds-font);
-  font-size: var(--ds-text-xs);
+  font-size: var(--ds-text-sm);
   color: var(--ds-fg-muted);
-  line-height: var(--ds-leading);
+  line-height: 1.45;
 }
 
 .account__empty {
   margin: 0;
   padding: var(--ds-space-4);
   font-family: var(--ds-font);
-  font-size: var(--ds-text-xs);
+  font-size: var(--ds-text-sm);
   color: var(--ds-fg-muted);
   text-align: center;
 }

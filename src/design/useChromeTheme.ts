@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useSettingsStore } from '../settings/settingsStore';
 
 /**
- * Keeps the glass chrome in step with the editor theme.
+ * Keeps the kami chrome in step with the editor theme.
  *
  * The design system is scoped to chrome — title bar, menus, modals, settings —
  * and deliberately does not restyle the editor, which keeps its own GitHub

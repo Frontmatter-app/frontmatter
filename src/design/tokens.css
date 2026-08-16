@@ -1,19 +1,23 @@
 /**
- * Glassmorphism design system.
+ * kami design system — editorial paper.
  *
- * Values follow the published spec (open-design.ai glassmorphism plugin).
- * Three notes on interpretation:
+ * Values follow the published spec (open-design.ai plugin `design-system-kami`).
+ * Four notes on interpretation:
  *
- * 1. Glass is a *translucent* material: it only reads as glass when something
- *    sits behind it. `--ds-backdrop` provides that — a soft tinted field the
- *    chrome floats over. A glass panel on a flat opaque colour looks like a
- *    plain grey box.
- * 2. The spec defines one elevation and "flat". Controls need more separation
- *    than that, so `--ds-shadow-raised-sm` is a proportionally scaled version
- *    of the published shadow rather than a new invention.
- * 3. The spec is light-only. The dark values below keep the same construction
- *    — a light-tinted translucent layer over a darker field — with the tint
- *    inverted, so both themes read as one material.
+ * 1. kami is a *print* system: warm parchment canvas, one ink-blue accent, serif
+ *    carrying hierarchy, depth from 1px rings and a single whisper shadow. It
+ *    replaces the glassmorphism tokens this file used to hold, so there is no
+ *    blur, no sheen and no translucency left — a surface is an opaque colour.
+ * 2. The spec sanctions one whisper shadow. Controls need a lighter version of
+ *    it than panels do, so `--ds-shadow-raised-sm` is a proportionally scaled
+ *    whisper rather than a second, stronger elevation.
+ * 3. The spec is light-only. The dark values below keep the construction — warm
+ *    neutrals, one accent, ring-and-whisper depth — on kami's own dark surfaces
+ *    (deep dark #141413, dark surface #30302e), with the accent moved to Ink
+ *    Light, the variant the spec reserves for dark grounds.
+ * 4. Tag and chip fills are solid hex pre-blended over parchment, never rgba():
+ *    `--ds-tint` / `--ds-tint-strong` below. Alpha fills double-paint on print
+ *    renderers.
  *
  * Scoped to chrome (title bar, menus, modals, settings). The editor keeps its
  * own themes; nothing here touches `--editor-*`.
@@ -21,58 +25,59 @@
 
 :root {
   /* -- Surfaces --
-     Surfaces are deliberately semi-transparent. Anything painted on them must
-     tolerate whatever shows through. */
-  --ds-bg: #eef6ff;
-  --ds-backdrop:
-    radial-gradient(1200px 600px at 12% -10%, rgba(79, 140, 255, 0.22), transparent 60%),
-    radial-gradient(900px 500px at 110% 10%, rgba(34, 197, 94, 0.14), transparent 55%),
-    linear-gradient(180deg, #eef6ff 0%, #e3efff 100%);
-  --ds-surface: rgba(255, 255, 255, 0.74);
-  --ds-surface-strong: rgba(255, 255, 255, 0.86);
-  --ds-surface-warm: rgba(238, 246, 255, 0.72);
-  /* Recessed wells (inputs, nav rails) sit lower than their container. */
-  --ds-surface-sunken: rgba(255, 255, 255, 0.34);
+     Parchment is the ground, ivory lifts one half-shade above it for cards and
+     panels, warm sand is the emphatic step (hover, selection, key caps).
+     Never #ffffff, and never a cool grey. */
+  --ds-bg: #f5f4ed;
+  --ds-backdrop: #f5f4ed;
+  --ds-surface: #faf9f5;
+  --ds-surface-strong: #e8e6dc;
+  --ds-surface-warm: #e8e6dc;
+  /* Recessed wells (inputs, nav rails) fall back to the parchment ground. */
+  --ds-surface-sunken: #f5f4ed;
 
-  /* -- Blur --
-     Applied with backdrop-filter; see .ds-glass in system.css. */
-  --ds-blur: 24px;
-  --ds-blur-sm: 14px;
-  --ds-saturate: 1.6;
+  /* -- Ink tints --
+     Solid hex, pre-blended ink-blue over parchment. Used for tags, chips and
+     the hover fill of a menu item. */
+  --ds-tint: #eef2f7;
+  --ds-tint-strong: #e4ecf5;
 
-  /* -- Text -- */
-  --ds-fg: #102033;
-  --ds-fg-secondary: #34465f;
-  --ds-fg-muted: #60708a;
-  --ds-fg-meta: #4f8cff;
+  /* -- Text --
+     Four levels, no fifth. Every one is a warm neutral (R >= G > B). */
+  --ds-fg: #141413;
+  --ds-fg-secondary: #3d3d3a;
+  --ds-fg-muted: #504e49;
+  --ds-fg-meta: #6b6a64;
 
-  /* -- Semantic -- */
-  --ds-primary: #4f8cff;
-  --ds-primary-contrast: #ffffff;
-  --ds-primary-hover: color-mix(in oklab, var(--ds-primary), black 8%);
-  --ds-primary-active: color-mix(in oklab, var(--ds-primary), black 14%);
-  --ds-accent: #4f8cff;
-  --ds-success: #22c55e;
-  --ds-warning: #f59e0b;
-  --ds-danger: #ef4444;
+  /* -- Semantic --
+     Ink-blue is the only chromatic colour and should cover under 5% of any
+     surface; hover deliberately does not shift it, elevation carries the state
+     instead. */
+  --ds-primary: #1b365d;
+  --ds-primary-contrast: #faf9f5;
+  --ds-primary-hover: var(--ds-primary);
+  --ds-primary-active: #142a48;
+  --ds-accent: #1b365d;
+  --ds-success: #4a6b3a;
+  --ds-warning: #8a6b1f;
+  --ds-danger: #8a3a30;
 
   /* -- Borders --
-     A luminous hairline is what separates one pane of glass from the next. */
-  --ds-border: rgba(255, 255, 255, 0.64);
-  --ds-border-soft: rgba(255, 255, 255, 0.38);
+     A 1px warm hairline is the whole of level-1 depth. */
+  --ds-border: #e8e6dc;
+  --ds-border-soft: #e5e3d8;
   --ds-ring: inset 0 0 0 1px var(--ds-border);
-  /* The top edge catches the light, as a real bevel would. */
-  --ds-sheen: inset 0 1px 0 rgba(255, 255, 255, 0.75);
 
-  /* -- Elevation -- */
-  --ds-shadow-raised: 0 24px 80px rgba(79, 140, 255, 0.18);
-  --ds-shadow-raised-sm: 0 8px 24px rgba(79, 140, 255, 0.14);
-  --ds-ring-focus: 0 0 0 4px rgba(79, 140, 255, 0.28);
+  /* -- Elevation --
+     Flat, ring, whisper. Nothing harder than the whisper exists. */
+  --ds-shadow-raised: 0 4px 24px rgba(0, 0, 0, 0.05);
+  --ds-shadow-raised-sm: 0 2px 12px rgba(0, 0, 0, 0.04);
+  --ds-ring-focus: 0 0 0 2px var(--ds-primary-active);
 
   /* -- Radius -- */
-  --ds-radius-sm: 16px;
-  --ds-radius-md: 24px;
-  --ds-radius-lg: 36px;
+  --ds-radius-sm: 4px;
+  --ds-radius-md: 8px;
+  --ds-radius-lg: 12px;
   --ds-radius-pill: 9999px;
 
   /* -- Spacing -- */
@@ -85,103 +90,110 @@
   --ds-space-7: 32px;
   --ds-space-8: 48px;
 
-  /* -- Typography -- */
-  --ds-font: Inter, system-ui, -apple-system, sans-serif;
-  --ds-font-mono: 'SF Mono', ui-monospace, Menlo, monospace;
-  --ds-text-xs: 12px;
-  --ds-text-sm: 14px;
-  --ds-text-base: 16px;
-  --ds-text-lg: 18px;
-  --ds-text-xl: 24px;
-  --ds-text-2xl: 36px;
-  --ds-text-3xl: 54px;
-  --ds-text-4xl: 76px;
+  /* -- Typography --
+     Serif everywhere; kami has no separate sans family, so labels and eyebrows
+     use the same stack at small sizes. Weight never exceeds 500 and there is no
+     italic anywhere in the chrome. */
+  --ds-font: Charter, Georgia, Palatino, 'Times New Roman', serif;
+  --ds-font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', Consolas, Monaco,
+    'TsangerJinKai02', 'Source Han Serif SC', monospace;
+  --ds-text-xs: 11px;
+  --ds-text-sm: 12px;
+  --ds-text-base: 14px;
+  --ds-text-lg: 17px;
+  --ds-text-xl: 22px;
+  --ds-text-2xl: 32px;
+  --ds-text-3xl: 48px;
+  --ds-text-4xl: 96px;
   --ds-leading: 1.55;
-  --ds-leading-tight: 1.04;
-  --ds-tracking-display: -0.025em;
+  --ds-leading-tight: 1.25;
+  /* Display tracking is sized for 48px and up; smaller headings sit at 0. */
+  --ds-tracking-display: -1.2px;
+  --ds-tracking-label: 0.4px;
+  --ds-tracking-eyebrow: 1.2px;
 
   /* -- Motion -- */
-  --ds-motion-fast: 180ms;
-  --ds-motion-base: 280ms;
-  --ds-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --ds-motion-fast: 150ms;
+  --ds-motion-base: 200ms;
+  --ds-ease: cubic-bezier(0.2, 0, 0, 1);
 }
 
 /**
- * Dark theme. The field darkens and the glass becomes a light film over it:
- * a white layer at low alpha rather than a high one, so the material still
- * reads as translucent instead of as a pale card.
+ * Dark theme. The ground drops to kami's Deep Dark and panels sit on Dark
+ * Surface — both olive-tinted warm charcoals, never slate and never #000000.
+ * The accent moves to Ink Light, which is the spec's variant for dark grounds;
+ * ink-blue proper disappears against #30302e.
  */
 :root[data-ds-theme='dark'] {
-  --ds-bg: #0a1220;
-  --ds-backdrop:
-    radial-gradient(1200px 600px at 12% -10%, rgba(79, 140, 255, 0.26), transparent 60%),
-    radial-gradient(900px 500px at 110% 10%, rgba(34, 197, 94, 0.12), transparent 55%),
-    linear-gradient(180deg, #0a1220 0%, #0d1729 100%);
-  --ds-surface: rgba(255, 255, 255, 0.08);
-  --ds-surface-strong: rgba(255, 255, 255, 0.13);
-  --ds-surface-warm: rgba(79, 140, 255, 0.1);
-  --ds-surface-sunken: rgba(0, 0, 0, 0.22);
+  --ds-bg: #141413;
+  --ds-backdrop: #141413;
+  --ds-surface: #30302e;
+  --ds-surface-strong: #3d3d3a;
+  --ds-surface-warm: #3d3d3a;
+  --ds-surface-sunken: #1f1f1e;
 
-  --ds-fg: #e8f0fb;
-  --ds-fg-secondary: #b6c5da;
-  --ds-fg-muted: #8496ae;
-  --ds-fg-meta: #7fb0ff;
+  --ds-tint: #22303d;
+  --ds-tint-strong: #29394a;
 
-  --ds-primary: #6ea1ff;
-  --ds-primary-contrast: #06152b;
+  --ds-fg: #faf9f5;
+  --ds-fg-secondary: #ddd9cf;
+  --ds-fg-muted: #a8a49a;
+  --ds-fg-meta: #85817a;
 
-  --ds-border: rgba(255, 255, 255, 0.16);
-  --ds-border-soft: rgba(255, 255, 255, 0.09);
-  --ds-sheen: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  --ds-primary: #2d5a8a;
+  --ds-primary-contrast: #faf9f5;
+  --ds-primary-active: #3a6ea6;
+  --ds-accent: #2d5a8a;
+  --ds-success: #7a9c68;
+  --ds-warning: #c39b3f;
+  --ds-danger: #c4685c;
 
-  --ds-shadow-raised: 0 24px 80px rgba(0, 0, 0, 0.55);
-  --ds-shadow-raised-sm: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --ds-border: #45443f;
+  --ds-border-soft: #3a3936;
+
+  /* A 5% black whisper is invisible on charcoal; the same shape, deepened. */
+  --ds-shadow-raised: 0 4px 24px rgba(0, 0, 0, 0.38);
+  --ds-shadow-raised-sm: 0 2px 12px rgba(0, 0, 0, 0.3);
+  --ds-ring-focus: 0 0 0 2px #6f9ecb;
 }
 
 /* Follow the OS when the app has made no explicit choice. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-ds-theme='light']):not([data-ds-theme='dark']) {
-    --ds-bg: #0a1220;
-    --ds-backdrop:
-      radial-gradient(1200px 600px at 12% -10%, rgba(79, 140, 255, 0.26), transparent 60%),
-      radial-gradient(900px 500px at 110% 10%, rgba(34, 197, 94, 0.12), transparent 55%),
-      linear-gradient(180deg, #0a1220 0%, #0d1729 100%);
-    --ds-surface: rgba(255, 255, 255, 0.08);
-    --ds-surface-strong: rgba(255, 255, 255, 0.13);
-    --ds-surface-warm: rgba(79, 140, 255, 0.1);
-    --ds-surface-sunken: rgba(0, 0, 0, 0.22);
-    --ds-fg: #e8f0fb;
-    --ds-fg-secondary: #b6c5da;
-    --ds-fg-muted: #8496ae;
-    --ds-fg-meta: #7fb0ff;
-    --ds-primary: #6ea1ff;
-    --ds-primary-contrast: #06152b;
-    --ds-border: rgba(255, 255, 255, 0.16);
-    --ds-border-soft: rgba(255, 255, 255, 0.09);
-    --ds-sheen: inset 0 1px 0 rgba(255, 255, 255, 0.14);
-    --ds-shadow-raised: 0 24px 80px rgba(0, 0, 0, 0.55);
-    --ds-shadow-raised-sm: 0 8px 24px rgba(0, 0, 0, 0.45);
+    --ds-bg: #141413;
+    --ds-backdrop: #141413;
+    --ds-surface: #30302e;
+    --ds-surface-strong: #3d3d3a;
+    --ds-surface-warm: #3d3d3a;
+    --ds-surface-sunken: #1f1f1e;
+    --ds-tint: #22303d;
+    --ds-tint-strong: #29394a;
+    --ds-fg: #faf9f5;
+    --ds-fg-secondary: #ddd9cf;
+    --ds-fg-muted: #a8a49a;
+    --ds-fg-meta: #85817a;
+    --ds-primary: #2d5a8a;
+    --ds-primary-contrast: #faf9f5;
+    --ds-primary-active: #3a6ea6;
+    --ds-accent: #2d5a8a;
+    --ds-success: #7a9c68;
+    --ds-warning: #c39b3f;
+    --ds-danger: #c4685c;
+    --ds-border: #45443f;
+    --ds-border-soft: #3a3936;
+    --ds-shadow-raised: 0 4px 24px rgba(0, 0, 0, 0.38);
+    --ds-shadow-raised-sm: 0 2px 12px rgba(0, 0, 0, 0.3);
+    --ds-ring-focus: 0 0 0 2px #6f9ecb;
   }
 }
 
 /**
- * Backdrop blur is expensive and, for some people, uncomfortable. Where motion
- * is reduced, fall back to opaque surfaces rather than blurred ones.
+ * Surfaces are opaque under kami, so reduced motion no longer has to trade a
+ * blur for a solid fill — it only has to stop the animation.
  */
 @media (prefers-reduced-motion: reduce) {
   :root {
     --ds-motion-fast: 0ms;
     --ds-motion-base: 0ms;
-    --ds-blur: 0px;
-    --ds-blur-sm: 0px;
-    --ds-surface: rgba(255, 255, 255, 0.96);
-    --ds-surface-strong: rgba(255, 255, 255, 0.99);
-    --ds-surface-sunken: rgba(255, 255, 255, 0.8);
-  }
-
-  :root[data-ds-theme='dark'] {
-    --ds-surface: #16233a;
-    --ds-surface-strong: #1b2a44;
-    --ds-surface-sunken: #0d1729;
   }
 }

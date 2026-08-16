@@ -1,35 +1,32 @@
 /**
- * Glassmorphic component classes.
+ * kami component classes.
  *
- * Plain CSS rather than utility classes: a glass surface is a coordinated set
- * of background alpha, backdrop blur, hairline border and sheen that change
- * together across states. Expressing that as utilities is unreadable and
- * drifts out of sync.
+ * Plain CSS rather than utility classes: a kami surface is a coordinated set of
+ * opaque fill, warm hairline and whisper shadow that change together across
+ * states. Expressing that as utilities is unreadable and drifts out of sync.
  *
- * State is carried by *material* rather than relief: hover brightens the pane,
- * active presses it back, and selection raises its opacity. There is no
- * pressed-into-the-surface affordance — glass does not deform.
+ * State is carried by *elevation and ink* rather than by brightness: hover
+ * lifts a panel with the whisper shadow, selection fills it with the solid ink
+ * tint, and the accent itself never shifts colour on hover. There are no
+ * transforms — paper does not spring.
  */
 
 @import './tokens.css';
 
-/* ------------------------------------------------------------------- glass */
+/* ------------------------------------------------------------------- paper */
 
 /**
- * The material itself. `backdrop-filter` needs something behind it, so this is
- * only meaningful over `--ds-backdrop` or another translucent layer.
+ * The material itself: ivory over parchment, ringed in a warm hairline and
+ * lifted by the single sanctioned whisper shadow.
  */
-.ds-glass {
+.ds-paper {
   background: var(--ds-surface);
-  -webkit-backdrop-filter: blur(var(--ds-blur)) saturate(var(--ds-saturate));
-  backdrop-filter: blur(var(--ds-blur)) saturate(var(--ds-saturate));
-  box-shadow: var(--ds-ring), var(--ds-sheen), var(--ds-shadow-raised);
+  box-shadow: var(--ds-ring), var(--ds-shadow-raised);
 }
 
-/** Field the chrome floats over; gives the blur something to sample. */
+/** The parchment ground the chrome sits on. */
 .ds-backdrop {
   background: var(--ds-backdrop);
-  background-attachment: fixed;
 }
 
 /* ---------------------------------------------------------------- surfaces */
@@ -38,12 +35,10 @@
   background: var(--ds-surface);
   color: var(--ds-fg);
   border-radius: var(--ds-radius-md);
-  -webkit-backdrop-filter: blur(var(--ds-blur-sm)) saturate(var(--ds-saturate));
-  backdrop-filter: blur(var(--ds-blur-sm)) saturate(var(--ds-saturate));
-  box-shadow: var(--ds-ring), var(--ds-sheen), var(--ds-shadow-raised-sm);
+  box-shadow: var(--ds-ring), var(--ds-shadow-raised-sm);
 }
 
-/* A well: content sits below the surrounding pane rather than on it. */
+/* A well: content recedes to the parchment ground below the panel. */
 .ds-surface--sunken {
   background: var(--ds-surface-sunken);
   box-shadow: var(--ds-ring);
@@ -62,39 +57,39 @@
   font: inherit;
   font-family: var(--ds-font);
   font-size: var(--ds-text-sm);
-  font-weight: 550;
+  font-weight: 500;
   line-height: 1;
-  color: var(--ds-fg);
-  background: var(--ds-surface);
-  border-radius: var(--ds-radius-pill);
-  padding: var(--ds-space-3) var(--ds-space-5);
+  letter-spacing: var(--ds-tracking-label);
+  color: var(--ds-fg-secondary);
+  background: var(--ds-surface-warm);
+  border-radius: var(--ds-radius-md);
+  padding: var(--ds-space-2) 14px;
+  min-height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--ds-space-2);
   cursor: pointer;
-  -webkit-backdrop-filter: blur(var(--ds-blur-sm)) saturate(var(--ds-saturate));
-  backdrop-filter: blur(var(--ds-blur-sm)) saturate(var(--ds-saturate));
-  box-shadow: var(--ds-ring), var(--ds-sheen);
+  box-shadow: var(--ds-ring);
   transition:
-    background var(--ds-motion-fast) var(--ds-ease),
     box-shadow var(--ds-motion-fast) var(--ds-ease),
-    transform var(--ds-motion-fast) var(--ds-ease);
+    color var(--ds-motion-fast) var(--ds-ease);
 }
 
+/* Hover lifts rather than brightens — no fill change, no transform. */
 .ds-button:hover:not(:disabled) {
-  background: var(--ds-surface-strong);
-  box-shadow: var(--ds-ring), var(--ds-sheen), var(--ds-shadow-raised-sm);
+  color: var(--ds-fg);
+  box-shadow: var(--ds-ring), var(--ds-shadow-raised-sm);
 }
 
 .ds-button:active:not(:disabled) {
-  transform: translateY(1px) scale(0.995);
-  box-shadow: var(--ds-ring);
+  box-shadow: inset 0 0 0 1px var(--ds-primary);
+  color: var(--ds-primary);
 }
 
 .ds-button:focus-visible {
   outline: none;
-  box-shadow: var(--ds-ring), var(--ds-sheen), var(--ds-ring-focus);
+  box-shadow: var(--ds-ring), var(--ds-ring-focus);
 }
 
 .ds-button:disabled {
@@ -103,48 +98,58 @@
   box-shadow: var(--ds-ring);
 }
 
+/* The accent edge is the button's own ring, so primary and secondary sit at
+   exactly the same depth. */
 .ds-button--primary {
   background: var(--ds-primary);
   color: var(--ds-primary-contrast);
-  box-shadow: var(--ds-sheen), var(--ds-shadow-raised-sm);
+  box-shadow: inset 0 0 0 1px var(--ds-primary);
 }
 
 .ds-button--primary:hover:not(:disabled) {
   background: var(--ds-primary-hover);
+  color: var(--ds-primary-contrast);
+  box-shadow: inset 0 0 0 1px var(--ds-primary), var(--ds-shadow-raised-sm);
 }
 
 .ds-button--primary:active:not(:disabled) {
   background: var(--ds-primary-active);
+  color: var(--ds-primary-contrast);
+  box-shadow: inset 0 0 0 1px var(--ds-primary-active);
 }
 
 .ds-button--danger {
-  background: var(--ds-surface);
+  background: transparent;
   color: var(--ds-danger);
+  box-shadow: inset 0 0 0 1px var(--ds-danger);
+}
+
+.ds-button--danger:hover:not(:disabled) {
+  color: var(--ds-danger);
+  box-shadow: inset 0 0 0 1px var(--ds-danger), var(--ds-shadow-raised-sm);
 }
 
 .ds-button--ghost {
   background: transparent;
   box-shadow: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  color: var(--ds-fg-secondary);
+  color: var(--ds-fg-muted);
 }
 
 .ds-button--ghost:hover:not(:disabled) {
-  background: var(--ds-surface);
-  box-shadow: var(--ds-ring);
-  color: var(--ds-fg);
+  background: transparent;
+  box-shadow: none;
+  color: var(--ds-primary);
 }
 
 .ds-button--icon {
   padding: var(--ds-space-2);
-  border-radius: var(--ds-radius-pill);
   aspect-ratio: 1;
 }
 
 .ds-button--sm {
   font-size: var(--ds-text-xs);
-  padding: var(--ds-space-2) var(--ds-space-3);
+  padding: var(--ds-space-1) var(--ds-space-3);
+  min-height: 26px;
 }
 
 /* ------------------------------------------------------------------ inputs */
@@ -155,9 +160,13 @@
   gap: var(--ds-space-2);
 }
 
+/* Labels are kami's uppercase small label: same serif, tracked out. */
 .ds-label {
-  font-size: var(--ds-text-xs);
-  font-weight: 600;
+  font-size: var(--ds-text-sm);
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: var(--ds-tracking-label);
+  text-transform: uppercase;
   color: var(--ds-fg-secondary);
 }
 
@@ -166,17 +175,15 @@
 .ds-textarea {
   font: inherit;
   font-family: var(--ds-font);
-  font-size: var(--ds-text-sm);
+  font-size: var(--ds-text-base);
   color: var(--ds-fg);
-  /* Inputs are wells: lower opacity than the pane they sit in. */
+  /* Inputs are wells: they sit on the parchment ground, not on the panel. */
   background: var(--ds-surface-sunken);
   border: 0;
-  border-radius: var(--ds-radius-sm);
-  padding: var(--ds-space-3) var(--ds-space-4);
+  border-radius: var(--ds-radius-md);
+  padding: var(--ds-space-2) var(--ds-space-3);
   box-shadow: var(--ds-ring);
-  transition:
-    background var(--ds-motion-fast) var(--ds-ease),
-    box-shadow var(--ds-motion-fast) var(--ds-ease);
+  transition: box-shadow var(--ds-motion-fast) var(--ds-ease);
   width: 100%;
 }
 
@@ -188,14 +195,13 @@
 
 .ds-input::placeholder,
 .ds-textarea::placeholder {
-  color: var(--ds-fg-muted);
+  color: var(--ds-fg-meta);
 }
 
 .ds-input:focus-visible,
 .ds-select:focus-visible,
 .ds-textarea:focus-visible {
   outline: none;
-  background: var(--ds-surface);
   box-shadow: var(--ds-ring), var(--ds-ring-focus);
 }
 
@@ -205,26 +211,48 @@
 }
 
 .ds-error {
-  font-size: var(--ds-text-xs);
+  font-size: var(--ds-text-sm);
   color: var(--ds-danger);
 }
 
 .ds-hint {
-  font-size: var(--ds-text-xs);
+  font-size: var(--ds-text-sm);
   color: var(--ds-fg-muted);
-  line-height: var(--ds-leading);
+  line-height: 1.45;
+}
+
+/* -------------------------------------------------------------------- tag */
+
+/**
+ * Fills are solid hex pre-blended over parchment, never rgba() — print
+ * renderers double-paint alpha and leave a visible second rectangle.
+ */
+.ds-tag {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--ds-font);
+  font-size: var(--ds-text-sm);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: var(--ds-tracking-label);
+  color: var(--ds-primary);
+  background: var(--ds-tint-strong);
+  padding: 2px var(--ds-space-2);
+  border-radius: var(--ds-radius-sm);
 }
 
 /* ------------------------------------------------------------------ toggle */
 
+/* A switch is a mechanism rather than a printed element, so the pill radius
+   survives here; everything else about it is kami. */
 .ds-toggle {
   appearance: none;
   border: 0;
   cursor: pointer;
-  width: 46px;
-  height: 26px;
+  width: 40px;
+  height: 22px;
   border-radius: var(--ds-radius-pill);
-  background: var(--ds-surface-sunken);
+  background: var(--ds-surface-warm);
   box-shadow: var(--ds-ring);
   position: relative;
   transition: background var(--ds-motion-base) var(--ds-ease);
@@ -236,10 +264,10 @@
   position: absolute;
   top: 3px;
   left: 3px;
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   border-radius: var(--ds-radius-pill);
-  background: #fff;
+  background: var(--ds-surface);
   box-shadow: var(--ds-shadow-raised-sm);
   transition: transform var(--ds-motion-base) var(--ds-ease);
 }
@@ -249,7 +277,7 @@
 }
 
 .ds-toggle[aria-checked='true']::after {
-  transform: translateX(20px);
+  transform: translateX(18px);
 }
 
 .ds-toggle:focus-visible {
@@ -272,20 +300,18 @@
   align-items: center;
   justify-content: center;
   padding: var(--ds-space-6);
-  /* Dim and blur what is behind, so the panel has glass to be glass against. */
-  background: color-mix(in srgb, var(--ds-bg) 42%, transparent);
-  -webkit-backdrop-filter: blur(var(--ds-blur-sm)) saturate(1.1);
-  backdrop-filter: blur(var(--ds-blur-sm)) saturate(1.1);
+  /* A warm scrim, not a blur: kami targets print fidelity and forbids
+     backdrop-filter. The colour is Deep Dark, never #000000. */
+  background: rgba(20, 20, 19, 0.32);
   animation: ds-fade var(--ds-motion-base) var(--ds-ease);
 }
 
 .ds-modal {
   background: var(--ds-surface);
   color: var(--ds-fg);
+  font-family: var(--ds-font);
   border-radius: var(--ds-radius-lg);
-  -webkit-backdrop-filter: blur(var(--ds-blur)) saturate(var(--ds-saturate));
-  backdrop-filter: blur(var(--ds-blur)) saturate(var(--ds-saturate));
-  box-shadow: var(--ds-ring), var(--ds-sheen), var(--ds-shadow-raised);
+  box-shadow: var(--ds-ring), var(--ds-shadow-raised);
   width: 100%;
   max-width: 560px;
   max-height: min(86vh, 760px);
@@ -307,19 +333,20 @@
   padding: var(--ds-space-6) var(--ds-space-6) var(--ds-space-4);
 }
 
+/* kami H2: size carries the hierarchy, weight stays at 500. */
 .ds-modal__title {
   margin: 0;
-  font-size: var(--ds-text-lg);
-  font-weight: 650;
+  font-size: var(--ds-text-xl);
+  font-weight: 500;
   line-height: var(--ds-leading-tight);
-  letter-spacing: var(--ds-tracking-display);
+  letter-spacing: 0;
 }
 
 .ds-modal__subtitle {
   margin: var(--ds-space-1) 0 0;
-  font-size: var(--ds-text-xs);
+  font-size: var(--ds-text-base);
   color: var(--ds-fg-muted);
-  line-height: var(--ds-leading);
+  line-height: 1.45;
 }
 
 .ds-modal__body {
@@ -342,8 +369,9 @@
   to { opacity: 1; }
 }
 
+/* Paper settles; it does not spring or scale. */
 @keyframes ds-rise {
-  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+  from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: none; }
 }
 
@@ -351,15 +379,14 @@
 
 .ds-menu {
   background: var(--ds-surface);
-  border-radius: var(--ds-radius-sm);
-  -webkit-backdrop-filter: blur(var(--ds-blur)) saturate(var(--ds-saturate));
-  backdrop-filter: blur(var(--ds-blur)) saturate(var(--ds-saturate));
-  box-shadow: var(--ds-ring), var(--ds-sheen), var(--ds-shadow-raised);
-  padding: var(--ds-space-2);
+  font-family: var(--ds-font);
+  border-radius: var(--ds-radius-md);
+  box-shadow: var(--ds-ring), var(--ds-shadow-raised);
+  padding: var(--ds-space-1);
   min-width: 200px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .ds-menu__item {
@@ -368,11 +395,12 @@
   background: transparent;
   font: inherit;
   font-family: var(--ds-font);
-  font-size: var(--ds-text-sm);
-  color: var(--ds-fg);
+  font-size: var(--ds-text-base);
+  font-weight: 400;
+  color: var(--ds-fg-secondary);
   text-align: left;
   padding: var(--ds-space-2) var(--ds-space-3);
-  border-radius: 12px;
+  border-radius: var(--ds-radius-sm);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -382,13 +410,23 @@
     color var(--ds-motion-fast) var(--ds-ease);
 }
 
-.ds-menu__item:hover:not(:disabled),
+/* Hover is the solid ink tint; only the item that is actually current earns
+   the accent fill, which keeps ink-blue under the 5% budget. */
+.ds-menu__item:hover:not(:disabled) {
+  background: var(--ds-tint-strong);
+  color: var(--ds-primary);
+}
+
 .ds-menu__item[data-active='true'] {
   background: var(--ds-primary);
   color: var(--ds-primary-contrast);
 }
 
 .ds-menu__item:hover:not(:disabled) .ds-menu__shortcut {
+  color: var(--ds-primary);
+}
+
+.ds-menu__item[data-active='true'] .ds-menu__shortcut {
   color: var(--ds-primary-contrast);
   opacity: 0.75;
 }
@@ -409,28 +447,33 @@
 
 .ds-menu__item--danger:hover:not(:disabled) {
   background: var(--ds-danger);
-  color: #fff;
+  color: var(--ds-primary-contrast);
 }
 
 .ds-menu__shortcut {
   margin-left: auto;
   font-family: var(--ds-font-mono);
-  font-size: var(--ds-text-xs);
-  color: var(--ds-fg-muted);
+  font-size: var(--ds-text-sm);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--ds-tracking-label);
+  color: var(--ds-fg-meta);
 }
 
 .ds-menu__separator {
   height: 1px;
   background: var(--ds-border-soft);
-  margin: var(--ds-space-2);
+  margin: var(--ds-space-1) var(--ds-space-2);
   border: 0;
 }
 
+/* kami eyebrow: uppercase, tracked out, at the same 500 weight as everything
+   else. */
 .ds-menu__label {
-  font-size: var(--ds-text-xs);
-  font-weight: 650;
-  color: var(--ds-fg-muted);
+  font-size: var(--ds-text-sm);
+  font-weight: 500;
+  line-height: 1;
+  color: var(--ds-fg-meta);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: var(--ds-space-2) var(--ds-space-3) var(--ds-space-1);
+  letter-spacing: var(--ds-tracking-eyebrow);
+  padding: var(--ds-space-3) var(--ds-space-3) var(--ds-space-2);
 }
