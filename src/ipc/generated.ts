@@ -2,7 +2,7 @@
 // Produced by scripts/generate-ipc.mjs from the #[tauri::command] definitions
 // in src-tauri/src. Run `npm run ipc:gen` after changing a command.
 //
-// 107 commands registered in main.rs.
+// 110 commands registered in main.rs.
 //
 // `unknown` means the Rust type is not a serialisable struct this generator
 // could resolve; narrow it with a cast at the call site.
@@ -17,6 +17,7 @@ export interface AnnotationRecord {
   author_id: string;
   resolved: boolean;
   created_at: string;
+  replies?: string | null;
 }
 
 export interface CloneResult {
@@ -155,7 +156,12 @@ export interface GitStatusEntry {
 }
 
 export interface GrammarLint {
+  start: number;
+  end: number;
   message: string;
+  kind: string;
+  severity: string;
+  suggestions: string[];
 }
 
 export interface HeadingNode {
@@ -199,6 +205,13 @@ export interface ProjectConfig {
   excerpt?: Record<string, string>;
   custom?: unknown | null;
   index_page?: string | null;
+  base_url?: string | null;
+}
+
+export interface ProjectConfigPayload {
+  values: unknown;
+  config: ProjectConfig;
+  path: string;
 }
 
 export interface ReferenceResult {
@@ -252,6 +265,20 @@ export interface ThemeOption {
   name: string;
   description: string;
   preview_type: string;
+  screenshot?: string | null;
+  source: unknown;
+  author?: string | null;
+  options: ThemeOptionField[];
+  path: string;
+}
+
+export interface ThemeOptionField {
+  key: string;
+  label?: string | null;
+  type: unknown;
+  default?: unknown | null;
+  help?: string | null;
+  choices: string[];
 }
 
 export interface WorkspaceMeta {
@@ -347,8 +374,11 @@ export interface IpcArgsMap {
   'convert_md_to_html': { markdown: string };
   'export_file_html': { markdown: string };
   'export_file_pdf': { markdown: string };
-  'export_project_zola': { projectType: string; themeName: string };
+  'export_project_zola': { projectType: string; themeName: string; preview?: boolean | null };
   'list_theme_options': { projectType: string };
+  'read_project_config': Record<string, never>;
+  'save_project_settings': { values: unknown };
+  'save_site_archive': { suggestedName?: string | null };
   'git_is_available': Record<string, never>;
   'git_is_repo': { path: string };
   'git_init': { path: string };
@@ -460,6 +490,9 @@ export interface IpcResultMap {
   'export_file_pdf': ExportResult;
   'export_project_zola': unknown;
   'list_theme_options': ThemeOption[];
+  'read_project_config': ProjectConfigPayload;
+  'save_project_settings': ProjectConfigPayload;
+  'save_site_archive': string | null;
   'git_is_available': boolean;
   'git_is_repo': boolean;
   'git_init': null;
@@ -575,6 +608,9 @@ export const IPC_COMMANDS = [
   'export_file_pdf',
   'export_project_zola',
   'list_theme_options',
+  'read_project_config',
+  'save_project_settings',
+  'save_site_archive',
   'git_is_available',
   'git_is_repo',
   'git_init',

@@ -2,6 +2,7 @@ use crate::export::normalize::is_readme;
 use crate::export::site::content;
 use crate::export::site::theme::ThemeRoots;
 use crate::export::types::{ExportContext, ExportTarget, PageInfo};
+use crate::export::utils::fs::copy_dir_all;
 use crate::export::utils::title::{title_case, workspace_title};
 use crate::export::utils::toml::escape_toml;
 use std::fs;
@@ -57,19 +58,6 @@ fn ensure_subsections(content_dir: &Path, sort_by: &str) {
     }
 }
 
-fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
-    fs::create_dir_all(dst)?;
-    for entry in fs::read_dir(src)? {
-        let entry = entry?;
-        if entry.file_type()?.is_dir() {
-            copy_dir_all(&entry.path(), &dst.join(entry.file_name()))?;
-        } else {
-            fs::copy(entry.path(), dst.join(entry.file_name()))?;
-        }
-    }
-    Ok(())
-}
-
 /// Materialises a complete Zola project for `ctx` under `output_dir`.
 ///
 /// Returns an error when the requested theme cannot be resolved, rather than
@@ -107,7 +95,7 @@ pub fn ensure_zola_project(
         .or_else(|| index_page.map(|p| p.title.clone()))
         .unwrap_or_else(|| workspace_title(workspace_path));
 
-    content::write_root_index(&content_dir, &title, index_body);
+    content::write_root_index(&content_dir, &title, index_body, target.project_type.sort_by());
     content::write_pages(&content_dir, &ctx.pages, index_path);
     ensure_subsections(&content_dir, target.project_type.sort_by());
     content::write_config_toml(output_dir, &ctx.config, &title);

@@ -10,6 +10,10 @@ use std::collections::HashSet;
 static IMAGE_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"!\[[^\]]*\]\(([^)\s]+)").expect("valid image regex"));
 
+/// Inline links, excluding images — the leading `!` is what separates them.
+static LINK_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"(?:^|[^!])\[[^\]]*\]\(([^)\s]+)").expect("valid link regex"));
+
 const WORDS_PER_MINUTE: i32 = 200;
 
 /// Repoints document-relative image references at the exported site root.
@@ -101,6 +105,85 @@ fn link_navigation(pages: &mut [PageInfo], index_path: Option<&str>) {
     }
 }
 
+/// Records, for every page, which other pages link to it.
+///
+/// Link targets in the workspace are document paths (`guide/intro.md`,
+/// `./intro.md`, `../guide/intro.md`), so each is resolved relative to the page
+/// that holds it and matched against every known `file_path`. Anchors and query
+/// strings are trimmed; external links and self-links are ignored.
+fn link_backlinks(pages: &mut [PageInfo]) {
+    let by_file: std::collections::HashMap<String, usize> = pages
+        .iter()
+        .enumerate()
+        .map(|(i, p)| (p.file_path.to_lowercase(), i))
+        .collect();
+
+    // (target index, source index) pairs, collected before mutating so the
+    // borrow of `pages` ends first.
+    let mut edges: Vec<(usize, usize)> = Vec::new();
+
+    for (source, page) in pages.iter().enumerate() {
+        let prose = markdown::prose_lines(&page.content).join("\n");
+        for capture in LINK_RE.captures_iter(&prose) {
+            let Some(target) = capture.get(1).map(|m| m.as_str()) else { continue };
+            let Some(resolved) = resolve_link(&page.file_path, target) else { continue };
+            let Some(&index) = by_file.get(&resolved) else { continue };
+            if index != source {
+                edges.push((index, source));
+            }
+        }
+    }
+
+    for (target, source) in edges {
+        let entry = (pages[source].html_path.clone(), pages[source].title.clone());
+        let backlinks = &mut pages[target].backlinks;
+        if !backlinks.contains(&entry) {
+            backlinks.push(entry);
+        }
+    }
+
+    for page in pages.iter_mut() {
+        page.backlinks.sort();
+    }
+}
+
+/// Resolves a Markdown link target against the linking document's own path.
+///
+/// Returns `None` for anything that cannot name a document in this workspace —
+/// external URLs, bare anchors, and mail links.
+fn resolve_link(from: &str, target: &str) -> Option<String> {
+    let target = target.split(['#', '?']).next().unwrap_or(target).trim();
+    if target.is_empty() || target.contains("://") || target.starts_with('#') || target.starts_with("mailto:") {
+        return None;
+    }
+
+    // An absolute-looking target is relative to the workspace root.
+    let raw = target.trim_start_matches('/');
+    let base = if target.starts_with('/') {
+        Vec::new()
+    } else {
+        let folder = paths::get_folder(from);
+        if folder.is_empty() {
+            Vec::new()
+        } else {
+            folder.split('/').map(str::to_string).collect()
+        }
+    };
+
+    let mut segments = base;
+    for part in raw.split('/') {
+        match part {
+            "" | "." => {}
+            ".." => {
+                segments.pop();
+            }
+            other => segments.push(other.to_string()),
+        }
+    }
+
+    Some(segments.join("/").to_lowercase())
+}
+
 fn build_breadcrumbs(page: &PageInfo) -> Vec<(String, Option<String>)> {
     let mut crumbs = vec![("Home".to_string(), Some("index.html".to_string()))];
     let folder = paths::get_folder(&page.file_path);
@@ -129,6 +212,7 @@ pub fn build_pages(docs: &[&DocInfo], index_path: Option<&str>) -> Vec<PageInfo>
             depth: 0,
             prev: None,
             next: None,
+            backlinks: vec![],
             breadcrumbs: vec![],
             tags: paths::extract_tags(&doc.file_path),
             images: extract_images(&rewrite_asset_paths(&doc.content)),
@@ -141,6 +225,7 @@ pub fn build_pages(docs: &[&DocInfo], index_path: Option<&str>) -> Vec<PageInfo>
 
     deduplicate_slugs(&mut pages);
     link_navigation(&mut pages, index_path);
+    link_backlinks(&mut pages);
 
     for i in 0..pages.len() {
         pages[i].breadcrumbs = build_breadcrumbs(&pages[i]);

@@ -105,6 +105,10 @@ pub fn handle(app: &tauri::AppHandle, event: tauri::menu::MenuEvent) {
     }
 
     match id {
+        // Opens the same dialog as the `export_project_<type>` entries above.
+        // The empty payload means "no type preselected", so the dialog opens on
+        // whichever type was published last.
+        "publish_project" => emit_to_focused(app, "menu-export-project", String::new()),
         "clear_recent" => {
             let _ = commands::project::clear_recent_projects(app.clone());
         }

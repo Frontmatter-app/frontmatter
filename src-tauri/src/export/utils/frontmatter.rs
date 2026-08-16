@@ -15,6 +15,13 @@ pub fn build_page_frontmatter(page: &PageInfo, effective_slug: &str, weight: i32
         }
     }
 
+    // `date` has to be top-level for Zola to sort on it. It used to exist only
+    // under `[extra]` as `created_at`, where the sort cannot see it — so a blog
+    // set to `sort_by = "date"` silently fell back to input order.
+    if let Some(date) = page_date(page) {
+        top.push_str(&format!("\ndate = {date}"));
+    }
+
     let mut extras: Vec<String> = vec![
         format!("word_count = {}", page.word_count),
         format!("reading_time_minutes = {}", page.reading_time_minutes),
@@ -43,8 +50,45 @@ pub fn build_page_frontmatter(page: &PageInfo, effective_slug: &str, weight: i32
     if let Some(updated) = &page.updated_at {
         extras.push(format!("updated_at = \"{}\"", escape_toml(updated)));
     }
+    if !page.backlinks.is_empty() {
+        let items: Vec<String> = page
+            .backlinks
+            .iter()
+            .map(|(path, title)| {
+                format!(
+                    "{{ path = \"{}\", title = \"{}\" }}",
+                    escape_toml(path),
+                    escape_toml(title),
+                )
+            })
+            .collect();
+        extras.push(format!("backlinks = [{}]", items.join(", ")));
+    }
 
     format!("+++\n{}\n\n[extra]\n{}\n+++\n{}", top, extras.join("\n"), page.content)
+}
+
+/// The page's date as a bare TOML date, or `None` when it has neither
+/// timestamp.
+///
+/// Zola wants `date = 2024-05-01`, unquoted. The stored timestamps are ISO 8601
+/// with a time part, which Zola also accepts, so only the trailing `Z` and any
+/// fractional seconds need trimming.
+fn page_date(page: &PageInfo) -> Option<String> {
+    let raw = page
+        .created_at
+        .as_deref()
+        .or(page.updated_at.as_deref())?
+        .trim();
+
+    let date = raw.split(['T', ' ']).next().unwrap_or(raw);
+    // Anything that is not `YYYY-MM-DD` would fail the Zola build outright.
+    let valid = date.len() == 10
+        && date.as_bytes()[4] == b'-'
+        && date.as_bytes()[7] == b'-'
+        && date.bytes().enumerate().all(|(i, b)| i == 4 || i == 7 || b.is_ascii_digit());
+
+    valid.then(|| date.to_string())
 }
 
 #[allow(dead_code)]

@@ -3,15 +3,8 @@ import { listen } from '@tauri-apps/api/event';
 import { invoke } from '../filesystem/tauriCommands';
 import { showPromptDialog, showConfirmDialog, showAlertDialog } from '../lib/tauriDialog';
 import { registry, useDirtyDocsStore } from '../yjs/DocumentRegistry';
-import { ExportLoader } from '../components/ExportLoader';
-import { ThemeExportModal } from '../components/ThemeExportModal';
-
-interface ExportResult {
-  success: boolean;
-  output_dir: string;
-  page_count: number;
-  error?: string;
-}
+import { PublishWizard } from '../publish/PublishWizard';
+import { isPublishType, type PublishType } from '../publish/publishTypes';
 
 interface UseMenuEventsProps {
   workspacePath: string | null;
@@ -32,8 +25,10 @@ export function useMenuEvents({
   createDocument,
   refreshDirectoryTree,
 }: UseMenuEventsProps) {
-  const [exporting, setExporting] = useState(false);
-  const [themeModalType, setThemeModalType] = useState<'blog' | 'docs' | 'slide' | 'book' | null>(null);
+  // `null` means the dialog is closed. Publishing itself is reported inside
+  // the dialog, so there is no separate loading overlay.
+  const [publishType, setPublishType] = useState<PublishType | null>(null);
+  const [lastPublishType, setLastPublishType] = useState<PublishType>('docs');
 
   useEffect(() => {
     let un: (() => void) | undefined;
@@ -221,40 +216,25 @@ export function useMenuEvents({
 
   useEffect(() => {
     let un: (() => void) | undefined;
+    // "Publish..." sends an empty payload; the four "As ..." entries name a
+    // type. Both open the same dialog — an empty payload just reopens it on
+    // whatever was published last.
     listen<string>('menu-export-project', (event) => {
-      const type = event.payload as 'blog' | 'docs' | 'slide' | 'book';
-      setThemeModalType(type);
+      const requested = event.payload;
+      setPublishType(isPublishType(requested) ? requested : lastPublishType);
     }).then(fn => { un = fn; });
     return () => { un?.(); };
-  }, []);
-
-  const handleExport = async (themeName: string) => {
-    if (!themeModalType) return;
-    setThemeModalType(null);
-    setExporting(true);
-    try {
-      const res = await invoke<ExportResult>('export_project_zola', {
-        projectType: themeModalType,
-        themeName,
-      });
-      setExporting(false);
-      if (!res.success && res.error) {
-        await showAlertDialog('Export Failed', res.error);
-      }
-    } catch (e: any) {
-      setExporting(false);
-      await showAlertDialog('Export Failed', e?.toString() || 'Unknown error');
-    }
-  };
+  }, [lastPublishType]);
 
   return (
     <>
-      {exporting && <ExportLoader />}
-      {themeModalType && (
-        <ThemeExportModal
-          type={themeModalType}
-          onClose={() => setThemeModalType(null)}
-          onExport={handleExport}
+      {publishType && (
+        <PublishWizard
+          initialType={publishType}
+          onClose={(lastType) => {
+            setLastPublishType(lastType);
+            setPublishType(null);
+          }}
         />
       )}
     </>

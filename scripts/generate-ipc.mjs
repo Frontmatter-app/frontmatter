@@ -173,7 +173,10 @@ function parseStructs() {
 
       const renameAll = /rename_all\s*=\s*"([^"]+)"/.exec(attrs)?.[1];
       const rename = RENAME_RULES[renameAll] ?? ((s) => s);
-      const body = source.slice(open + 1, end);
+      // Comments go before the split, not after: a comma inside a doc comment
+      // would otherwise be read as a field separator and split the field it
+      // documents away from its own declaration, dropping it from the bindings.
+      const body = source.slice(open + 1, end).replace(/^[ \t]*\/\/.*$/gm, '');
       const fields = [];
 
       // Split fields on top-level commas so generics survive.
@@ -184,7 +187,13 @@ function parseStructs() {
 
         const attrMatches = text.match(/#\[[^\]]*\]/g) || [];
         fieldAttrs = attrMatches.join(' ');
-        const declaration = text.replace(/#\[[^\]]*\]/g, '').trim();
+        // Doc comments sit between the attributes and `pub`, so they have to go
+        // before the declaration can be matched — otherwise a documented field
+        // is silently dropped from the bindings.
+        const declaration = text
+          .replace(/#\[[^\]]*\]/g, '')
+          .replace(/^[ \t]*\/\/.*$/gm, '')
+          .trim();
         const field = /^pub\s+([a-z0-9_]+)\s*:\s*([\s\S]+)$/.exec(declaration);
         if (!field) continue;
 

@@ -100,6 +100,9 @@ macro_rules! app_command_handlers {
             $crate::commands::export::export_file_pdf,
             $crate::export::commands::export_project_zola,
             $crate::export::commands::list_theme_options,
+            $crate::export::commands::read_project_config,
+            $crate::export::commands::save_project_settings,
+            $crate::export::commands::save_site_archive,
             // -- Git ------------------------------------------------------
             $crate::commands::git::git_is_available,
             $crate::commands::git::git_is_repo,

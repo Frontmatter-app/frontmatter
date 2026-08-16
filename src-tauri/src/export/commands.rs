@@ -1,6 +1,6 @@
-use super::site::theme::ThemeRoots;
-use super::types::{ExportTarget, ProjectType, ThemeOption};
-use super::{config, discover, normalize, site, zola};
+use super::types::{ExportTarget, ProjectConfigPayload, ProjectType, ThemeOption};
+use super::utils::theme::ThemeRoots;
+use super::{archive, config, discover, normalize, site, zola};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -10,6 +10,10 @@ use tauri::Manager;
 pub struct ExportDonePayload {
     success: bool,
     output_dir: String,
+    /// The built site itself — what a `.zip` or an upload should contain.
+    public_dir: String,
+    /// Where the local preview is being served, when one was started.
+    preview_url: Option<String>,
     page_count: usize,
     error: Option<String>,
 }
@@ -19,10 +23,22 @@ impl ExportDonePayload {
         Self {
             success: false,
             output_dir: output_dir.to_string_lossy().to_string(),
+            public_dir: public_dir(output_dir).to_string_lossy().to_string(),
+            preview_url: None,
             page_count,
             error: Some(error),
         }
     }
+}
+
+/// Where `zola build` leaves the finished site.
+fn public_dir(output_dir: &Path) -> PathBuf {
+    output_dir.join("public")
+}
+
+/// Where exports for a workspace are staged.
+fn export_dir(workspace_path: &Path) -> PathBuf {
+    workspace_path.join(".app").join("export")
 }
 
 /// Workspace directory bound to the currently focused window.
@@ -83,17 +99,84 @@ pub async fn list_theme_options(
     Ok(ThemeRoots::new(Path::new(&ws_path), bundled.as_deref(), target_type).list())
 }
 
+/// `config.yml` as text and as a parsed model, creating it when absent.
+#[tauri::command]
+pub async fn read_project_config(
+    app: tauri::AppHandle,
+) -> Result<ProjectConfigPayload, String> {
+    let (pool, ws_path) = focused_workspace(&app).await?;
+    config::read_raw_config(Path::new(&ws_path), &pool).await
+}
+
+/// Saves edited config values, preserving keys the exporter does not model.
+#[tauri::command]
+pub async fn save_project_settings(
+    app: tauri::AppHandle,
+    values: serde_yaml::Value,
+) -> Result<ProjectConfigPayload, String> {
+    let ws_path = focused_workspace_path(&app).await?;
+    config::write_values(Path::new(&ws_path), &values)
+}
+
+/// Asks where to save, then zips the most recent build there.
+///
+/// Returns `None` when the user cancels the dialog, which is not an error.
+#[tauri::command]
+pub async fn save_site_archive(
+    app: tauri::AppHandle,
+    suggested_name: Option<String>,
+) -> Result<Option<String>, String> {
+    let ws_path = focused_workspace_path(&app).await?;
+    let workspace_path = PathBuf::from(&ws_path);
+    let built = public_dir(&export_dir(&workspace_path));
+
+    // Checked before the dialog so a user who has not published yet is told
+    // why instead of picking a location for an archive that cannot be made.
+    if !built.is_dir() {
+        return Err("Publish once before saving a .zip.".to_string());
+    }
+
+    let name = suggested_name
+        .map(|n| crate::export::utils::fs::slugify(&n))
+        .filter(|n| !n.is_empty())
+        .unwrap_or_else(|| {
+            crate::export::utils::fs::slugify(&crate::export::utils::title::workspace_title(
+                &workspace_path,
+            ))
+        });
+
+    let handle = rfd::AsyncFileDialog::new()
+        .set_file_name(&format!("{name}.zip"))
+        .add_filter("Zip archive", &["zip"])
+        .save_file()
+        .await;
+
+    let Some(handle) = handle else { return Ok(None) };
+    let destination = handle.path().to_path_buf();
+
+    let file_count = archive::zip_directory(&built, &destination)?;
+    tracing::info!(
+        files = file_count,
+        destination = %destination.display(),
+        "wrote site archive",
+    );
+
+    Ok(Some(destination.to_string_lossy().to_string()))
+}
+
 #[tauri::command]
 pub async fn export_project_zola(
     app: tauri::AppHandle,
     project_type: String,
     theme_name: String,
+    preview: Option<bool>,
 ) -> Result<ExportDonePayload, String> {
     let target = ExportTarget::new(ProjectType::from_str(&project_type)?, theme_name);
+    let preview = preview.unwrap_or(true);
 
     let (pool, ws_path_str) = focused_workspace(&app).await?;
     let workspace_path = PathBuf::from(&ws_path_str);
-    let output_dir = workspace_path.join(".app").join("export");
+    let output_dir = export_dir(&workspace_path);
 
     tracing::info!(
         workspace = %ws_path_str,
@@ -137,14 +220,21 @@ pub async fn export_project_zola(
         ));
     }
 
-    zola::kill_existing();
-    zola::start_server(&app, &output_dir);
+    // Only after a successful build, so a broken theme is not the one restored
+    // next time the picker opens.
+    config::remember_theme(&workspace_path, &target.theme);
+
+    let preview_url = preview
+        .then(|| zola::start_server(&app, &output_dir))
+        .flatten();
 
     tracing::info!(pages = page_count, "export complete");
 
     Ok(ExportDonePayload {
         success: true,
         output_dir: output_dir.to_string_lossy().to_string(),
+        public_dir: public_dir(&output_dir).to_string_lossy().to_string(),
+        preview_url,
         page_count,
         error: None,
     })

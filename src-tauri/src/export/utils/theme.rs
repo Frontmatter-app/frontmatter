@@ -1,48 +1,143 @@
-use crate::export::types::{ProjectType, ThemeOption};
+use crate::export::types::{ProjectType, ThemeOption, ThemeOptionField, ThemeSource};
 use crate::export::utils::title::default_theme_name;
+use serde::Deserialize;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-fn read_theme_metadata(theme_dir: &Path) -> (String, String) {
-    let theme_toml = theme_dir.join("theme.toml");
-    let Ok(content) = fs::read_to_string(&theme_toml) else {
-        return (default_theme_name(theme_dir), String::new());
-    };
+/// Screenshot filename assumed when `theme.toml` does not name one.
+const DEFAULT_SCREENSHOT: &str = "screenshot.png";
 
-    let field = |key: &str| -> Option<String> {
-        content
-            .lines()
-            .find(|l| l.trim().starts_with(&format!("{key} =")))
-            .and_then(|l| l.split_once('='))
-            .map(|(_, v)| v.trim().trim_matches('"').to_string())
-            .filter(|s| !s.is_empty())
-    };
+/// `theme.toml`, in full.
+///
+/// Every field is optional. A theme is a directory containing `templates/`;
+/// the manifest only decorates it, so a theme without one — or with one this
+/// parser cannot read — still lists and still builds.
+#[derive(Debug, Default, Deserialize)]
+struct ThemeManifest {
+    name: Option<String>,
+    description: Option<String>,
+    #[allow(dead_code)]
+    license: Option<String>,
+    screenshot: Option<String>,
+    author: Option<ManifestAuthor>,
+    extra: Option<ManifestExtra>,
+}
 
-    (
-        field("name").unwrap_or_else(|| default_theme_name(theme_dir)),
-        field("description").unwrap_or_default(),
-    )
+#[derive(Debug, Default, Deserialize)]
+struct ManifestAuthor {
+    name: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct ManifestExtra {
+    #[serde(default)]
+    options: Vec<ThemeOptionField>,
+}
+
+/// Everything the picker shows about a theme directory.
+struct ThemeMetadata {
+    name: String,
+    description: String,
+    author: Option<String>,
+    screenshot: Option<String>,
+    options: Vec<ThemeOptionField>,
+}
+
+/// Reads and parses `theme.toml`.
+///
+/// This used to scan lines for `key =` prefixes, which could not see into
+/// `[author]` or `[[extra.options]]` and mistook any indented match for a
+/// top-level key. A malformed or absent manifest yields defaults rather than
+/// hiding the theme.
+fn read_theme_metadata(theme_dir: &Path) -> ThemeMetadata {
+    let manifest = fs::read_to_string(theme_dir.join("theme.toml"))
+        .ok()
+        .and_then(|content| match toml::from_str::<ThemeManifest>(&content) {
+            Ok(parsed) => Some(parsed),
+            Err(e) => {
+                tracing::warn!(
+                    theme = %theme_dir.display(),
+                    error = %e,
+                    "theme.toml could not be parsed; falling back to defaults",
+                );
+                None
+            }
+        })
+        .unwrap_or_default();
+
+    ThemeMetadata {
+        name: manifest
+            .name
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or_else(|| default_theme_name(theme_dir)),
+        description: manifest.description.unwrap_or_default(),
+        author: manifest.author.and_then(|a| a.name).filter(|s| !s.trim().is_empty()),
+        screenshot: resolve_screenshot(theme_dir, manifest.screenshot.as_deref()),
+        options: manifest.extra.map(|e| e.options).unwrap_or_default(),
+    }
+}
+
+/// Absolute path to the theme's preview image, when one exists on disk.
+///
+/// A declared path that does not exist falls back to the conventional
+/// `screenshot.png` so a typo in the manifest does not silently blank the card.
+fn resolve_screenshot(theme_dir: &Path, declared: Option<&str>) -> Option<String> {
+    let candidates = declared
+        .map(|d| d.trim())
+        .filter(|d| !d.is_empty())
+        .into_iter()
+        .chain(std::iter::once(DEFAULT_SCREENSHOT));
+
+    for candidate in candidates {
+        // A manifest cannot reach outside its own directory.
+        if candidate.contains("..") || Path::new(candidate).is_absolute() {
+            continue;
+        }
+        let path = theme_dir.join(candidate);
+        if path.is_file() {
+            return Some(path.to_string_lossy().to_string());
+        }
+    }
+    None
+}
+
+/// One root in the theme search path, tagged with where it came from.
+struct Root {
+    path: PathBuf,
+    source: ThemeSource,
 }
 
 /// Ordered search path for themes of one project type.
 ///
 /// The workspace wins over the bundled themes so a user can override a shipped
-/// theme by name, and the bundled root is searched twice: once scoped to the
-/// project type, once unscoped so the shared `base` theme is reachable from
-/// every target.
+/// theme by name. Both roots are searched twice — once scoped to the project
+/// type, once unscoped — so a theme placed directly in `themes/` is offered for
+/// every target rather than having to be copied per type.
 pub struct ThemeRoots {
-    roots: Vec<PathBuf>,
+    roots: Vec<Root>,
 }
 
 impl ThemeRoots {
     pub fn new(workspace: &Path, bundled: Option<&Path>, project_type: ProjectType) -> Self {
         let mut roots = vec![
-            workspace.join("themes").join(project_type.slug()),
-            workspace.join("themes"),
+            Root {
+                path: workspace.join("themes").join(project_type.slug()),
+                source: ThemeSource::Workspace,
+            },
+            Root {
+                path: workspace.join("themes"),
+                source: ThemeSource::Workspace,
+            },
         ];
         if let Some(b) = bundled {
-            roots.push(b.join(project_type.slug()));
-            roots.push(b.to_path_buf());
+            roots.push(Root {
+                path: b.join(project_type.slug()),
+                source: ThemeSource::Bundled,
+            });
+            roots.push(Root {
+                path: b.to_path_buf(),
+                source: ThemeSource::Bundled,
+            });
         }
         Self { roots }
     }
@@ -54,7 +149,7 @@ impl ThemeRoots {
         }
         self.roots
             .iter()
-            .map(|root| root.join(id))
+            .map(|root| root.path.join(id))
             .find(|candidate| candidate.is_dir())
     }
 
@@ -69,7 +164,7 @@ impl ThemeRoots {
         let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
 
         for root in &self.roots {
-            let Ok(entries) = fs::read_dir(root) else { continue };
+            let Ok(entries) = fs::read_dir(&root.path) else { continue };
             let mut in_root: Vec<PathBuf> = entries
                 .flatten()
                 .map(|e| e.path())
@@ -84,25 +179,31 @@ impl ThemeRoots {
                     continue;
                 }
                 // A directory with no templates cannot render a site, so it is
-                // not a theme — `themes/skills/`, scratch folders, and the like.
+                // not a theme — `themes/_shared/`, scratch folders, and the like.
                 if !path.join("templates").is_dir() {
                     continue;
                 }
                 if !seen.insert(id.to_string()) {
                     continue;
                 }
-                let (name, description) = read_theme_metadata(&path);
+                let meta = read_theme_metadata(&path);
                 options.push(ThemeOption {
                     id: id.to_string(),
-                    name,
-                    description,
+                    name: meta.name,
+                    description: meta.description,
                     preview_type: "html".to_string(),
+                    screenshot: meta.screenshot,
+                    source: root.source,
+                    author: meta.author,
+                    options: meta.options,
+                    path: path.to_string_lossy().to_string(),
                 });
             }
         }
 
-        // Keep the built-in default first when present.
-        options.sort_by_key(|o| (o.id != "base", o.id.clone()));
+        // The shipped flagship for a type is `default`; anything the user adds
+        // sorts after it by name.
+        options.sort_by_key(|o| (o.id != "default", o.name.to_lowercase()));
         options
     }
 }

@@ -61,7 +61,13 @@
       "assetProtocol": {
         "enable": true,
         "scope": {
-          "allow": ["$DOCUMENT/**", "$DOCUMENT/**/.*/**", "$HOME/**", "$HOME/**/.*/**"],
+          "allow": [
+            "$DOCUMENT/**",
+            "$DOCUMENT/**/.*/**",
+            "$HOME/**",
+            "$HOME/**/.*/**",
+            "$RESOURCE/**"
+          ],
           "requireLiteralLeadingDot": false
         }
       }

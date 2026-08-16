@@ -94,13 +94,19 @@ pub fn write_pages(content_dir: &Path, pages: &[PageInfo], index_path: Option<&s
     }
 }
 
-pub fn write_root_index(content_dir: &Path, title: &str, body: &str) {
+/// Writes the site's root section.
+///
+/// `sort_by` comes from the project type: the root used to be hardcoded to
+/// `weight`, so a blog's landing page listed posts in input order no matter
+/// what the type asked for.
+pub fn write_root_index(content_dir: &Path, title: &str, body: &str, sort_by: &str) {
     let _ = fs::create_dir_all(content_dir);
     let _ = fs::write(
         content_dir.join("_index.md"),
         format!(
-            "+++\ntitle = \"{}\"\nsort_by = \"weight\"\nrender = true\ntemplate = \"index.html\"\n+++\n{}",
+            "+++\ntitle = \"{}\"\nsort_by = \"{}\"\nrender = true\ntemplate = \"index.html\"\n+++\n{}",
             escape_toml(title),
+            sort_by,
             body,
         ),
     );
@@ -132,11 +138,13 @@ pub fn write_config_toml(output_dir: &Path, config: &ProjectConfig, title: &str)
     // Every interpolated value is escaped. An unescaped quote in the project
     // description used to produce an invalid config.toml and fail the build.
     let config_toml = format!(
-        r#"base_url = "/"
+        r#"base_url = "{base_url}"
 title = "{title}"
 description = "{description}"
 author = "{author}"
 build_search_index = true
+# Themes keep their styles in `sass/`, which Zola ignores unless this is on.
+compile_sass = true
 default_language = "en"
 
 [link_checker]
@@ -145,6 +153,14 @@ internal_level = "warn"
 [extra]
 {extra_block}
 "#,
+        base_url = escape_toml(
+            config
+                .base_url
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .unwrap_or("/"),
+        ),
         title = escape_toml(title),
         description = escape_toml(config.description.as_deref().unwrap_or("")),
         author = escape_toml(config.author.as_deref().unwrap_or("")),

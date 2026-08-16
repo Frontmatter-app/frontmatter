@@ -14,6 +14,10 @@ pub enum ProjectType {
     Blog,
     Book,
     Slides,
+    Wiki,
+    Portfolio,
+    Changelog,
+    Kb,
 }
 
 impl ProjectType {
@@ -24,20 +28,38 @@ impl ProjectType {
             ProjectType::Blog => "blog",
             ProjectType::Book => "book",
             ProjectType::Slides => "slides",
+            ProjectType::Wiki => "wiki",
+            ProjectType::Portfolio => "portfolio",
+            ProjectType::Changelog => "changelog",
+            ProjectType::Kb => "kb",
         }
     }
 
-    /// Zola section sort order that suits the target: blogs read newest-first,
-    /// docs and books follow the author's ordering.
+    /// Zola section sort order that suits the target.
+    ///
+    /// Dated targets read newest-first; a wiki is browsed by name; everything
+    /// else follows the author's ordering. `date` only works because
+    /// [`crate::export::utils::frontmatter`] emits a top-level `date` — it was
+    /// previously buried in `[extra]`, where Zola's sort cannot see it.
     pub fn sort_by(self) -> &'static str {
         match self {
-            ProjectType::Blog => "date",
+            ProjectType::Blog | ProjectType::Changelog => "date",
+            ProjectType::Wiki => "title",
             _ => "weight",
         }
     }
 
-    pub fn all() -> [ProjectType; 4] {
-        [ProjectType::Docs, ProjectType::Blog, ProjectType::Book, ProjectType::Slides]
+    pub fn all() -> [ProjectType; 8] {
+        [
+            ProjectType::Docs,
+            ProjectType::Blog,
+            ProjectType::Book,
+            ProjectType::Slides,
+            ProjectType::Wiki,
+            ProjectType::Portfolio,
+            ProjectType::Changelog,
+            ProjectType::Kb,
+        ]
     }
 }
 
@@ -51,6 +73,10 @@ impl std::str::FromStr for ProjectType {
             "book" | "books" => Ok(ProjectType::Book),
             // The menu emits the singular "slide".
             "slide" | "slides" | "deck" => Ok(ProjectType::Slides),
+            "wiki" | "wikis" | "garden" | "notes" => Ok(ProjectType::Wiki),
+            "portfolio" | "portfolios" | "work" => Ok(ProjectType::Portfolio),
+            "changelog" | "changelogs" | "releases" => Ok(ProjectType::Changelog),
+            "kb" | "knowledge-base" | "knowledgebase" | "help" => Ok(ProjectType::Kb),
             other => Err(format!("unknown project type: {other}")),
         }
     }
@@ -69,6 +95,48 @@ impl ExportTarget {
     }
 }
 
+/// Where a theme was found. Drives the "Custom" badge in the picker.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ThemeSource {
+    /// `<workspace>/themes/…` — authored by the user.
+    Workspace,
+    /// Shipped with the application.
+    Bundled,
+}
+
+/// The control a theme-declared setting renders as.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ThemeOptionKind {
+    #[default]
+    Text,
+    Textarea,
+    Boolean,
+    Color,
+    Select,
+}
+
+/// One `[[extra.options]]` entry from a `theme.toml`.
+///
+/// Themes declaring none still work; the picker just shows no theme-specific
+/// fields for them.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThemeOptionField {
+    pub key: String,
+    #[serde(default)]
+    pub label: Option<String>,
+    #[serde(rename = "type", default)]
+    pub kind: ThemeOptionKind,
+    #[serde(default)]
+    pub default: Option<serde_json::Value>,
+    #[serde(default)]
+    pub help: Option<String>,
+    /// Choices for `kind = "select"`.
+    #[serde(default)]
+    pub choices: Vec<String>,
+}
+
 #[allow(dead_code)]
 #[derive(Debug, Clone, Serialize)]
 pub struct ThemeOption {
@@ -76,6 +144,14 @@ pub struct ThemeOption {
     pub name: String,
     pub description: String,
     pub preview_type: String,
+    /// Absolute path to the theme's preview image, when it ships one.
+    pub screenshot: Option<String>,
+    pub source: ThemeSource,
+    pub author: Option<String>,
+    /// Settings the theme declares; empty for themes that declare none.
+    pub options: Vec<ThemeOptionField>,
+    /// Absolute path to the theme directory, for "reveal in folder".
+    pub path: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -98,6 +174,23 @@ pub struct ProjectConfig {
     pub custom: Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub index_page: Option<String>,
+    /// Site root. Defaults to `/` so the build works when opened from disk;
+    /// set it to deploy under a subpath such as `https://me.dev/docs/`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base_url: Option<String>,
+}
+
+/// `config.yml` for the settings step.
+///
+/// `values` is the file parsed as a generic tree rather than into
+/// [`ProjectConfig`], because a typed round trip silently drops any key the
+/// struct does not declare — a user's hand-added setting would vanish the
+/// first time they touched anything else.
+#[derive(Debug, Clone, Serialize)]
+pub struct ProjectConfigPayload {
+    pub values: serde_yaml::Value,
+    pub config: ProjectConfig,
+    pub path: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -151,6 +244,10 @@ pub struct PageInfo {
     pub depth: usize,
     pub prev: Option<(String, String)>,
     pub next: Option<(String, String)>,
+    /// Pages that link *to* this one, as `(html_path, title)`. Derived from the
+    /// Markdown at export time — the `doc_references` table tracks code-object
+    /// references, not links between documents.
+    pub backlinks: Vec<(String, String)>,
     pub breadcrumbs: Vec<(String, Option<String>)>,
     pub tags: Vec<String>,
     pub images: Vec<String>,

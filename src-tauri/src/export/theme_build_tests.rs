@@ -100,6 +100,7 @@ fn config() -> ProjectConfig {
         excerpt: HashMap::new(),
         custom: None,
         index_page: Some("README.md".to_string()),
+        base_url: None,
     }
 }
 
@@ -171,8 +172,85 @@ fn slides_theme_builds_a_real_site() {
 }
 
 #[test]
-fn base_theme_builds_a_real_site() {
-    build_site_with(ProjectType::Docs, "base");
+fn wiki_theme_builds_a_real_site() {
+    build_site_with(ProjectType::Wiki, "default");
+}
+
+#[test]
+fn portfolio_theme_builds_a_real_site() {
+    build_site_with(ProjectType::Portfolio, "default");
+}
+
+#[test]
+fn changelog_theme_builds_a_real_site() {
+    build_site_with(ProjectType::Changelog, "default");
+}
+
+#[test]
+fn kb_theme_builds_a_real_site() {
+    build_site_with(ProjectType::Kb, "default");
+}
+
+/// Every shipped theme carries its own copy of the shared design layer, because
+/// a theme directory is copied whole and cannot import across themes. Drift
+/// between the copies is what makes eight themes stop looking like one system.
+#[test]
+fn design_tokens_stay_in_sync() {
+    let shared = repo_themes_root().join("_shared");
+
+    for file in ["_tokens.scss", "theme.js"] {
+        let canonical = std::fs::read_to_string(shared.join(file))
+            .unwrap_or_else(|e| panic!("read shared {file}: {e}"));
+
+        for project_type in ProjectType::all() {
+            let dir = if file.ends_with(".scss") { "sass" } else { "static" };
+            let copy = repo_themes_root()
+                .join(project_type.slug())
+                .join("default")
+                .join(dir)
+                .join(file);
+
+            let actual = std::fs::read_to_string(&copy)
+                .unwrap_or_else(|e| panic!("read {}: {e}", copy.display()));
+
+            assert_eq!(
+                actual,
+                canonical,
+                "{} drifted from themes/_shared/{file} — edit the shared copy, \
+                 then copy it into every theme",
+                copy.display(),
+            );
+        }
+    }
+}
+
+/// A theme may only declare settings its templates actually read. A field that
+/// renders in the publish dialog and changes nothing is worse than no field.
+#[test]
+fn declared_theme_options_are_all_used() {
+    for project_type in ProjectType::all() {
+        let dir = repo_themes_root().join(project_type.slug()).join("default");
+        let manifest = std::fs::read_to_string(dir.join("theme.toml")).unwrap_or_default();
+
+        let templates: String = std::fs::read_dir(dir.join("templates"))
+            .map(|entries| {
+                entries
+                    .flatten()
+                    .filter_map(|e| std::fs::read_to_string(e.path()).ok())
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        for line in manifest.lines() {
+            let Some(key) = line.trim().strip_prefix("key = ") else { continue };
+            let key = key.trim_matches('"');
+            assert!(
+                templates.contains(&format!("config.extra.{key}")),
+                "{} declares `{key}` but no template reads config.extra.{key}",
+                project_type.slug(),
+            );
+        }
+    }
 }
 
 /// Every project type must have a default theme that renders, so the export

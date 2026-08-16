@@ -64,11 +64,16 @@ pub fn create_menu<R: Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<MenuB
         ],
     )?;
 
+    // `Publish...` opens the dialog on whichever type was published last; the
+    // four entries beneath it are shortcuts into the same dialog with a type
+    // already chosen, so nothing has to be closed and reopened to switch.
     let publish_menu = Submenu::with_items(
         app,
         "Publish Project",
         true,
         &[
+            &MenuItem::with_id(app, "publish_project", "Publish...", true, Some("CmdOrCtrl+Shift+E"))?,
+            &separator()?,
             &MenuItem::with_id(app, "export_project_docs", "As Documentation Site...", true, None::<&str>)?,
             &MenuItem::with_id(app, "export_project_blog", "As Blog...", true, None::<&str>)?,
             &MenuItem::with_id(app, "export_project_book", "As Book...", true, None::<&str>)?,
