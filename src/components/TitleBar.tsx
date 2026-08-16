@@ -253,7 +253,7 @@ function WindowControls({
 }
 
 export function TitleBar() {
-  const { plan, isTeamOwner, activeContext } = usePlan();
+  const { isTeamOwner, activeContext } = usePlan();
   const { currentDocumentId, documents } = useWorkspace();
   const syncStatus = useSyncStatusStore((state) => state.status);
   const lastSyncedAt = useSyncStatusStore((state) => state.lastSyncedAt);
@@ -264,7 +264,6 @@ export function TitleBar() {
   const [isMaximized, setIsMaximized] = useState(false);
   const [showSyncPopover, setShowSyncPopover] = useState(false);
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
   // Listen for open-account-switcher event from UserAvatarMenu
   useEffect(() => {
@@ -278,7 +277,6 @@ export function TitleBar() {
     ? currentDoc.is_cloud || currentDoc.cloud_synced || !!currentDoc.cloud_id
     : false;
 
-  const hidePlanBadge = isTeamOwner && activeContext.type === 'team';
   const docTitle = currentDoc?.title || 'Untitled Document';
   const menuTitle = currentDocumentId ? `${docTitle} - ${APP_NAME}` : APP_NAME;
 
@@ -403,28 +401,6 @@ export function TitleBar() {
               />
             )}
           </div>
-        )}
-
-        {!hidePlanBadge && (
-          <button
-            onClick={() => plan === 'free' && setShowUpgradeModal(true)}
-            className={cn(
-              'px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wider uppercase border select-none transition cursor-pointer',
-              plan === 'team' && 'bg-orange-500/10 text-orange-400 border-orange-500/20 cursor-default',
-              plan === 'author' && 'bg-amber-500/10 text-amber-400 border-amber-500/20 cursor-default',
-              plan === 'enterprise' && 'bg-purple-500/10 text-purple-400 border-purple-500/20 cursor-default',
-              plan === 'free' && 'bg-neutral-500/10 text-neutral-400 border-neutral-500/20 hover:bg-neutral-500/15',
-            )}
-            disabled={plan !== 'free'}
-          >
-            {plan === 'team'
-              ? 'Team ✦✦'
-              : plan === 'author'
-                ? 'Author ✦'
-                : plan === 'enterprise'
-                  ? 'Enterprise'
-                  : 'Free'}
-          </button>
         )}
 
         {!isMac && (
