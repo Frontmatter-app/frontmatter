@@ -2,7 +2,7 @@
 // Produced by scripts/generate-ipc.mjs from the #[tauri::command] definitions
 // in src-tauri/src. Run `npm run ipc:gen` after changing a command.
 //
-// 110 commands registered in main.rs.
+// 114 commands registered in main.rs.
 //
 // `unknown` means the Rust type is not a serialisable struct this generator
 // could resolve; narrow it with a cast at the call site.
@@ -308,6 +308,10 @@ export interface IpcArgsMap {
   'get_documents': Record<string, never>;
   'open_workspace': { path?: string | null };
   'get_directory_tree': { workspacePath: string; showHidden?: boolean | null };
+  'credential_set': { account: string; secret: string };
+  'credential_get': { account: string };
+  'credential_delete': { account: string };
+  'credential_exists': { account: string };
   'create_document': { id: string; title: string; content: string; filePath?: string | null };
   'update_document': { id: string; title: string; content: string; stage: string; focusMode: boolean };
   'get_document': { id: string };
@@ -422,6 +426,10 @@ export interface IpcResultMap {
   'get_documents': DocumentMeta[];
   'open_workspace': WorkspaceMeta | null;
   'get_directory_tree': FileNode;
+  'credential_set': null;
+  'credential_get': string | null;
+  'credential_delete': null;
+  'credential_exists': boolean;
   'create_document': DocumentMeta;
   'update_document': SuccessResponse;
   'get_document': DocumentMeta;
@@ -540,6 +548,10 @@ export const IPC_COMMANDS = [
   'get_documents',
   'open_workspace',
   'get_directory_tree',
+  'credential_set',
+  'credential_get',
+  'credential_delete',
+  'credential_exists',
   'create_document',
   'update_document',
   'get_document',

@@ -39,3 +39,8 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 glob = "0.3"
 harper-core = "2.8.0"
 
+# OS secret store for git provider tokens. `apple-native`, `windows-native` and
+# `sync-secret-service` select the platform backends; without a feature the
+# crate compiles to a no-op store that silently keeps nothing.
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+

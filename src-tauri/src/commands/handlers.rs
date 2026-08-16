@@ -22,6 +22,13 @@ macro_rules! app_command_handlers {
             $crate::commands::workspace::get_documents,
             $crate::commands::workspace::open_workspace,
             $crate::commands::workspace_tree::get_directory_tree,
+            // -- Credentials ----------------------------------------------
+            // Git provider tokens, held in the OS keychain rather than in the
+            // webview, because they can push to the user's repositories.
+            $crate::commands::credentials::credential_set,
+            $crate::commands::credentials::credential_get,
+            $crate::commands::credentials::credential_delete,
+            $crate::commands::credentials::credential_exists,
             // -- Documents ------------------------------------------------
             $crate::commands::documents::create_document,
             $crate::commands::documents::update_document,

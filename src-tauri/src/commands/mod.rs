@@ -1,6 +1,7 @@
 pub mod handlers;
 pub mod annotations;
 pub mod cloud_sync;
+pub mod credentials;
 pub mod dialogs;
 pub mod documents;
 pub mod drafts;
