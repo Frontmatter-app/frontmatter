@@ -57,9 +57,18 @@ export class DeviceFlowError extends Error {
  * repositories. `read:user` resolves the account; `read:org` is what makes
  * organisation repositories visible in the picker.
  */
+/**
+ * Frontmatter's own GitHub OAuth app.
+ *
+ * Shipped as a literal rather than kept in an env var, because in the device
+ * flow the client id is public by construction: it is sent unauthenticated to
+ * begin every sign-in, and there is no accompanying secret. Treating it as a
+ * secret would buy nothing and would mean the app could not connect out of the
+ * box. Override it to point at your own OAuth app.
+ */
 export const GITHUB_DEVICE_FLOW: DeviceFlowConfig = {
   kind: 'github',
-  clientId: import.meta.env.VITE_GITHUB_CLIENT_ID ?? '',
+  clientId: import.meta.env.VITE_GITHUB_CLIENT_ID || 'Ov23lioKyZe16OROpwdy',
   deviceCodeUrl: 'https://github.com/login/device/code',
   tokenUrl: 'https://github.com/login/oauth/access_token',
   scope: 'repo read:user read:org',
