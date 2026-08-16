@@ -18,8 +18,6 @@ import { EditorSettings } from './components/sections/EditorSettings';
 import { AppearanceSettings } from './components/sections/AppearanceSettings';
 import { ColorSettings } from './components/sections/ColorSettings';
 import { AccountsSection } from './components/sections/AccountsSection';
-import { BillingSection } from './components/sections/BillingSection';
-import { TeamSection } from './components/sections/TeamSection';
 import { UpdatesSection } from './components/sections/UpdatesSection';
 import { CodeSettings } from './components/sections/CodeSettings';
 import { LivePreviewSettings } from './components/sections/LivePreviewSettings';
@@ -91,8 +89,6 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       case 'appearance': return <AppearanceSettings {...sectionProps} />;
       case 'colors': return <ColorSettings {...sectionProps} />;
       case 'accounts': return <AccountsSection />;
-      case 'billing': return <BillingSection />;
-      case 'team': return <TeamSection />;
       case 'preview': return <LivePreviewSettings matches={matches} />;
       case 'code': return <CodeSettings matches={matches} />;
       case 'updates': return <UpdatesSection checkingUpdates={checkingUpdates} updateStatus={updateStatus} onCheckUpdates={() => { setCheckingUpdates(true); setUpdateStatus('idle'); setTimeout(() => { setCheckingUpdates(false); setUpdateStatus(Math.random() > 0.5 ? 'available' : 'none'); }, 1500); }} onUpdateStatusChange={setUpdateStatus} />;

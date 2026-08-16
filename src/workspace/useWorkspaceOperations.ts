@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { invoke } from '../filesystem/tauriCommands';
-import { pushCloudDocument, deleteCloudDocument, fetchCloudDocument } from '../cloud/firestoreSync';
+import { pushCloudDocument, deleteCloudDocument, fetchCloudDocument } from '../cloud/cloudDocuments';
 import { registry } from '../yjs/DocumentRegistry';
 import { generateDraftFromMarkdown } from '../yjs/draftUtils';
 import type { DocumentMeta } from '../types';

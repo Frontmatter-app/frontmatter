@@ -20,7 +20,8 @@
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
 import type { Awareness } from 'y-protocols/awareness';
-import { auth } from '../auth/firebase';
+import { getCurrentUser, getAccessToken } from '../auth/session';
+import { getCollabSocketUrl } from '../api/serverUrl';
 import { getCollabColors } from '../lib/colors';
 import { useSyncStatusStore } from './syncStatusStore';
 
@@ -50,12 +51,12 @@ function colorForUid(uid: string): string {
 }
 
 function collabSocketUrl(): string {
-  const explicit = import.meta.env.VITE_COLLAB_WS_URL;
-  if (explicit) return String(explicit).replace(/\/$/, '');
-
-  const base = import.meta.env.VITE_MODAL_BASE_URL;
-  if (!base) throw new Error('VITE_MODAL_BASE_URL is not configured.');
-  return `${String(base).replace(/^http/, 'ws').replace(/\/$/, '')}/collab`;
+  const url = getCollabSocketUrl();
+  // Reaching here without a server is a programming error rather than a user
+  // one: `DocumentRegistry` only attaches a provider for cloud documents, which
+  // require a signed-in session, which requires a configured server.
+  if (!url) throw new Error('No collaboration server is configured.');
+  return url;
 }
 
 export class CollabProvider {
@@ -81,13 +82,13 @@ export class CollabProvider {
     });
     this.awareness = this.provider.awareness;
 
-    const user = auth.currentUser;
+    const user = getCurrentUser();
     this.awareness.setLocalStateField('user', {
-      uid: user?.uid || null,
-      name: user?.displayName || user?.email?.split('@')[0] || 'Co-author',
+      uid: user?.id || null,
+      name: user?.display_name || user?.email?.split('@')[0] || 'Co-author',
       email: user?.email || null,
-      color: colorForUid(user?.uid || 'anonymous'),
-      photo: user?.photoURL || null,
+      color: colorForUid(user?.id || 'anonymous'),
+      photo: user?.avatar_url || null,
     });
 
     this.handleAwarenessChange = () => this.emitPresence();
@@ -103,10 +104,11 @@ export class CollabProvider {
     void this.connectWithToken();
   }
 
-  /** Tokens expire, so it is fetched per connection attempt rather than once. */
+  /** Read per connection attempt rather than once: tokens expire, and a
+   * reconnect after a long sleep must not reuse the one from before it. */
   private async connectWithToken(): Promise<void> {
     try {
-      const token = await auth.currentUser?.getIdToken();
+      const token = getAccessToken();
       if (!token) {
         useSyncStatusStore.getState().setError('Sign in to collaborate');
         return;

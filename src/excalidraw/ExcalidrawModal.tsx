@@ -11,7 +11,7 @@ import { useExcalidrawSync } from './excalidrawYjsSync';
 import { importToAssets, saveAnnotatedImage } from '../images/imageService';
 import type { ImageContext } from '../images/imageTypes';
 import { usePlanStore } from '../billing/PlanProvider';
-import { auth } from '../auth/firebase';
+import { getCurrentUser } from "../auth/session";
 import { useSyncStatusStore } from '../cloud/syncStatusStore';
 
 
@@ -40,7 +40,7 @@ export function ExcalidrawModal() {
     const isCloud =
       plan.activeContext.type === 'team' ||
       (documentId ? useSyncStatusStore.getState().cloudDocumentIds.has(documentId) : false);
-    return getContextFromYdoc(ydoc, isCloud, plan.teamId, auth.currentUser?.uid);
+    return getContextFromYdoc(ydoc, isCloud, plan.teamId, getCurrentUser()?.id);
   }, [ydoc, documentId]);
 
   useEffect(() => {
@@ -64,7 +64,7 @@ export function ExcalidrawModal() {
       try {
         const ps = usePlanStore.getState();
         const isCloud = ps.activeContext.type === 'team' || (documentId ? useSyncStatusStore.getState().cloudDocumentIds.has(documentId) : false);
-        const ctx = getContextFromYdoc(ydoc, isCloud, ps.teamId, auth.currentUser?.uid);
+        const ctx = getContextFromYdoc(ydoc, isCloud, ps.teamId, getCurrentUser()?.id);
         const imported = await importToAssets(imageUrl, ctx);
         const { convertFileSrc } = await import('@tauri-apps/api/core');
         const assetUrl = imported.localPath ? convertFileSrc(imported.localPath) : imported.url;
@@ -79,7 +79,7 @@ export function ExcalidrawModal() {
     try {
       const ps = usePlanStore.getState();
       const isCloud = ps.activeContext.type === 'team' || (documentId ? useSyncStatusStore.getState().cloudDocumentIds.has(documentId) : false);
-      const ctx = getContextFromYdoc(ydoc, isCloud, ps.teamId, auth.currentUser?.uid);
+      const ctx = getContextFromYdoc(ydoc, isCloud, ps.teamId, getCurrentUser()?.id);
 
       if (mode === 'new-drawing' && !imageUrl) {
         const blob = await exportToBlob({

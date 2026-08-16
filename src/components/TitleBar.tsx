@@ -6,7 +6,6 @@ import { useSettingsStore } from '../settings/settingsStore';
 import { useWorkspace } from '../workspace/WorkspaceProvider';
 import { CollaborationBar } from './CollaborationBar';
 import { registry } from '../yjs/DocumentRegistry';
-import { AccountSwitcherModal } from './AccountSwitcherModal';
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -254,7 +253,7 @@ function WindowControls({
 }
 
 export function TitleBar() {
-  const { plan, isTeamOwner, activeContext, upgradeToAuthor, upgradeToTeam } = usePlan();
+  const { plan, isTeamOwner, activeContext } = usePlan();
   const { currentDocumentId, documents } = useWorkspace();
   const syncStatus = useSyncStatusStore((state) => state.status);
   const lastSyncedAt = useSyncStatusStore((state) => state.lastSyncedAt);
@@ -439,84 +438,9 @@ export function TitleBar() {
 
         <UserAvatarMenu />
 
-        <AccountSwitcherModal
-          isOpen={isAccountModalOpen}
-          onClose={() => setIsAccountModalOpen(false)}
-        />
 
-        {showUpgradeModal && (
-          <UpgradeModalInline
-            settings={settings}
-            onUpgradeAuthor={upgradeToAuthor}
-            onUpgradeTeam={upgradeToTeam}
-            onClose={() => setShowUpgradeModal(false)}
-          />
-        )}
       </div>
     </div>
   );
 }
 
-function UpgradeModalInline({
-  settings,
-  onUpgradeAuthor,
-  onUpgradeTeam,
-  onClose,
-}: {
-  settings: { themeType: string };
-  onUpgradeAuthor: () => Promise<void>;
-  onUpgradeTeam: () => Promise<void>;
-  onClose: () => void;
-}) {
-  const isDark = settings.themeType.startsWith('github_dark');
-  const glassStyle: React.CSSProperties = {
-    background: isDark ? 'rgba(15, 18, 25, 0.95)' : 'rgba(255, 255, 255, 0.98)',
-    borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
-    color: 'var(--editor-text-color)',
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 md:p-6 animate-in fade-in duration-200">
-      <div className="w-full max-w-4xl h-[85vh] rounded-[22px] border shadow-2xl flex flex-col overflow-hidden" style={glassStyle}>
-        <div className="flex items-center justify-between px-6 py-4 border-b border-black/10 dark:border-white/10 flex-shrink-0 bg-black/5 dark:bg-white/2">
-          <div className="flex items-center gap-3 flex-1">
-            <Sparkles className="w-5 h-5 text-amber-500" />
-            <h2 className="font-bold text-base select-none">Upgrade Plan</h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-black/10 dark:hover:bg-white/10 text-gray-500 dark:text-gray-400 hover:text-red-500 transition cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        <div className="flex-1 flex flex-col items-center justify-center p-8 overflow-y-auto bg-[var(--editor-bg-color)]">
-          <div className="max-w-3xl w-full flex flex-col gap-6">
-            <button
-              onClick={async () => { await onUpgradeAuthor(); onClose(); }}
-              className="p-6 rounded-2xl border border-amber-500/30 bg-amber-500/5 text-left hover:bg-amber-500/10 transition cursor-pointer group"
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <Sparkles className="w-5 h-5 text-amber-400" />
-                <span className="font-bold text-lg">Author Plan</span>
-              </div>
-              <p className="text-xs opacity-60 mb-3">Cloud sync + multi-device access</p>
-              <span className="text-2xl font-extrabold text-amber-500">$9.99<span className="text-sm font-normal opacity-60">/mo</span></span>
-            </button>
-            <button
-              onClick={async () => { await onUpgradeTeam(); onClose(); }}
-              className="p-6 rounded-2xl border border-orange-500/30 bg-orange-500/5 text-left hover:bg-orange-500/10 transition cursor-pointer group"
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <Users className="w-5 h-5 text-orange-400" />
-                <span className="font-bold text-lg">Team Plan</span>
-              </div>
-              <p className="text-xs opacity-60 mb-3">Real-time collaboration, 10 seats</p>
-              <span className="text-2xl font-extrabold text-orange-500">$99.99<span className="text-sm font-normal opacity-60">/mo</span></span>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}

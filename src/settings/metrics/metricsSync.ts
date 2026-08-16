@@ -1,5 +1,14 @@
-import { db } from '../../auth/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+/**
+ * Productivity metrics, stored locally.
+ *
+ * Metrics used to be mirrored into the signed-in user's Firestore document so a
+ * team owner could read them. Both halves of that are gone: there is no
+ * Firestore, and reading a colleague's typing statistics is not something this
+ * project should offer to reinstate without asking first.
+ *
+ * Everything here is now SQLite on the user's own machine, with localStorage as
+ * the web-preview fallback.
+ */
 import { invoke, isWebPreview } from '../../filesystem/tauriCommands';
 import { UserMetricsData } from './metricsTypes';
 import { loadMetricsFromLocalStorage, persistToLocalStorage, loadMetricsFromSqlite } from './metricsStorage';
@@ -84,21 +93,11 @@ export async function saveAndSyncMetrics(
     }
   }
 
-  // Cloud sync: always sync for authenticated users when their data is important
-  if (!uid || (!teamId && !forceCloudSync)) return;
-
-  try {
-    const payload = {
-      ...data,
-      lastSync: Date.now(),
-    };
-    const userDocRef = doc(db, 'users', uid);
-    await updateDoc(userDocRef, {
-      metrics: payload,
-    });
-  } catch (e) {
-    console.warn('Failed to sync metrics to Firestore:', e);
-  }
+  // Metrics stay on this machine. `forceCloudSync` and `teamId` are still in
+  // the signature because roughly a dozen call sites pass them; both are now
+  // inert rather than worth threading a removal through all of them.
+  void forceCloudSync;
+  void teamId;
 }
 
 // Record a completed Focus Session

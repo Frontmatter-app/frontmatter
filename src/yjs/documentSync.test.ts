@@ -3,11 +3,11 @@ import * as Y from 'yjs';
 import { uint8ToBase64 } from '../lib/base64';
 
 vi.mock('../filesystem/tauriCommands', () => ({ invoke: vi.fn() }));
-vi.mock('../cloud/firestoreSync', () => ({
+vi.mock('../cloud/cloudDocuments', () => ({
   pushCloudDocument: vi.fn(),
   fetchCloudDocument: vi.fn(),
 }));
-vi.mock('../auth/firebase', () => ({ auth: { currentUser: null } }));
+vi.mock('../auth/session', () => ({ auth: { currentUser: null } }));
 
 import { applyDocData, YJS_STATE_ORIGIN } from './documentSync';
 

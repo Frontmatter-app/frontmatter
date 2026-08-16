@@ -5,7 +5,7 @@ import { diff_match_patch } from "diff-match-patch";
 import { create } from "zustand";
 import { getSettings } from "../settings/settingsStore";
 import { usePlanStore } from "../billing/PlanProvider";
-import { auth } from "../auth/firebase";
+import { getCurrentUser } from "../auth/session";
 import { useSyncStatusStore } from "../cloud/syncStatusStore";
 import { CollabProvider } from "../cloud/collabProvider";
 import { generateDraftFromMarkdown } from "./draftUtils";
@@ -79,7 +79,7 @@ export class DocumentRegistry {
 
   private attachProvider(documentId: string, doc: Y.Doc) {
     if (this.providers.has(documentId)) return;
-    if (!auth.currentUser) return;
+    if (!getCurrentUser()) return;
     // Uses the value resolved at acquire time, which saw the document's record.
     if (!this.docs.get(documentId)?.isCloud) return;
     try {
@@ -98,7 +98,7 @@ export class DocumentRegistry {
    */
   private initPlanSubscription() {
     usePlanStore.subscribe(() => {
-      if (auth.currentUser) {
+      if (getCurrentUser()) {
         for (const [docId, entry] of this.docs.entries()) {
           this.attachProvider(docId, entry.doc);
         }

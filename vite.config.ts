@@ -31,7 +31,6 @@ export default defineConfig(() => {
           // lets the browser cache them across releases.
           manualChunks: {
             react: ['react', 'react-dom'],
-            firebase: ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/functions'],
             codemirror: [
               '@codemirror/view',
               '@codemirror/state',

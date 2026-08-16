@@ -108,11 +108,9 @@ the app — there is no separate "enterprise" server.
 docker compose up
 ```
 
-Then point the app at it by setting one variable:
-
-```
-VITE_COLLAB_WS_URL=ws://localhost:8000/collab
-```
+Then in Frontmatter: **Settings → Account → Server URL** → `http://localhost:8000`,
+and create an account. Pointing the app at your own server is a UI action, not a
+rebuild.
 
 The default configuration needs **no cloud accounts and no third-party
 services**. It is one process you can put on a VM:
@@ -194,11 +192,11 @@ that live collaborative edits land as real commits in your repository.
 - [x] Real-time collaboration over Yjs
 - [ ] Connect a git provider (GitHub, GitLab, Gitea) and open a repo
 - [ ] Commit and push as your connected identity
-- [ ] Standalone server with built-in accounts and no cloud dependencies
+- [x] Standalone server with built-in accounts and no cloud dependencies
 - [ ] **Git-backed rooms** — collaborative edits committed to your repo
 - [ ] Teams derived from repository collaborators
 - [ ] Publish straight to GitHub / GitLab Pages
-- [ ] Remove Firebase entirely
+- [x] Remove Firebase entirely
 
 ---
 

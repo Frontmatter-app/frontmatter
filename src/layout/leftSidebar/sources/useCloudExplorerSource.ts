@@ -20,7 +20,7 @@ import {
   deleteCloudFolder,
   moveCloudDocument,
   pushCloudDocument,
-} from '../../../cloud/firestoreSync';
+} from '../../../cloud/cloudDocuments';
 import type { CloudFolderMeta, DocumentMeta } from '../../../types';
 import {
   buildCloudTree,

@@ -16,7 +16,7 @@ import { useDocumentAssets } from '../../images/useDocumentAssets';
 import { getContextFromYdoc } from '../../excalidraw/excalidrawService';
 import { usePlanStore } from '../../billing/PlanProvider';
 import { useSyncStatusStore } from '../../cloud/syncStatusStore';
-import { auth } from '../../auth/firebase';
+import { getCurrentUser } from "../../auth/session";
 import { SuggestionManager } from '../../yjs/suggestions';
 import { AnnotationManager } from '../../yjs/annotations';
 import {
@@ -89,7 +89,7 @@ export function useWriteEditor(
     const isCloud =
       plan.activeContext.type === 'team' ||
       useSyncStatusStore.getState().cloudDocumentIds.has(documentId);
-    return getContextFromYdoc(ydoc, isCloud, plan.teamId || undefined, auth.currentUser?.uid);
+    return getContextFromYdoc(ydoc, isCloud, plan.teamId || undefined, getCurrentUser()?.id);
   }, [ydoc, documentId]);
 
   useFocusModeAttribute(focusMode);

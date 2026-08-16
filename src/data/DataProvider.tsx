@@ -1,17 +1,24 @@
 import React, { createContext, useContext } from 'react';
-import { firestorePorts } from './firestore/adapters';
+import { createFakePorts } from './fakes';
 import type { DataPorts } from './ports';
 
-const DataContext = createContext<DataPorts>(firestorePorts);
+const defaultPorts = createFakePorts();
+
+const DataContext = createContext<DataPorts>(defaultPorts);
 
 /**
  * Supplies the data ports to the tree.
  *
- * Defaults to the Firestore adapters, so the app needs no extra wiring. Tests
- * pass `createFakePorts()` to render a component against in-memory data.
+ * These ports described teams, invites, agreements and cloud documents in
+ * Firestore. All four move to the git repository, so the runtime adapter is
+ * gone and the in-memory implementation is what remains — the same one the
+ * tests have always used.
+ *
+ * The port definitions are kept rather than deleted: they are the shape the
+ * repository-backed adapters will implement.
  */
 export function DataProvider({
-  ports = firestorePorts,
+  ports = defaultPorts,
   children,
 }: {
   ports?: DataPorts;

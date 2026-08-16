@@ -1,9 +1,9 @@
 import * as Y from 'yjs';
 import { invoke } from '../filesystem/tauriCommands';
-import { pushCloudDocument, fetchCloudDocument } from '../cloud/firestoreSync';
+import { pushCloudDocument, fetchCloudDocument } from '../cloud/cloudDocuments';
 import { useSyncStatusStore } from '../cloud/syncStatusStore';
 import { usePlanStore } from '../billing/PlanProvider';
-import { auth } from '../auth/firebase';
+import { getCurrentUser } from "../auth/session";
 import { getSettings } from '../settings/settingsStore';
 import { extractDraftNodes } from './draftUtils';
 import { uint8ToBase64, base64ToUint8 } from '../lib/base64';
@@ -60,7 +60,7 @@ export async function syncToCloud(
   const draftMsg = doc.getText('draft').toString();
   const title = (doc.getMap('meta').get('title') as string) || 'Untitled Document';
   const planState = usePlanStore.getState();
-  const currentUser = auth.currentUser;
+  const currentUser = getCurrentUser();
   const isCloudDoc =
     useSyncStatusStore.getState().cloudDocumentIds.has(documentId) ||
     planState.activeContext.type === 'team';
@@ -81,8 +81,9 @@ export async function syncToCloud(
         excerpt: undefined,
         file_created_at: undefined,
       },
-      currentUser.uid,
+      currentUser.id,
       planState.teamId,
+      title,
     );
     useSyncStatusStore.getState().setSynced();
   } catch (err: any) {
@@ -99,7 +100,7 @@ export async function loadDocData(documentId: string): Promise<{ data: any; pars
     data = await invoke('get_document', { id: documentId });
   } catch (dbErr) {
     const planState = usePlanStore.getState();
-    if (planState.isAuthor && auth.currentUser) {
+    if (planState.isAuthor && getCurrentUser()) {
       const cloudDoc = await fetchCloudDocument(documentId);
       if (cloudDoc) {
         await invoke('create_document', {

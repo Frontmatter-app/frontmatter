@@ -19,11 +19,11 @@
     "ipc:gen": "node scripts/generate-ipc.mjs",
     "test": "npm run test:web && npm run test:rust",
     "test:web": "vitest run",
-    "test:rules": "firebase emulators:exec --only firestore \"vitest run --config vitest.rules.config.ts\"",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml --bin frontmatter",
     "test:watch": "vitest",
     "predev": "npm run test",
-    "prebuild": "npm run test"
+    "prebuild": "npm run test",
+    "test:server": "cd server && python -m pytest tests -q"
   },
   "dependencies": {
     "@codemirror/commands": "^6.10.3",
@@ -43,7 +43,6 @@
     "@vitejs/plugin-react": "^5.0.4",
     "clsx": "^2.1.1",
     "diff-match-patch": "^1.0.5",
-    "firebase": "^12.14.0",
     "katex": "^0.16.47",
     "lucide-react": "^0.546.0",
     "markdown-it": "^14.2.0",
@@ -64,7 +63,6 @@
     "zustand": "^5.0.13"
   },
   "devDependencies": {
-    "@firebase/rules-unit-testing": "^5.0.1",
     "@tauri-apps/cli": "^2.11.2",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.2",

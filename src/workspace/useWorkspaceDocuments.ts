@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import type { DocumentMeta, CloudFolderMeta } from '../types';
 import type { TeamGroupsMap } from '../auth/teamPermissions';
-import { subscribeToCloudDocuments, subscribeToCloudFolders } from '../cloud/firestoreSync';
+import { subscribeToCloudDocuments, subscribeToCloudFolders } from '../cloud/cloudDocuments';
 import { useSyncStatusStore } from '../cloud/syncStatusStore';
 
 interface UseWorkspaceDocumentsOptions {

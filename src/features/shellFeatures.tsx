@@ -2,9 +2,7 @@ import React, { Suspense, lazy, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { SettingsModal } from '../settings/SettingsModal';
 import { ActivityMonitorModal } from '../components/ActivityMonitorModal';
-import { UpgradeModal } from '../billing/UpgradeModal';
 import { AgreementGate } from '../components/AgreementGate';
-import { InviteLandingScreen } from '../components/InviteLandingScreen';
 import { PromptDialog } from '../components/PromptDialog';
 import { useProductivityTracker } from '../settings/metrics/useProductivityTracker';
 import { useGlobalShortcuts } from '../keyboard/useGlobalShortcuts';
@@ -94,29 +92,11 @@ export const shellFeatures: ShellFeature[] = [
     },
   },
   {
-    id: 'billing',
-    name: 'Billing & Upgrades',
-    surface: () => keyed('billing', <UpgradeModal />),
-    selfTest: () => {
-      if (typeof UpgradeModal !== 'function') throw new Error('UpgradeModal missing');
-    },
-  },
-  {
     id: 'agreement-gate',
     name: 'Terms Agreement',
     surface: () => keyed('agreement-gate', <AgreementGate />),
     selfTest: () => {
       if (typeof AgreementGate !== 'function') throw new Error('AgreementGate missing');
-    },
-  },
-  {
-    id: 'team-invites',
-    name: 'Team Invites',
-    surface: () => keyed('team-invites', <InviteLandingScreen />),
-    selfTest: () => {
-      if (typeof InviteLandingScreen !== 'function') {
-        throw new Error('InviteLandingScreen missing');
-      }
     },
   },
   {

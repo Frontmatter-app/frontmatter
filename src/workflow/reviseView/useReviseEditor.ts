@@ -15,7 +15,7 @@ import { useDocumentAssets } from "../../images/useDocumentAssets";
 import { getContextFromYdoc } from "../../excalidraw/excalidrawService";
 import { usePlanStore } from "../../billing/PlanProvider";
 import { useSyncStatusStore } from "../../cloud/syncStatusStore";
-import { auth } from "../../auth/firebase";
+import { getCurrentUser } from "../../auth/session";
 import { setCurrentExcalidrawDocumentId, setImageAnnotationManager, setImageAuthorId, setImageYdoc } from "../../editor/extensions/inlinePreview/interactions";
 import { linkCommand } from "../../editor/formatting/commands";
 import { getLintIssues, proseLintExtension, revealLintIssue } from "../../editor/extensions/proseLintExtension";
@@ -114,7 +114,7 @@ export function useReviseEditor(ydoc: Y.Doc, documentId: string) {
     const isCloud =
       plan.activeContext.type === "team" ||
       useSyncStatusStore.getState().cloudDocumentIds.has(documentId);
-    return getContextFromYdoc(ydoc, isCloud, plan.teamId || undefined, auth.currentUser?.uid);
+    return getContextFromYdoc(ydoc, isCloud, plan.teamId || undefined, getCurrentUser()?.id);
   })());
 
   // Main editor setup
