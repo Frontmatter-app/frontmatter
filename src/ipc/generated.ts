@@ -405,7 +405,7 @@ export interface IpcArgsMap {
   'git_ensure_ignores': { path: string };
   'git_add_remote': { path: string; name: string; url: string };
   'git_get_remote_url': { path: string };
-  'git_clone': { url: string; destination: string };
+  'git_clone': { url: string; destination: string; token?: string | null };
   'save_as_document': { id: string };
   'get_auto_save': Record<string, never>;
   'set_auto_save': { enabled: boolean };

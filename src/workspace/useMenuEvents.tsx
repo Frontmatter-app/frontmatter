@@ -4,6 +4,7 @@ import { invoke } from '../filesystem/tauriCommands';
 import { showPromptDialog, showConfirmDialog, showAlertDialog } from '../lib/tauriDialog';
 import { registry, useDirtyDocsStore } from '../yjs/DocumentRegistry';
 import { PublishWizard } from '../publish/PublishWizard';
+import { RepoPickerModal } from '../forge/RepoPickerModal';
 import { isPublishType, type PublishType } from '../publish/publishTypes';
 
 interface UseMenuEventsProps {
@@ -28,6 +29,7 @@ export function useMenuEvents({
   // `null` means the dialog is closed. Publishing itself is reported inside
   // the dialog, so there is no separate loading overlay.
   const [publishType, setPublishType] = useState<PublishType | null>(null);
+  const [repoPickerOpen, setRepoPickerOpen] = useState(false);
   const [lastPublishType, setLastPublishType] = useState<PublishType>('docs');
 
   useEffect(() => {
@@ -77,47 +79,12 @@ export function useMenuEvents({
 
   useEffect(() => {
     let un: (() => void) | undefined;
-    listen('menu-clone-repository', async () => {
-      const repoUrl = await showPromptDialog(
-        'Clone Repository',
-        'Enter Git repository URL:',
-        'https://'
-      );
-      if (!repoUrl || !repoUrl.trim()) return;
-
-      const trimmedUrl = repoUrl.trim();
-      const folderName = trimmedUrl.split('/').pop()?.replace('.git', '') || 'project';
-
-      const parentFolder = await invoke<string | null>('pick_folder', {
-        title: `Choose parent folder for "${folderName}"`,
-      });
-      if (!parentFolder) return;
-
-      const destination = `${parentFolder}/${folderName}`;
-      try {
-        const result = await invoke<{ path: string; success: boolean; error?: string }>('git_clone', {
-          url: trimmedUrl,
-          destination,
-        });
-
-        if (!result.success) {
-          await showConfirmDialog('Clone Failed', result.error || 'Unknown error');
-          return;
-        }
-
-        const openIt = await showConfirmDialog(
-          'Clone Complete',
-          `Repository cloned to:\n${result.path}\n\nOpen it now?`
-        );
-
-        if (openIt) {
-          await invoke('add_recent_project', { path: result.path });
-          await invoke('open_folder_in_new_window_from_path', { path: result.path });
-        }
-      } catch (e: any) {
-        console.error('Clone repository failed:', e);
-        await showConfirmDialog('Clone Error', e?.toString() || 'Failed to clone repository');
-      }
+    // Opens the picker rather than prompting for a URL. The URL is something
+    // the user can only obtain by visiting the provider, and a private
+    // repository failed opaquely because the shelled-out git had no
+    // credentials.
+    listen('menu-clone-repository', () => {
+      setRepoPickerOpen(true);
     }).then(fn => { un = fn; });
     return () => { un?.(); };
   }, []);
@@ -228,6 +195,8 @@ export function useMenuEvents({
 
   return (
     <>
+      <RepoPickerModal isOpen={repoPickerOpen} onClose={() => setRepoPickerOpen(false)} />
+
       {publishType && (
         <PublishWizard
           initialType={publishType}
