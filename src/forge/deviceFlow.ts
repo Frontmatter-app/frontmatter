@@ -49,6 +49,33 @@ export class DeviceFlowError extends Error {
 }
 
 /**
+ * What the provider issues on success.
+ *
+ * `refreshToken` is present only when the OAuth app has token expiration
+ * enabled — which is the default for GitHub Apps and an option for OAuth apps.
+ * Discarding it, as an earlier version of this did, means the connection works
+ * perfectly until the access token expires eight hours later and then fails for
+ * everybody with no way back but reconnecting by hand.
+ */
+export interface TokenSet {
+  accessToken: string;
+  refreshToken: string | null;
+  /** Epoch milliseconds, or null when the token does not expire. */
+  expiresAt: number | null;
+}
+
+function toTokenSet(raw: Record<string, unknown>): TokenSet {
+  const expiresIn = typeof raw.expires_in === 'number' ? raw.expires_in : null;
+  return {
+    accessToken: String(raw.access_token),
+    refreshToken: typeof raw.refresh_token === 'string' ? raw.refresh_token : null,
+    // A minute of slack, so a token is treated as expired slightly before it
+    // is — a request that starts valid can still land after expiry.
+    expiresAt: expiresIn ? Date.now() + (expiresIn - 60) * 1000 : null,
+  };
+}
+
+/**
  * Providers ship their own client id, which is public by definition in this
  * grant — there is no secret to protect. A self-hoster can override these to
  * point at their own OAuth app.
@@ -129,7 +156,7 @@ export async function pollForToken(
   config: DeviceFlowConfig,
   grant: DeviceCodeGrant,
   options: { signal?: AbortSignal; onTick?: (secondsLeft: number) => void } = {},
-): Promise<string> {
+): Promise<TokenSet> {
   let intervalMs = grant.interval * 1000;
   const deadline = Date.now() + grant.expiresIn * 1000;
 
@@ -151,7 +178,7 @@ export async function pollForToken(
 
     const raw = await response.json().catch(() => ({ error: 'bad_response' }));
 
-    if (raw.access_token) return raw.access_token as string;
+    if (raw.access_token) return toTokenSet(raw);
 
     switch (raw.error) {
       case 'authorization_pending':
@@ -187,4 +214,36 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
       { once: true },
     );
   });
+}
+
+
+/**
+ * Exchanges a refresh token for a fresh access token.
+ *
+ * GitHub rotates the refresh token on every use, so the new one must be stored
+ * or the next refresh fails. Reusing a spent refresh token is treated as theft
+ * by some providers and revokes the whole grant.
+ */
+export async function refreshAccessToken(
+  config: DeviceFlowConfig,
+  refreshToken: string,
+): Promise<TokenSet> {
+  const response = await fetch(config.tokenUrl, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: config.clientId,
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+    }).toString(),
+  });
+
+  const raw = await response.json().catch(() => ({ error: 'bad_response' }));
+  if (!raw.access_token) {
+    throw new DeviceFlowError(
+      raw.error_description ?? 'The connection expired. Connect the account again.',
+      raw.error ?? 'refresh_failed',
+    );
+  }
+  return toTokenSet(raw);
 }

@@ -42,12 +42,48 @@ export async function commitChanges(path: string, message: string): Promise<stri
   return invoke('git_commit', { path, message });
 }
 
-export async function pushChanges(path: string): Promise<void> {
-  await invoke('git_push', { path });
+/**
+ * The token for the connected provider, or null.
+ *
+ * Read per operation rather than held: it is needed only for the lifetime of
+ * one subprocess, and the Rust side passes it through the child's environment
+ * so it reaches neither `.git/config` nor `ps`.
+ *
+ * A failure here is not propagated. Someone whose own credential helper already
+ * works has never needed an account connected in the app, and breaking their
+ * push because a keychain read failed would be a regression for them.
+ */
+async function forgeToken(): Promise<string | null> {
+  try {
+    const { readToken } = await import('../forge/tokenStore');
+    return await readToken('github');
+  } catch {
+    return null;
+  }
 }
 
-export async function pullChanges(path: string): Promise<void> {
-  await invoke('git_pull', { path });
+export async function pushChanges(
+  path: string,
+  options: { remote?: string; branch?: string } = {},
+): Promise<void> {
+  await invoke('git_push', {
+    path,
+    remote: options.remote ?? null,
+    branch: options.branch ?? null,
+    token: await forgeToken(),
+  });
+}
+
+export async function pullChanges(
+  path: string,
+  options: { remote?: string; branch?: string } = {},
+): Promise<void> {
+  await invoke('git_pull', {
+    path,
+    remote: options.remote ?? null,
+    branch: options.branch ?? null,
+    token: await forgeToken(),
+  });
 }
 
 export async function getGitLog(path: string, filePath?: string): Promise<GitCommit[]> {

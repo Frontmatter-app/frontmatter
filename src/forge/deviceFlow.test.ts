@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   DeviceFlowError,
+  refreshAccessToken,
   GITHUB_DEVICE_FLOW,
   pollForToken,
   requestDeviceCode,
@@ -83,7 +84,7 @@ describe('requestDeviceCode', () => {
 describe('pollForToken', () => {
   it('returns the token once the user authorises', async () => {
     respondWith({ access_token: 'gho_token' });
-    await expect(pollForToken(config, grant)).resolves.toBe('gho_token');
+    await expect(pollForToken(config, grant)).resolves.toMatchObject({ accessToken: 'gho_token' });
   });
 
   it('keeps polling through authorization_pending', async () => {
@@ -94,13 +95,13 @@ describe('pollForToken', () => {
       { error: 'authorization_pending' },
       { access_token: 'gho_token' },
     );
-    await expect(pollForToken(config, grant)).resolves.toBe('gho_token');
+    await expect(pollForToken(config, grant)).resolves.toMatchObject({ accessToken: 'gho_token' });
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it('keeps polling through slow_down', async () => {
     const fetchMock = respondWith({ error: 'slow_down', interval: 0 }, { access_token: 'tok' });
-    await expect(pollForToken(config, grant)).resolves.toBe('tok');
+    await expect(pollForToken(config, grant)).resolves.toMatchObject({ accessToken: 'tok' });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
@@ -148,5 +149,47 @@ describe('shipped GitHub configuration', () => {
     // some users, which is a miserable bug to diagnose.
     expect(GITHUB_DEVICE_FLOW.scope).toContain('repo');
     expect(GITHUB_DEVICE_FLOW.scope).toContain('read:user');
+  });
+});
+
+describe('token sets', () => {
+  it('captures the refresh token and expiry the provider issues', async () => {
+    // The bug this exists for: an earlier version returned only the access
+    // token, so a provider with expiration enabled worked for eight hours and
+    // then failed for everybody with no way back but reconnecting by hand.
+    respondWith({ access_token: 'gho_a', refresh_token: 'ghr_b', expires_in: 28800 });
+    const tokens = await pollForToken(config, grant);
+    expect(tokens.accessToken).toBe('gho_a');
+    expect(tokens.refreshToken).toBe('ghr_b');
+    expect(tokens.expiresAt).toBeGreaterThan(Date.now());
+  });
+
+  it('treats a token with no expiry as non-expiring', async () => {
+    respondWith({ access_token: 'gho_a' });
+    const tokens = await pollForToken(config, grant);
+    expect(tokens.expiresAt).toBeNull();
+    expect(tokens.refreshToken).toBeNull();
+  });
+
+  it('expires slightly early, so an in-flight request cannot outlive the token', async () => {
+    respondWith({ access_token: 'gho_a', expires_in: 3600 });
+    const tokens = await pollForToken(config, grant);
+    expect(tokens.expiresAt!).toBeLessThan(Date.now() + 3600 * 1000);
+  });
+});
+
+describe('refreshAccessToken', () => {
+  it('exchanges a refresh token for a new set', async () => {
+    respondWith({ access_token: 'gho_new', refresh_token: 'ghr_new', expires_in: 28800 });
+    const tokens = await refreshAccessToken(config, 'ghr_old');
+    expect(tokens.accessToken).toBe('gho_new');
+    // GitHub rotates the refresh token on every use, so the new one must be
+    // carried through — reusing a spent one revokes the whole grant.
+    expect(tokens.refreshToken).toBe('ghr_new');
+  });
+
+  it('reports a spent refresh token as needing reconnection', async () => {
+    respondWith({ error: 'bad_refresh_token', error_description: 'expired' });
+    await expect(refreshAccessToken(config, 'ghr_old')).rejects.toBeInstanceOf(DeviceFlowError);
   });
 });

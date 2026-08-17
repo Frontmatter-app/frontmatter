@@ -53,6 +53,35 @@ fn run_git_blocking(args: &[String], cwd: &str) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
+/// Runs git with a token supplied through a one-shot credential helper.
+///
+/// Shares the reasoning in `git_clone`: the token reaches git through the
+/// child's environment, so it appears neither in `.git/config` (as it would if
+/// embedded in the remote URL) nor in `ps` output (as it would on the command
+/// line).
+fn run_git_authenticated(args: &[String], cwd: &str, token: &str) -> Result<String, String> {
+    let mut full: Vec<String> = vec![
+        "-c".into(),
+        "credential.helper=!f() { echo username=x-access-token; echo password=$FM_FORGE_TOKEN; }; f"
+            .into(),
+    ];
+    full.extend_from_slice(args);
+
+    let output = Command::new("git")
+        .args(&full)
+        .current_dir(cwd)
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("GIT_OPTIONAL_LOCKS", "0")
+        .env("FM_FORGE_TOKEN", token)
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
 /// Runs git off the async runtime.
 ///
 /// `Command::output` blocks until the process exits. Called directly from an
@@ -62,6 +91,22 @@ async fn git(args: Vec<String>, cwd: String) -> Result<String, String> {
     tokio::task::spawn_blocking(move || run_git_blocking(&args, &cwd))
         .await
         .map_err(|e| format!("git task failed: {e}"))?
+}
+
+/// As `git`, with a token when one is available.
+///
+/// Falls back to the plain runner when `token` is None, so a user whose own
+/// credential helper already works is unaffected by having no account
+/// connected in the app.
+async fn git_auth(args: Vec<String>, cwd: String, token: Option<String>) -> Result<String, String> {
+    match token {
+        Some(secret) => tokio::task::spawn_blocking(move || {
+            run_git_authenticated(&args, &cwd, &secret)
+        })
+        .await
+        .map_err(|e| format!("git task failed: {e}"))?,
+        None => git(args, cwd).await,
+    }
 }
 
 macro_rules! args {
@@ -284,17 +329,46 @@ pub async fn git_commit(path: String, message: String) -> Result<String, String>
     Ok(output.lines().last().unwrap_or("").to_string())
 }
 
+/// Pushes, optionally to a named remote and branch.
+///
+/// Both were previously hardcoded: the command took no arguments and `origin`
+/// was assumed at the call site, so a repository with a differently-named
+/// remote, or a push to anything but the tracked branch, was not expressible.
 #[tauri::command]
-pub async fn git_push(path: String) -> Result<(), String> {
+pub async fn git_push(
+    path: String,
+    remote: Option<String>,
+    branch: Option<String>,
+    token: Option<String>,
+) -> Result<(), String> {
     let root = repo_root(&path).await?;
-    git(args!["push"], root).await?;
+    let mut command = args!["push"];
+    if let Some(name) = remote {
+        command.push(name);
+        if let Some(target) = branch {
+            command.push(target);
+        }
+    }
+    git_auth(command, root, token).await?;
     Ok(())
 }
 
 #[tauri::command]
-pub async fn git_pull(path: String) -> Result<(), String> {
+pub async fn git_pull(
+    path: String,
+    remote: Option<String>,
+    branch: Option<String>,
+    token: Option<String>,
+) -> Result<(), String> {
     let root = repo_root(&path).await?;
-    git(args!["pull"], root).await?;
+    let mut command = args!["pull"];
+    if let Some(name) = remote {
+        command.push(name);
+        if let Some(target) = branch {
+            command.push(target);
+        }
+    }
+    git_auth(command, root, token).await?;
     Ok(())
 }
 

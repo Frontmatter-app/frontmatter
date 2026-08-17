@@ -390,8 +390,8 @@ export interface IpcArgsMap {
   'git_add': { path: string; files: string[] };
   'git_unstage': { path: string; files: string[] };
   'git_commit': { path: string; message: string };
-  'git_push': { path: string };
-  'git_pull': { path: string };
+  'git_push': { path: string; remote?: string | null; branch?: string | null; token?: string | null };
+  'git_pull': { path: string; remote?: string | null; branch?: string | null; token?: string | null };
   'git_log': { path: string; filePath?: string | null };
   'git_branches': { path: string };
   'git_current_branch': { path: string };

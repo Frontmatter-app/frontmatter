@@ -26,7 +26,7 @@ import {
   type DeviceFlowConfig,
 } from './deviceFlow';
 import { GitHubForge } from './github';
-import { forgetToken, isConnected, keychainTokens, storeToken } from './tokenStore';
+import { forgetToken, isConnected, keychainTokens, storeTokenSet } from "./tokenStore";
 import type { ForgePort } from './ports';
 import type { ForgeAccount, ForgeKind } from './types';
 
@@ -127,7 +127,7 @@ export function useForgeConnection(kind: ForgeKind = 'github') {
       });
 
       // Straight to the keychain. Never into state.
-      await storeToken(kind, token);
+      await storeTokenSet(kind, token);
       tokensRef.current.clear();
 
       setGrant(null);
