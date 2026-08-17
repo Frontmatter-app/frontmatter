@@ -1,0 +1,109 @@
+/**
+ * Connect-a-provider panel.
+ *
+ * Built entirely on the design tokens, so it follows the chrome theme rather
+ * than carrying its own colours. The only unusual rule here is the device code,
+ * which has to be readable off one screen while being typed into another — it
+ * is deliberately large, monospaced, and letter-spaced.
+ */
+
+.forge-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-3);
+}
+
+.forge-panel__title {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--ds-fg);
+  margin: 0;
+}
+
+.forge-panel__hint {
+  font-size: 0.75rem;
+  line-height: var(--ds-leading);
+  color: var(--ds-fg-muted);
+  margin: 0;
+}
+
+.forge-panel__error {
+  font-size: 0.75rem;
+  color: var(--ds-danger);
+  background: color-mix(in srgb, var(--ds-danger) 10%, transparent);
+  border-radius: var(--ds-radius-md);
+  padding: var(--ds-space-2) var(--ds-space-3);
+  margin: 0;
+}
+
+/* The whole point of the screen: read it here, type it there. */
+.forge-panel__code {
+  display: block;
+  font-family: var(--ds-font-mono);
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-align: center;
+  color: var(--ds-fg);
+  background: var(--ds-surface-strong);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-lg);
+  padding: var(--ds-space-4);
+  user-select: all;
+}
+
+.forge-panel__account {
+  display: flex;
+  align-items: center;
+  gap: var(--ds-space-3);
+  background: var(--ds-surface);
+  border: 1px solid var(--ds-border-soft);
+  border-radius: var(--ds-radius-lg);
+  padding: var(--ds-space-3);
+}
+
+.forge-panel__avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--ds-radius-pill);
+  flex-shrink: 0;
+}
+
+.forge-panel__identity {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.forge-panel__name {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ds-fg);
+}
+
+.forge-panel__login {
+  font-size: 0.75rem;
+  color: var(--ds-fg-meta);
+}
+
+.forge-panel__actions {
+  display: flex;
+  gap: var(--ds-space-2);
+  flex-wrap: wrap;
+}
+
+.forge-panel__status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ds-space-2);
+  font-size: 0.75rem;
+  color: var(--ds-fg-muted);
+}
+
+.forge-panel__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-success);
+  flex-shrink: 0;
+}

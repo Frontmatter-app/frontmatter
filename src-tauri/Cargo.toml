@@ -39,6 +39,11 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 glob = "0.3"
 harper-core = "2.8.0"
 
+# HTTP for the OAuth device flow, which cannot run in the webview: the
+# provider's device endpoints send no CORS headers. rustls rather than
+# native-tls to avoid an OpenSSL build dependency.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
 # OS secret store for git provider tokens. `apple-native`, `windows-native` and
 # `sync-secret-service` select the platform backends; without a feature the
 # crate compiles to a no-op store that silently keeps nothing.

@@ -15,6 +15,7 @@
  *
  * Reference: RFC 8628.
  */
+import { invoke } from '../filesystem/tauriCommands';
 import type { ForgeKind } from './types';
 
 export interface DeviceCodeGrant {
@@ -64,6 +65,23 @@ export interface TokenSet {
   expiresAt: number | null;
 }
 
+/** What the native command returns; `expires_in` is seconds, not a deadline. */
+interface NativeTokenSet {
+  accessToken: string;
+  refreshToken: string | null;
+  expiresIn: number | null;
+}
+
+function fromNative(raw: NativeTokenSet): TokenSet {
+  return {
+    accessToken: raw.accessToken,
+    refreshToken: raw.refreshToken ?? null,
+    // A minute of slack, so a token is treated as expired slightly before it
+    // is — a request that starts valid can still land after expiry.
+    expiresAt: raw.expiresIn ? Date.now() + (raw.expiresIn - 60) * 1000 : null,
+  };
+}
+
 function toTokenSet(raw: Record<string, unknown>): TokenSet {
   const expiresIn = typeof raw.expires_in === 'number' ? raw.expires_in : null;
   return {
@@ -109,7 +127,13 @@ export const GITLAB_DEVICE_FLOW: DeviceFlowConfig = {
   scope: 'api read_user',
 };
 
-/** Step one: ask the provider for a code to show the user. */
+/**
+ * Step one: ask the provider for a code to show the user.
+ *
+ * Goes through the native side. The provider's device endpoints send no
+ * `Access-Control-Allow-Origin`, so a webview `fetch` is blocked before the
+ * request leaves — no client-side handling can work around that.
+ */
 export async function requestDeviceCode(config: DeviceFlowConfig): Promise<DeviceCodeGrant> {
   if (!config.clientId) {
     throw new DeviceFlowError(
@@ -118,31 +142,15 @@ export async function requestDeviceCode(config: DeviceFlowConfig): Promise<Devic
     );
   }
 
-  const response = await fetch(config.deviceCodeUrl, {
-    method: 'POST',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ client_id: config.clientId, scope: config.scope }).toString(),
-  });
-
-  if (!response.ok) {
-    throw new DeviceFlowError(
-      `${config.kind} refused to start sign-in (${response.status}).`,
-      'device_code_failed',
-    );
+  try {
+    return await invoke<DeviceCodeGrant>('forge_device_code', {
+      deviceCodeUrl: config.deviceCodeUrl,
+      clientId: config.clientId,
+      scope: config.scope,
+    });
+  } catch (cause) {
+    throw new DeviceFlowError(String(cause), 'device_code_failed');
   }
-
-  const raw = await response.json();
-  if (raw.error) throw new DeviceFlowError(raw.error_description ?? raw.error, raw.error);
-
-  return {
-    userCode: raw.user_code,
-    verificationUri: raw.verification_uri ?? raw.verification_uri_complete,
-    deviceCode: raw.device_code,
-    expiresIn: raw.expires_in ?? 900,
-    // Providers may omit the interval; five seconds is the RFC's default and
-    // polling faster earns a `slow_down`.
-    interval: raw.interval ?? 5,
-  };
 }
 
 /**
@@ -166,37 +174,33 @@ export async function pollForToken(
     await sleep(intervalMs, options.signal);
     options.onTick?.(Math.max(0, Math.round((deadline - Date.now()) / 1000)));
 
-    const response = await fetch(config.tokenUrl, {
-      method: 'POST',
-      headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: config.clientId,
-        device_code: grant.deviceCode,
-        grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
-      }).toString(),
-    });
-
-    const raw = await response.json().catch(() => ({ error: 'bad_response' }));
-
-    if (raw.access_token) return toTokenSet(raw);
-
-    switch (raw.error) {
-      case 'authorization_pending':
-        continue;
-      case 'slow_down':
-        // Additive, per RFC 8628 §3.5. Ignoring this gets the poll rejected.
-        intervalMs += (raw.interval ? raw.interval * 1000 : 5000);
-        continue;
-      case 'expired_token':
+    let issued: NativeTokenSet | null;
+    try {
+      // Returns null while the user has not finished. The native side folds
+      // authorization_pending and slow_down into that, since both mean
+      // "keep waiting"; anything else is a real failure and throws.
+      issued = await invoke<NativeTokenSet | null>('forge_device_poll', {
+        tokenUrl: config.tokenUrl,
+        clientId: config.clientId,
+        deviceCode: grant.deviceCode,
+      });
+    } catch (cause) {
+      const text = String(cause);
+      if (text.includes('expired_token')) {
         throw new DeviceFlowError('The code expired. Start again.', 'expired_token');
-      case 'access_denied':
+      }
+      if (text.includes('access_denied')) {
         throw new DeviceFlowError('Access was declined.', 'access_denied');
-      default:
-        throw new DeviceFlowError(
-          raw.error_description ?? raw.error ?? 'Sign-in failed.',
-          raw.error ?? 'unknown',
-        );
+      }
+      throw new DeviceFlowError(text, 'poll_failed');
     }
+
+    if (issued) return fromNative(issued);
+
+    // Widen the interval as we wait. The provider asks for this through
+    // slow_down, which the native side has already absorbed, so erring towards
+    // a longer gap keeps us clear of being refused outright.
+    intervalMs = Math.min(intervalMs + 1000, 15_000);
   }
 
   throw new DeviceFlowError('The code expired. Start again.', 'expired_token');
@@ -228,22 +232,14 @@ export async function refreshAccessToken(
   config: DeviceFlowConfig,
   refreshToken: string,
 ): Promise<TokenSet> {
-  const response = await fetch(config.tokenUrl, {
-    method: 'POST',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: config.clientId,
-      grant_type: 'refresh_token',
-      refresh_token: refreshToken,
-    }).toString(),
-  });
-
-  const raw = await response.json().catch(() => ({ error: 'bad_response' }));
-  if (!raw.access_token) {
-    throw new DeviceFlowError(
-      raw.error_description ?? 'The connection expired. Connect the account again.',
-      raw.error ?? 'refresh_failed',
-    );
+  try {
+    const issued = await invoke<NativeTokenSet>('forge_refresh_token', {
+      tokenUrl: config.tokenUrl,
+      clientId: config.clientId,
+      refreshToken,
+    });
+    return fromNative(issued);
+  } catch (cause) {
+    throw new DeviceFlowError(String(cause), 'refresh_failed');
   }
-  return toTokenSet(raw);
 }

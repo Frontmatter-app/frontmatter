@@ -2,7 +2,7 @@
 // Produced by scripts/generate-ipc.mjs from the #[tauri::command] definitions
 // in src-tauri/src. Run `npm run ipc:gen` after changing a command.
 //
-// 114 commands registered in main.rs.
+// 117 commands registered in main.rs.
 //
 // `unknown` means the Rust type is not a serialisable struct this generator
 // could resolve; narrow it with a cast at the call site.
@@ -39,6 +39,14 @@ export interface DailyMetricsRow {
   wpm_sample_count: number;
   words_written: number;
   issues_resolved: number;
+}
+
+export interface DeviceCodeGrant {
+  userCode: string;
+  verificationUri: string;
+  deviceCode: string;
+  expiresIn: number;
+  interval: number;
 }
 
 export interface DocHealthRow {
@@ -281,6 +289,12 @@ export interface ThemeOptionField {
   choices: string[];
 }
 
+export interface TokenSet {
+  accessToken: string;
+  refreshToken?: string | null;
+  expiresIn?: number | null;
+}
+
 export interface WorkspaceMeta {
   path: string;
   is_valid: boolean;
@@ -308,6 +322,9 @@ export interface IpcArgsMap {
   'get_documents': Record<string, never>;
   'open_workspace': { path?: string | null };
   'get_directory_tree': { workspacePath: string; showHidden?: boolean | null };
+  'forge_device_code': { deviceCodeUrl: string; clientId: string; scope: string };
+  'forge_device_poll': { tokenUrl: string; clientId: string; deviceCode: string };
+  'forge_refresh_token': { tokenUrl: string; clientId: string; refreshToken: string };
   'credential_set': { account: string; secret: string };
   'credential_get': { account: string };
   'credential_delete': { account: string };
@@ -426,6 +443,9 @@ export interface IpcResultMap {
   'get_documents': DocumentMeta[];
   'open_workspace': WorkspaceMeta | null;
   'get_directory_tree': FileNode;
+  'forge_device_code': DeviceCodeGrant;
+  'forge_device_poll': TokenSet | null;
+  'forge_refresh_token': TokenSet;
   'credential_set': null;
   'credential_get': string | null;
   'credential_delete': null;
@@ -548,6 +568,9 @@ export const IPC_COMMANDS = [
   'get_documents',
   'open_workspace',
   'get_directory_tree',
+  'forge_device_code',
+  'forge_device_poll',
+  'forge_refresh_token',
   'credential_set',
   'credential_get',
   'credential_delete',

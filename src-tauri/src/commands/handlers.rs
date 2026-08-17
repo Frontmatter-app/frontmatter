@@ -22,6 +22,12 @@ macro_rules! app_command_handlers {
             $crate::commands::workspace::get_documents,
             $crate::commands::workspace::open_workspace,
             $crate::commands::workspace_tree::get_directory_tree,
+            // -- Git provider auth ----------------------------------------
+            // The OAuth device endpoints send no CORS headers, so the webview
+            // cannot call them at all. These must stay native.
+            $crate::commands::forge_auth::forge_device_code,
+            $crate::commands::forge_auth::forge_device_poll,
+            $crate::commands::forge_auth::forge_refresh_token,
             // -- Credentials ----------------------------------------------
             // Git provider tokens, held in the OS keychain rather than in the
             // webview, because they can push to the user's repositories.
