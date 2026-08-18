@@ -22,10 +22,19 @@ import type { EditorHandle } from './createEditor';
 /**
  * Resolves the awareness instance the collaboration extension binds to.
  *
- * The registry attaches a provider synchronously as `acquire` resolves, and
- * this runs with the resolved document, so one check is enough. Revise polled
- * every 50ms instead and never stopped — a permanent 20Hz timer for anyone
- * signed in with no provider — and leaked the standalone instance it built.
+ * The registry owns one instance per open document, for exactly as long as the
+ * document is open, and hands the same one to the room when it connects. That
+ * ownership is the fix for a bug with no visible symptom other than the feature
+ * never working: this hook used to ask the *provider* for its awareness and,
+ * finding none — a provider needs a network round trip, an editor mounts
+ * immediately — fall back to building a private instance. `yCollab` binds to
+ * whatever it is given at construction and never looks again, so every editor
+ * in the app spent its life bound to an awareness with exactly one participant
+ * in it. Remote carets were fully implemented and could not appear.
+ *
+ * A document with no room still gets one, and it stays empty. Nothing branches
+ * on whether collaboration is available; the cursor extension simply has no
+ * peers to draw.
  */
 export function useAwareness(ydoc: Y.Doc | null, documentId?: string): Awareness | null {
   const [awareness, setAwareness] = useState<Awareness | null>(null);
@@ -34,15 +43,16 @@ export function useAwareness(ydoc: Y.Doc | null, documentId?: string): Awareness
     if (!ydoc) { setAwareness(null); return; }
 
     if (documentId) {
-      const provider = registry.getProvider(documentId);
-      if (provider) {
-        setAwareness(provider.awareness);
+      const owned = registry.awarenessFor(documentId);
+      if (owned) {
+        setAwareness(owned);
         return;
       }
     }
 
-    // Local-only document: a standalone awareness keeps the cursor extension
-    // working with no peers.
+    // No registry entry — a preview, or a document rendered outside the
+    // workspace. A standalone instance keeps the cursor extension working, and
+    // is destroyed with the mount because nothing else refers to it.
     const local = new Awareness(ydoc);
     setAwareness(local);
     return () => local.destroy();

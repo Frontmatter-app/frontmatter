@@ -85,6 +85,39 @@ export class GitBackedDocument {
   }
 
   /**
+   * Adopts the branch as this document's base without touching its text.
+   *
+   * The counterpart to `load`, and the difference between them matters enough
+   * to state plainly. `load` is for a document whose *only* home is the
+   * repository: it has nothing until the branch supplies it. A document already
+   * open in a workspace is the other case — the text on screen came from the
+   * file on disk and is the working copy, quite legitimately ahead of what has
+   * been committed. Calling `load` on one of those would merge the branch into
+   * text that already contains it, against an empty base, and the document
+   * would end up holding two interleaved copies of itself.
+   *
+   * So this reads the branch for one purpose only: to record the revision the
+   * next commit is authored against. That is what turns the commit into a
+   * conflict-detecting write rather than a blind overwrite of whatever anyone
+   * else has pushed.
+   */
+  async attach(): Promise<void> {
+    const { repo, branch, path } = this.target;
+    const file = await this.forge.getFile(repo, path, branch);
+
+    if (!file) {
+      // Not yet in the repository — an unversioned file about to become its
+      // first commit. The empty base makes every line of it an addition.
+      this.baseCommit = await this.forge.getRef(repo, branch);
+      this.baseText = '';
+      return;
+    }
+
+    this.baseCommit = file.commitSha;
+    this.baseText = file.text;
+  }
+
+  /**
    * Commits the document's current text.
    *
    * When the branch has not moved this is a single write. When it has, the

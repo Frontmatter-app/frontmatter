@@ -60,10 +60,10 @@ code=$(curl -sS -o /dev/null -w '%{http_code}' "$BASE_URL/users/me")
 pass "unauthenticated request is refused"
 
 # ── collaboration over a real websocket ──────────────────────────────────────
-python3 - "$WS_URL" "$user_id" "$token" <<'PYTHON'
-import asyncio, sys, subprocess
+python3 - "$WS_URL" "$user_id" "$token" "$BASE_URL" <<'PYTHON'
+import asyncio, json, sys, subprocess, urllib.request
 
-ws_base, user_id, token = sys.argv[1], sys.argv[2], sys.argv[3]
+ws_base, user_id, token, base = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 
 try:
     import websockets
@@ -102,15 +102,42 @@ def frame(sub, payload):
 def ok(msg):  print(f"  \033[32mok\033[0m    {msg}")
 def bad(msg): print(f"  \033[31mFAIL\033[0m  {msg}"); sys.exit(1)
 
-room = f"{ws_base}/collab/user/{user_id}/verify.md?token={token}"
+# A room is named by where the file lives, not by the client. The server
+# canonicalises the coordinate and hashes it, so the name comes back from the
+# grant rather than being built here — the desktop app does exactly this.
+grant = json.loads(urllib.request.urlopen(urllib.request.Request(
+    f"{base}/rooms/grant",
+    data=json.dumps({
+        "coordinate": {
+            "provider": "github",
+            "host": "github.com",
+            "repo": "acme/verify",
+            "branch": "main",
+            "path": "verify.md",
+        },
+        "claim": {"permission": "write", "login": "verify"},
+    }).encode(),
+    headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
+)).read())
+
+room = f"{ws_base}/collab/{grant['roomId']}?token={grant['token']}"
 
 async def main():
+    ok(f"grant issued for room {grant['roomId'][:11]}… ({grant['access']}, {grant['verification']})")
+
     # Rejects an unauthenticated socket.
     try:
-        async with websockets.connect(f"{ws_base}/collab/user/{user_id}/x.md"):
+        async with websockets.connect(f"{ws_base}/collab/{grant['roomId']}"):
             bad("socket without a token was accepted")
     except Exception:
         ok("socket without a token is refused")
+
+    # A session token is not a room grant, and must not open a room.
+    try:
+        async with websockets.connect(f"{ws_base}/collab/{grant['roomId']}?token={token}"):
+            bad("a session token opened a room")
+    except Exception:
+        ok("a session token does not open a room")
 
     async with websockets.connect(room) as a, websockets.connect(room) as b:
         first = await asyncio.wait_for(a.recv(), timeout=5)

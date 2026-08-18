@@ -139,6 +139,7 @@ macro_rules! app_command_handlers {
             $crate::commands::git::git_ensure_ignores,
             $crate::commands::git::git_add_remote,
             $crate::commands::git::git_get_remote_url,
+            $crate::commands::git::git_repo_root,
             $crate::commands::git_clone::git_clone,
             // -- Project and misc -----------------------------------------
             $crate::commands::project::save_as_document,

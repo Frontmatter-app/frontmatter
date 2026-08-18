@@ -8,7 +8,7 @@
  * `postMessage` bridge accepting two legacy message names.
  */
 import { apiRequest } from './client';
-import { setSession, type Session } from '../auth/session';
+import { getRefreshToken, setRefreshToken, setSession, type Session } from '../auth/session';
 import type { User } from '../types';
 
 interface ServerUser {
@@ -29,6 +29,8 @@ export interface ServerCapabilities {
   identity: 'builtin' | 'oidc' | 'forge';
   allowRegistration: boolean;
   requireEmailVerification: boolean;
+  /** Git providers this server can sign somebody in with. May be absent. */
+  forgeProviders?: string[];
 }
 
 function toUser(raw: ServerUser): User {
@@ -60,6 +62,7 @@ export async function signIn(email: string, password: string): Promise<Session> 
   });
 
   const session = await establish(token.access_token);
+  await acquireRefreshToken();
   return session;
 }
 
@@ -93,6 +96,24 @@ export async function verifyEmail(token: string): Promise<void> {
   await apiRequest<void>('/auth/verify', { anonymous: true, body: { token } });
 }
 
+/**
+ * Obtains the credential that keeps this session alive.
+ *
+ * Called once per sign-in, whichever way somebody signed in. Failure is not
+ * fatal and is not surfaced: they are signed in, and the only consequence is
+ * being asked again when the access token lapses.
+ */
+export async function acquireRefreshToken(): Promise<void> {
+  try {
+    const issued = await apiRequest<{ refreshToken: string }>('/auth/refresh/issue', {
+      method: 'POST',
+    });
+    setRefreshToken(issued.refreshToken);
+  } catch {
+    // An older server with no refresh endpoint, or a network blip.
+  }
+}
+
 /** Exchanges a token for the user it belongs to, and installs the session. */
 export async function establish(accessToken: string): Promise<Session> {
   setSession({
@@ -122,11 +143,28 @@ export async function refreshCurrentUser(token: string): Promise<Session | null>
 }
 
 export async function signOut(): Promise<void> {
+  const refreshToken = getRefreshToken();
   try {
     await apiRequest<void>('/auth/jwt/logout', { method: 'POST' });
   } catch {
     // A failed logout call must still sign the user out locally — otherwise an
     // unreachable server traps them in a session they asked to end.
   }
+
+  // Retired server-side as well as locally. A refresh token left live on the
+  // server is a session somebody could resume with a copy of it, and it
+  // outlives the access token by two months.
+  if (refreshToken) {
+    try {
+      await apiRequest<void>('/auth/refresh/revoke', {
+        method: 'POST',
+        anonymous: true,
+        body: { refreshToken },
+      });
+    } catch {
+      // Unreachable server. Dropping it locally is the best available.
+    }
+  }
+
   setSession(null);
 }

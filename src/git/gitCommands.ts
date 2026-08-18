@@ -151,6 +151,22 @@ export async function getRemoteUrl(path: string): Promise<string> {
   return invoke('git_get_remote_url', { path });
 }
 
+/**
+ * The repository root containing a path, or null when it is not in one.
+ *
+ * Distinct from the workspace path on purpose: opening a subfolder of a
+ * repository is ordinary, and a forge commit addresses files relative to the
+ * repository root rather than to whatever folder happens to be open.
+ */
+export async function getRepoRoot(path: string): Promise<string | null> {
+  try {
+    const root = await invoke<string>('git_repo_root', { path });
+    return root ? root : null;
+  } catch {
+    return null;
+  }
+}
+
 export interface CloneResult {
   path: string;
   success: boolean;

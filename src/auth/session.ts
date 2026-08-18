@@ -19,6 +19,7 @@ import type { User } from '../types';
 
 const TOKEN_KEY = 'frontmatter_access_token';
 const USER_KEY = 'frontmatter_current_user';
+const REFRESH_KEY = 'frontmatter_refresh_token';
 
 export interface Session {
   user: User;
@@ -69,6 +70,43 @@ export function getAccessToken(): string | null {
   return hydrateSession()?.token ?? null;
 }
 
+/**
+ * The long-lived credential that renews the short-lived one.
+ *
+ * Kept apart from the session so that replacing the access token — which now
+ * happens roughly hourly — does not have to carry it along and risk dropping
+ * it. Losing this is not fatal, but it costs the user a sign-in.
+ */
+export function getRefreshToken(): string | null {
+  try {
+    return localStorage.getItem(REFRESH_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setRefreshToken(token: string | null): void {
+  try {
+    if (token) localStorage.setItem(REFRESH_KEY, token);
+    else localStorage.removeItem(REFRESH_KEY);
+  } catch {
+    // Storage blocked. The session still works until the access token expires.
+  }
+}
+
+/**
+ * Replaces the access token, leaving the signed-in user alone.
+ *
+ * A renewal is not a sign-in: the same person is still here, and rebuilding the
+ * session object from scratch would notify every subscriber that the user
+ * changed, remounting things that have no reason to remount once an hour.
+ */
+export function updateAccessToken(token: string): void {
+  const existing = hydrateSession();
+  if (!existing) return;
+  setSession({ ...existing, token });
+}
+
 export function setSession(session: Session | null): void {
   current = session;
   hydrated = true;
@@ -79,6 +117,9 @@ export function setSession(session: Session | null): void {
     } else {
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(USER_KEY);
+      // Signing out drops the renewal credential with the session. Leaving it
+      // behind would let the next `apiRequest` quietly sign the user back in.
+      localStorage.removeItem(REFRESH_KEY);
     }
   } catch {
     // Storage full or blocked; the in-memory session still works for this run.

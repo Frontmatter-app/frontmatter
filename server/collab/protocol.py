@@ -14,6 +14,12 @@ from __future__ import annotations
 MSG_SYNC = 0
 MSG_AWARENESS = 1
 
+# Frontmatter's own frames. Numbered well clear of the y-websocket range so a
+# stock y-websocket client and this server can never misread one another: an
+# unrecognised type is ignored by both sides rather than mis-parsed.
+MSG_GRANT = 16  # client → server: "here is a fresh grant, keep me connected"
+MSG_ACCESS = 17  # server → client: "your access here is now this"
+
 # Sync sub-types
 SYNC_STEP_1 = 0  # "here is my state vector"
 SYNC_STEP_2 = 1  # "here is everything you are missing"
@@ -78,6 +84,16 @@ def encode_sync_update(update: bytes) -> bytes:
 
 def encode_awareness(payload: bytes) -> bytes:
     return write_var_uint(MSG_AWARENESS) + write_var_bytes(payload)
+
+
+def encode_access(access: str) -> bytes:
+    """Tells a connected peer what it may now do.
+
+    Sent when a grant is renewed at a different level, or when asynchronous
+    verification lowers what an optimistic join was given. `access` is `read`,
+    `write`, or `none`; the last is followed by a close.
+    """
+    return write_var_uint(MSG_ACCESS) + write_var_bytes(access.encode("utf-8"))
 
 
 def read_awareness_client_id(payload: bytes) -> int | None:

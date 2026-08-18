@@ -3,8 +3,9 @@ import * as Y from "yjs";
 import { EditorContextMenu } from "../../components/EditorContextMenu";
 import { useWorkspace } from "../../workspace/WorkspaceProvider";
 import { useTeamPermissions } from "../../auth/teamPermissions";
-import { Lock } from "lucide-react";
 import { useReviseEditor } from "./useReviseEditor";
+import { useRoomStore } from "../../collab/roomStore";
+import { ReadOnlyNotice, readOnlyReasonFor, type ReadOnlyReason } from "../../collab/ReadOnlyNotice";
 
 export function ReviseView({
   ydoc,
@@ -15,7 +16,7 @@ export function ReviseView({
 }) {
   const { documents } = useWorkspace();
   const teamPerms = useTeamPermissions();
-  const [isReadOnly, setIsReadOnly] = useState(false);
+  const [readOnlyReason, setReadOnlyReason] = useState<ReadOnlyReason | null>(null);
   const {
     containerRef,
     focusMode,
@@ -31,32 +32,35 @@ export function ReviseView({
     onCloseContextMenu,
   } = useReviseEditor(ydoc, documentId);
 
+  // Revise is the stage that rewrites text on the author's behalf —
+  // autocorrect, accepted suggestions — so a reviewer left writable here would
+  // have the app itself producing edits the server then silently drops.
+  const roomAccess = useRoomStore(
+    (state) => (documentId ? state.rooms[documentId]?.access : undefined),
+  );
+
   useEffect(() => {
     if (!documentId) {
-      setIsReadOnly(false);
+      setReadOnlyReason(null);
       setEditorReadOnly(false);
       return;
     }
     const doc = documents.find((d: any) => d.id === documentId);
     const filePerms = (doc as any)?.filePermissions;
-    const readOnly = !teamPerms.canReviseFile(filePerms);
-    setIsReadOnly(readOnly);
-    setEditorReadOnly(readOnly);
-  }, [documentId, documents, teamPerms, setEditorReadOnly]);
+    const reason = readOnlyReasonFor({
+      roomAccess,
+      canWrite: teamPerms.canReviseFile(filePerms),
+    });
+
+    setReadOnlyReason(reason);
+    setEditorReadOnly(reason !== null);
+  }, [documentId, documents, teamPerms, roomAccess, setEditorReadOnly]);
 
   return (
     <div
       className={`w-full h-full pb-32 frontmatter-editor-container ${focusMode ? "focus-mode-active" : ""}`}
     >
-      {isReadOnly && (
-        <div
-          className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-amber-700 bg-amber-50 border-b border-amber-200 select-none"
-          style={{ background: "color-mix(in srgb, var(--editor-bg-color, #fff) 85%, #f59e0b 15%)" }}
-        >
-          <Lock className="w-3.5 h-3.5 flex-shrink-0" />
-          <span>Read-only — your group doesn't have revise access to this document.</span>
-        </div>
-      )}
+      <ReadOnlyNotice reason={readOnlyReason} />
       <div ref={containerRef} className="w-full h-full min-h-[300px]" data-stage="revise" />
       <EditorContextMenu
         position={contextMenuPos}

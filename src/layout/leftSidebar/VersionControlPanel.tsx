@@ -28,7 +28,10 @@ export function VersionControlPanel({ ydoc, currentDocumentId }: VersionControlP
       {isCloudDocument && (
         <CheckpointsPanel ydoc={ydoc} documentId={currentDocumentId} title={currentDocument.title} />
       )}
-      <GitPanel />
+      {/* The document is handed down because committing it writes the live Yjs
+          text, not the file on disk — a collaborator's edit reaches the
+          document without ever passing through the working tree. */}
+      <GitPanel ydoc={ydoc} />
     </>
   );
 }

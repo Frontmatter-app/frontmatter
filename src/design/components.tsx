@@ -76,6 +76,21 @@ export const DsInput = React.forwardRef<HTMLInputElement, React.InputHTMLAttribu
   },
 );
 
+/**
+ * A native select wearing the system's clothes.
+ *
+ * `.ds-select` was styled in `system.css` before anything rendered one, so
+ * choices were being built from bare `<select>` elements that missed the focus
+ * ring and the field colours. Native is deliberate: the platform's own picker
+ * handles keyboard, touch and long lists better than a hand-rolled menu.
+ */
+export const DsSelect = React.forwardRef<
+  HTMLSelectElement,
+  React.SelectHTMLAttributes<HTMLSelectElement>
+>(function DsSelect({ className = '', ...rest }, ref) {
+  return <select ref={ref} className={`ds-select ${className}`.trim()} {...rest} />;
+});
+
 export const DsTextarea = React.forwardRef<
   HTMLTextAreaElement,
   React.TextareaHTMLAttributes<HTMLTextAreaElement>

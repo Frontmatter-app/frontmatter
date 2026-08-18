@@ -11,6 +11,7 @@ import { useWorkspacePersistence } from './useWorkspacePersistence';
 import { useFileChangeListener, useManualSave, useCloseHandler } from './useWorkspaceEventListeners';
 import { useWorkspaceOperations } from './useWorkspaceOperations';
 import { useMenuEvents } from './useMenuEvents';
+import { useDocumentRoom } from '../collab/useDocumentRoom';
 import { useShallowMemo } from '../lib/useShallowMemo';
 import type { WorkspaceContextType } from './workspaceTypes';
 import type { DocumentMeta } from '../types';
@@ -141,6 +142,15 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   useFileChangeListener(workspacePath);
   useManualSave(currentDocumentId);
   useCloseHandler({ currentDocumentId, documents, workspacePath });
+
+  // Here rather than in the version-control panel: a document that joined its
+  // room only while a sidebar section was expanded would leave two people with
+  // the same file open unable to see each other for no reason they could guess.
+  useDocumentRoom({
+    workspacePath,
+    currentDocumentId,
+    filePath: documents.find(d => d.id === currentDocumentId)?.file_path,
+  });
 
   const ops = useWorkspaceOperations(
     { user, isAuthor, isTeamContext, teamPerms, teamId, workspacePath, currentDocumentId, documents, openTabs },

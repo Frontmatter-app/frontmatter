@@ -36,6 +36,22 @@ services:
       # Turn on once mail is configured, or nobody can confirm an address.
       FM_REQUIRE_EMAIL_VERIFICATION: "false"
 
+      # Sign in with GitHub. Set both to offer it; leave them empty and the
+      # app shows only the email form. Register an OAuth app whose callback is
+      # ${FM_PUBLIC_URL}/auth/forge/github/callback.
+      #
+      # This credential reads a profile and nothing else — no repository scope.
+      # The token that can commit is issued to the desktop app by its own
+      # device flow and never reaches this server.
+      FM_GITHUB_CLIENT_ID: ${FM_GITHUB_CLIENT_ID:-}
+      FM_GITHUB_CLIENT_SECRET: ${FM_GITHUB_CLIENT_SECRET:-}
+
+      # Sessions. The access token is short because a JWT cannot be revoked;
+      # the refresh token is long because it can be — it is stored, rotated on
+      # every use, and retired the moment it looks compromised.
+      FM_ACCESS_TOKEN_LIFETIME_SECONDS: ${FM_ACCESS_TOKEN_LIFETIME_SECONDS:-3600}
+      FM_REFRESH_TOKEN_LIFETIME_SECONDS: ${FM_REFRESH_TOKEN_LIFETIME_SECONDS:-5184000}
+
       # ── Mail ──────────────────────────────────────────────────────────────
       # `console` prints password-reset mail to the container log, so a first
       # boot is usable before SMTP exists. Switch to `smtp` for real use.

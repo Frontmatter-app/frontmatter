@@ -22,7 +22,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from server.auth.users import auth_backend, fastapi_users
+from server.auth.forge import router as forge_auth_router
+from server.auth.identity import configured_providers
+from server.auth.refresh_routes import router as refresh_router
 from server.collab.routes import router as collab_router
+from server.rooms.routes import router as rooms_router
 from server.collab.room import registry
 from server.config import get_settings
 from server.db import create_all
@@ -117,6 +121,9 @@ def create_app() -> FastAPI:
         fastapi_users.get_users_router(UserRead, UserUpdate), prefix="/users", tags=["users"]
     )
 
+    app.include_router(forge_auth_router)
+    app.include_router(refresh_router)
+    app.include_router(rooms_router)
     app.include_router(collab_router, tags=["collab"])
 
     @app.get("/health", tags=["meta"])
@@ -134,6 +141,10 @@ def create_app() -> FastAPI:
             "identity": settings.identity,
             "allowRegistration": settings.allow_registration,
             "requireEmailVerification": settings.require_email_verification,
+            # Which git providers this deployment can sign somebody in with.
+            # Empty means password only, which is the correct answer for a
+            # self-hosted server whose operator has configured no OAuth app.
+            "forgeProviders": configured_providers(),
         }
 
     return app

@@ -64,6 +64,16 @@ Every option is an environment variable prefixed `FM_`.
 | `FM_IDENTITY` | `builtin` | `builtin`, `oidc`, or `forge` |
 | `FM_ALLOW_REGISTRATION` | `true` | Set `false` after creating your accounts to close signups |
 | `FM_REQUIRE_EMAIL_VERIFICATION` | `false` | Turn on only once mail works, or nobody can confirm an address |
+| `FM_GITHUB_CLIENT_ID` | — | Offer "Continue with GitHub". Callback: `${FM_PUBLIC_URL}/auth/forge/github/callback` |
+| `FM_GITHUB_CLIENT_SECRET` | — | Set both, or neither — the app hides the button unless the server reports it |
+| `FM_ACCESS_TOKEN_LIFETIME_SECONDS` | `3600` | Short on purpose: a JWT cannot be revoked before it expires |
+| `FM_REFRESH_TOKEN_LIFETIME_SECONDS` | `5184000` | Long on purpose: this one is stored, rotated on use, and revocable |
+
+Signing in with GitHub asks for `read:user` and `user:email` and nothing more — it
+cannot read code and cannot write. The credential that commits to repositories is
+issued to the desktop app by its own device flow and is held in the operating
+system keychain; it never reaches this server. That is what makes the threat model
+below true rather than aspirational.
 | `FM_SECRET_KEY` | random per boot | **Set this.** Signs session tokens |
 | `FM_ACCESS_TOKEN_LIFETIME_SECONDS` | `604800` | Seven days |
 

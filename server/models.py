@@ -39,6 +39,49 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class RefreshToken(Base):
+    """One long-lived credential for renewing a short-lived session.
+
+    Three properties matter here, and each is a column rather than a convention:
+
+    **Only a hash is stored.** A database dump must not be a pile of live
+    sessions. The token itself exists in the response that issued it and in the
+    client's keychain, nowhere else — so verification is by hash lookup, and a
+    lost row cannot be turned back into a credential.
+
+    **Tokens rotate.** Each refresh consumes its token and issues a new one, so
+    a token captured in transit is worth nothing once the legitimate client has
+    used it.
+
+    **Rotation is only useful with reuse detection**, which is what `family_id`
+    is for. Every descendant of one sign-in shares a family. If a token that has
+    already been used is presented again, either it was stolen or the real
+    client is replaying — and there is no way to tell which. The whole family is
+    revoked, which signs that session out everywhere and is the safe answer to
+    both.
+    """
+
+    __tablename__ = "refresh_tokens"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    # Indexed and unique: every refresh is a lookup by this value.
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    # Shared by every token descended from one sign-in.
+    family_id: Mapped[uuid.UUID] = mapped_column(index=True)
+    issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # Set when the token is spent. A second presentation is the theft signal.
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    @property
+    def is_spendable(self) -> bool:
+        return self.used_at is None and self.revoked_at is None
+
+
 class ForgeIdentity(Base):
     """A git provider account linked to a user.
 

@@ -1,8 +1,8 @@
 import React, { useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import * as Y from 'yjs';
-import { Lock } from 'lucide-react';
 import { EditorContextMenu } from '../../components/EditorContextMenu';
+import { ReadOnlyNotice } from '../../collab/ReadOnlyNotice';
 import { SelectionToolbar } from '../../components/SelectionToolbar';
 import { linkCommand } from '../../editor/formatting/commands';
 import { useWriteEditor } from './useWriteEditor';
@@ -15,7 +15,7 @@ const WIDTH_MAP: Record<string, string> = { narrow: '560px', medium: '720px', wi
 
 export function WriteView({ ydoc, documentId }: { ydoc: Y.Doc; documentId?: string }) {
   const {
-    containerRef, handleRef, focusMode, isReadOnly, contextMenuPos, hasSelection,
+    containerRef, handleRef, focusMode, readOnlyReason, contextMenuPos, hasSelection,
     settings, setContextMenuPos, setHasSelection, selToolbar, setSelToolbar, handleAddNote,
   } = useWriteEditor(ydoc, documentId);
   const { isTeam, teamId, activeContext } = usePlan();
@@ -32,13 +32,7 @@ export function WriteView({ ydoc, documentId }: { ydoc: Y.Doc; documentId?: stri
 
   return (
     <div className={`w-full h-full pb-32 frontmatter-editor-container relative ${focusMode ? 'focus-mode-active' : ''}`}>
-      {isReadOnly && (
-        <div className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-amber-700 bg-amber-50/80 dark:bg-amber-900/20 border-b border-amber-200/50 select-none"
-          style={{ background: 'color-mix(in srgb, var(--editor-bg-color, #fff) 85%, #f59e0b 15%)' }}>
-          <Lock className="w-3.5 h-3.5 flex-shrink-0" />
-          <span>Read-only — your group doesn't have write access to this document.</span>
-        </div>
-      )}
+      <ReadOnlyNotice reason={readOnlyReason} />
       {/* `data-stage` is how the inline-preview interaction layer knows which
           stage it is in. Without it, `getStage()` returned null here and every
           click on an image was swallowed with the caret left where it was. */}

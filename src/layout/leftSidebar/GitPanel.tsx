@@ -9,8 +9,10 @@ import { initRepo, stageFiles, unstageFiles, commitChanges, pushChanges, pullCha
   getCurrentBranch, hasRemote, getGitBranches, checkoutBranch, createBranch, addRemote, getRemoteUrl } from '../../git/gitCommands';
 import { showAlertDialog } from '../../lib/tauriDialog';
 import { BranchSection, RemoteSection, ChangesSection } from './gitPanelSections';
+import { CommitDocumentSection } from '../../forge/CommitDocumentSection';
+import type * as Y from 'yjs';
 
-export function GitPanel() {
+export function GitPanel({ ydoc = null }: { ydoc?: Y.Doc | null }) {
   const { workspacePath, currentDocumentId, documents } = useWorkspace();
   const store = useGitStore();
   const reportGitError = useCallback(async (action: string, error: any) => {
@@ -228,6 +230,15 @@ export function GitPanel() {
           <BranchSection {...{ branchSectionOpen, setBranchSectionOpen, currentBranch, branches, canBranch, newBranchName, setNewBranchName, onSwitchBranch: handleSwitchBranch, onCreateBranch: handleCreateBranch }} />
           <RemoteSection {...{ remoteExists, remoteSectionOpen, setRemoteSectionOpen, addRemoteUrl, setAddRemoteUrl, addingRemote, onAddRemote: handleAddRemote, needsPull, needsPush, behindCount, aheadCount, canPull, canPush, isTeamContext, isPulling: store.isPulling, isPushing: store.isPushing, onPull: pull, onPush: push }} />
           <ChangesSection {...{ changesOpen, setChangesOpen, staged, unstaged, hasChanges, hasStaged, canCommit, commitMessage, setCommitMessage, commitAction, setCommitAction, commitDropdownOpen, setCommitDropdownOpen, isCommitting: store.isCommitting, isPushing: store.isPushing, onStageAll: stageAll, onUnstageAll: unstageAll, onStageFile: stageFile, onUnstageFile: unstageFile, onCommit: handleCommitAction }} />
+          {canCommit && (
+            <CommitDocumentSection
+              workspacePath={workspacePath}
+              documentId={currentDocumentId}
+              filePath={currentDoc?.file_path}
+              ydoc={ydoc}
+              active={gitOpen}
+            />
+          )}
         </div>
       )}
     </div>

@@ -3,7 +3,7 @@ import { useWorkspace } from '../workspace/WorkspaceProvider';
 import { useAuth } from '../auth/AuthProvider';
 import { usePlan } from '../billing/PlanProvider';
 import { registry } from '../yjs/DocumentRegistry';
-import { PresenceData } from '../cloud/collabProvider';
+import { PresenceData } from '../collab/RoomProvider';
 import { useData } from '../data/DataProvider';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -392,19 +392,28 @@ export function CollaborationBar({ documentId }: { documentId?: string | null })
       return;
     }
     let unsub: (() => void) | null = null;
-    let retries = 0;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
 
+    // Polled because joining a room needs a permission lookup and a grant, so
+    // a provider appears some time after the document opens. The previous
+    // version gave up after eight tries and then showed an empty bar for the
+    // rest of the session; this keeps looking while the document is open, at a
+    // rate nobody will notice.
     const setup = () => {
+      if (cancelled) return;
       const provider = registry.getProvider(docId);
       if (provider) {
         unsub = provider.onPresence((list) => setPresence(list));
-      } else if (retries < 8) {
-        retries++;
-        setTimeout(setup, 800);
+        return;
       }
+      timer = setTimeout(setup, 1000);
     };
     setup();
+
     return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
       if (unsub) unsub();
     };
   }, [docId]);
@@ -473,19 +482,37 @@ export function CollaborationBar({ documentId }: { documentId?: string | null })
       }
     : null;
 
-  const remoteMembers: MergedMember[] = teamMembers
-    .filter((m) => m.uid !== user?.id)
-    .map((m) => ({
-      ...m,
-      isActive: activeUidSet.has(m.uid),
-      isSelf: false,
-      color: presence.find((p) => p.uid === m.uid)?.color ?? '#64748b',
-    }))
-    .sort((a, b) => {
-      if (a.isActive && !b.isActive) return -1;
-      if (!a.isActive && b.isActive) return 1;
-      return a.displayName.localeCompare(b.displayName);
+  // Everyone in the room, whether or not a roster knows them.
+  //
+  // This used to map over the roster and mark those who happened to be present,
+  // which meant a live peer the roster did not list was not merely unlabelled —
+  // they were invisible. Presence is the fact being reported here, so presence
+  // is what it is built from; roster detail decorates a peer when it exists.
+  const roomMembers: MergedMember[] = presence
+    .filter((peer) => peer.uid !== user?.id)
+    .map((peer) => {
+      const known = teamMembers.find((m) => m.uid === peer.uid);
+      return {
+        uid: peer.uid,
+        displayName: known?.displayName || peer.displayName || 'Co-author',
+        email: known?.email ?? peer.email,
+        photoURL: known?.photoURL ?? peer.photoURL,
+        role: known?.role ?? 'member',
+        isActive: true,
+        isSelf: false,
+        color: peer.color,
+        updatedAt: new Date(),
+      } as MergedMember;
     });
+
+  // Listed but not here. Kept after the live peers, since "who is in the
+  // document right now" is the question this bar answers.
+  const absentMembers: MergedMember[] = teamMembers
+    .filter((m) => m.uid !== user?.id && !presence.some((peer) => peer.uid === m.uid))
+    .map((m) => ({ ...m, isActive: false, isSelf: false, color: '#64748b' }))
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+  const remoteMembers: MergedMember[] = [...roomMembers, ...absentMembers];
 
   const handleClick = useCallback(
     (member: MergedMember, e: React.MouseEvent) => {
@@ -498,8 +525,13 @@ export function CollaborationBar({ documentId }: { documentId?: string | null })
     []
   );
 
-  // Only render in team context with a document open
-  if (activeContext.type !== 'team' || !docId || !selfInfo) return null;
+  // Shown when somebody else is actually here.
+  //
+  // The gate used to be `activeContext.type === 'team'`, a context nothing
+  // could put the app into once teams were removed — so the bar was
+  // unreachable regardless of who was in the document. Presence is the honest
+  // condition: alone, there is nothing to report and the title bar stays quiet.
+  if (!docId || !selfInfo || remoteMembers.length === 0) return null;
 
   const allMembers: MergedMember[] = [selfInfo, ...remoteMembers];
   const MAX = 5;

@@ -1,0 +1,116 @@
+/**
+ * Commit-this-document section.
+ *
+ * Built on the design tokens so it follows the chrome theme. It sits inside the
+ * older Tailwind-styled git panel, which is why it carries its own spacing and
+ * a rule above it — without those it reads as a continuation of the staging
+ * controls, which are a different operation against a different store.
+ */
+
+.commit-doc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ds-space-2);
+  padding-top: var(--ds-space-3);
+  margin-top: var(--ds-space-1);
+  border-top: 1px solid var(--ds-border-soft);
+}
+
+.commit-doc__title {
+  font-size: var(--ds-text-xs);
+  font-weight: 700;
+  letter-spacing: var(--ds-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--ds-fg-meta);
+  margin: 0;
+}
+
+.commit-doc__hint {
+  font-size: var(--ds-text-sm);
+  line-height: var(--ds-leading);
+  color: var(--ds-fg-muted);
+  margin: 0;
+}
+
+.commit-doc__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ds-space-2);
+}
+
+.commit-doc__target {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ds-space-1);
+  font-size: var(--ds-text-sm);
+  color: var(--ds-fg);
+  margin: 0;
+}
+
+.commit-doc__repo {
+  font-weight: 600;
+}
+
+.commit-doc__separator {
+  color: var(--ds-fg-meta);
+}
+
+.commit-doc__branch {
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-xs);
+  background: var(--ds-surface-strong);
+  border-radius: var(--ds-radius-pill);
+  padding: 1px var(--ds-space-2);
+}
+
+/* This is the line that says which file is about to be written, so it wraps
+   rather than truncating. Ellipsing it would hide either the folder or the
+   filename, and both are load-bearing when the repository holds several files
+   with the same name. */
+.commit-doc__path {
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-xs);
+  color: var(--ds-fg-meta);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.commit-doc__message {
+  width: 100%;
+  resize: vertical;
+  font-size: var(--ds-text-sm);
+}
+
+.commit-doc__notice {
+  font-size: var(--ds-text-sm);
+  line-height: var(--ds-leading);
+  color: var(--ds-fg-muted);
+  background: var(--ds-surface-sunken);
+  border-radius: var(--ds-radius-md);
+  padding: var(--ds-space-2) var(--ds-space-3);
+  margin: 0;
+}
+
+.commit-doc__notice p {
+  margin: 0;
+}
+
+.commit-doc__notice--success {
+  color: var(--ds-fg);
+  background: color-mix(in srgb, var(--ds-success) 10%, transparent);
+}
+
+.commit-doc__notice--error {
+  color: var(--ds-danger);
+  background: color-mix(in srgb, var(--ds-danger) 10%, transparent);
+}
+
+/* A commit that exists on the branch could not be placed. Only a person can
+   decide what to do about that, so it is not allowed to look like a footnote. */
+.commit-doc__notice--warning {
+  margin-top: var(--ds-space-2);
+  color: var(--ds-warning);
+  font-weight: 600;
+}

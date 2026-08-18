@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { 
+import type { CommitPolicy } from "../forge/commitPolicy";
+import {
   updateThemeConfig, 
   githubLightDefault,
   githubLightHighContrast,
@@ -54,6 +55,18 @@ export interface LivePreviewSettings extends LivePreviewElementSettings {
 
 export interface VersionControlSettings {
   enabled: boolean;
+  /**
+   * When an open document is committed to its repository automatically.
+   *
+   * Explicit by default, which is deliberately more conservative than
+   * `DEFAULT_COMMIT_POLICY` in `forge/commitPolicy.ts`. That default describes a
+   * document whose only home is the repository, where a flush on the last peer
+   * leaving is what makes closing the room safe. A workspace document is also a
+   * file on disk and a row in the local database, so nothing is at risk if it is
+   * not committed — and a commit appearing in someone's repository because they
+   * closed a tab is a surprise, not a convenience.
+   */
+  commitPolicy: CommitPolicy;
 }
 
 export interface Settings {
@@ -130,6 +143,7 @@ export const DEFAULT_LIVE_PREVIEW: LivePreviewSettings = {
 
 export const DEFAULT_VERSION_CONTROL: VersionControlSettings = {
   enabled: false,
+  commitPolicy: 'explicit',
 };
 
 export const DEFAULT_SETTINGS: Settings = {

@@ -7,7 +7,13 @@
  * without one.
  */
 import { getServerUrl } from './serverUrl';
-import { getAccessToken, setSession } from '../auth/session';
+import {
+  getAccessToken,
+  getRefreshToken,
+  setRefreshToken,
+  setSession,
+  updateAccessToken,
+} from '../auth/session';
 
 export class ApiError extends Error {
   constructor(
@@ -40,6 +46,8 @@ interface RequestOptions {
   /** Skip the Authorization header, for endpoints used before signing in. */
   anonymous?: boolean;
   signal?: AbortSignal;
+  /** Set on the retry after a renewal, so one failure cannot loop. */
+  noRetry?: boolean;
 }
 
 /**
@@ -100,6 +108,55 @@ function humanise(code: string): string {
   }
 }
 
+/**
+ * Renews the session, at most once at a time.
+ *
+ * Several requests routinely fail together the moment an access token expires —
+ * a document opening does three at once. Without a shared in-flight promise
+ * each would rotate the refresh token independently, and since rotation treats
+ * a second use of a spent token as theft, the app would revoke its own session
+ * and sign the user out. The shared promise is not an optimisation; it is what
+ * stops the client from mugging itself.
+ */
+let renewal: Promise<boolean> | null = null;
+
+async function renewSession(): Promise<boolean> {
+  if (renewal) return renewal;
+
+  renewal = (async () => {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) return false;
+
+    const base = getServerUrl();
+    if (!base) return false;
+
+    try {
+      const response = await fetch(`${base}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+      if (!response.ok) return false;
+
+      const renewed = (await response.json()) as { accessToken: string; refreshToken: string };
+      // The new refresh token is stored first. If the process died between the
+      // two writes, losing the access token costs a renewal; losing the refresh
+      // token costs a sign-in.
+      setRefreshToken(renewed.refreshToken);
+      updateAccessToken(renewed.accessToken);
+      return true;
+    } catch {
+      return false;
+    }
+  })();
+
+  try {
+    return await renewal;
+  } finally {
+    renewal = null;
+  }
+}
+
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const base = getServerUrl();
   if (!base) throw new NoServerConfiguredError();
@@ -135,9 +192,14 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     );
   }
 
-  if (response.status === 401 && !options.anonymous) {
-    // The stored token is no longer good for anything. Clearing it here means
-    // the UI reacts once, rather than every screen discovering it separately.
+  if (response.status === 401 && !options.anonymous && !options.noRetry) {
+    // An expired access token is now the ordinary case rather than a failure —
+    // they last an hour. Renew and try once more before concluding anything.
+    if (await renewSession()) {
+      return apiRequest<T>(path, { ...options, noRetry: true });
+    }
+    // Renewal failed, so the session really is over. Clearing it here means the
+    // UI reacts once rather than every screen discovering it separately.
     setSession(null);
   }
 

@@ -154,6 +154,11 @@ export function useReviseEditor(ydoc: Y.Doc, documentId: string) {
       cl,
       suggestionsExtension(ydoc.getText("markdown"), sMgr, authorId),
       sc.current.of(EditorView.contentAttributes.of({ spellcheck: String(settings.spellCheck ?? true) })),
+      // The compartment has to be in the configuration to be reconfigurable.
+      // Without this line `setEditorReadOnly` below dispatched against a
+      // compartment the editor had never heard of, so revise mode could not be
+      // made read-only at all — the call succeeded and changed nothing.
+      rc.current.of(EditorState.readOnly.of(false)),
       // Revise is the only stage that lints and the only stage that corrects.
       // Write stays a blank page you can type into without being argued with.
       proseLintExtension({
@@ -328,6 +333,7 @@ export function useReviseEditor(ydoc: Y.Doc, documentId: string) {
   const setEditorReadOnly = useCallback((ro: boolean) => {
     setEditorReadOnlyOn(handleRef.current, rc.current, ro);
   }, []);
+
 
   return { containerRef, annManager, focusMode, contextMenuPos, hasSelection, setEditorReadOnly, handleCopy, handleCut, handlePaste, handleDelete, handleAddNote, handleInsertLink, onCloseContextMenu: useCallback(() => setContextMenuPos(null), []) };
 }

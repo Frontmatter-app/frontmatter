@@ -20,6 +20,11 @@ pycrdt==0.14.2
 # process. Owns password hashing, verification and reset tokens.
 fastapi-users[sqlalchemy]==14.0.1
 
+# The only outbound HTTP this server makes: exchanging an OAuth code for a
+# profile when somebody signs in with a git provider. Also what Starlette's
+# TestClient runs on, so the test suite needs it regardless.
+httpx==0.28.1
+
 sqlalchemy[asyncio]==2.0.52
 aiosqlite==0.20.0
 # Uncomment for Postgres:

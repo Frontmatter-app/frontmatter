@@ -37,7 +37,17 @@ class Settings(BaseSettings):
     # replica would mint tokens the others reject. Set it explicitly in
     # production — the startup log says so.
     secret_key: str = Field(default_factory=lambda: secrets.token_urlsafe(48))
-    access_token_lifetime_seconds: int = 60 * 60 * 24 * 7
+
+    # Short, because a JWT cannot be revoked: once issued it is good until it
+    # expires, whatever happens to the account meanwhile. An hour bounds that.
+    # It used to be seven days, which is both long enough for a stolen token to
+    # be worth having and short enough to sign out anyone who keeps the app
+    # open — the worst of both, and the reason refresh tokens exist.
+    access_token_lifetime_seconds: int = 60 * 60
+
+    # Long, because this one *can* be revoked: it is stored, rotated on every
+    # use, and retired the moment it looks compromised.
+    refresh_token_lifetime_seconds: int = 60 * 60 * 24 * 60
 
     # Whether a new account must confirm its email before signing in. Off by
     # default because the default mailer writes to the console; turn it on once
@@ -48,6 +58,13 @@ class Settings(BaseSettings):
     oidc_issuer: str | None = None
     oidc_client_id: str | None = None
     oidc_client_secret: str | None = None
+
+    # Sign in with a git provider. The credential this authorises reads a
+    # profile and nothing else — it cannot read code and cannot write. The
+    # token that *can* write to repositories is issued to the desktop app by
+    # its own device flow and never reaches this server.
+    github_client_id: str | None = None
+    github_client_secret: str | None = None
 
     # ── Storage ───────────────────────────────────────────────────────────────
     database_url: str = "sqlite+aiosqlite:///./data/frontmatter.db"

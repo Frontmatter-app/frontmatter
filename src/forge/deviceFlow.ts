@@ -116,7 +116,12 @@ export const GITHUB_DEVICE_FLOW: DeviceFlowConfig = {
   clientId: import.meta.env.VITE_GITHUB_CLIENT_ID || 'Ov23lioKyZe16OROpwdy',
   deviceCodeUrl: 'https://github.com/login/device/code',
   tokenUrl: 'https://github.com/login/oauth/access_token',
-  scope: 'repo read:user read:org',
+  // `user:email` reads the verified address even when the profile hides it.
+  // Without it `getAccount().email` is null for anyone who has made their
+  // address private on GitHub — which is the default for a lot of people — and
+  // they were then silently dropped from `Co-authored-by:` trailers, so a
+  // collaborative commit credited only whoever happened to flush the room.
+  scope: 'repo read:user read:org user:email',
 };
 
 export const GITLAB_DEVICE_FLOW: DeviceFlowConfig = {

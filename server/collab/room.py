@@ -11,9 +11,13 @@ predecessor:
     a joining peer converges on the existing history instead of authoring a
     parallel one. Without it, peers built disjoint CRDT histories that either
     never merged or merged into duplicated text.
-  * **Seeding happens once, and the server decides.** Every client seeding its
-    own copy is what produced duplicate content: two peers inserting the same
-    text each authored their own structs for it.
+  * **Seeding is deterministic, so it cannot happen twice.** Every client
+    seeding its own copy is what produced duplicate content: two peers
+    inserting the same text each authored their own structs for it. The server
+    cannot seed — it has no access to anybody's repository, by design — so
+    clients do, from the committed revision under a fixed author id. The same
+    text then yields byte-identical updates on every machine, and applying two
+    of them is a no-op rather than a second copy. See `src/yjs/roomSeed.ts`.
   * **Write access is enforced here.** A read-only peer's updates are dropped
     at the socket. The client being in read-only mode is a courtesy, not a
     control.
@@ -64,9 +68,10 @@ class Room:
     async def bootstrap(self) -> None:
         """Loads persisted state. Absence of a snapshot is not an error.
 
-        A room with no snapshot is simply new; the first client to connect
-        seeds it via `seed_if_empty`. That is the only path by which content
-        enters a room from outside, and it runs at most once.
+        A room with no snapshot is simply new, and stays empty until a client
+        fills it. Content arrives as ordinary sync updates — clients seed
+        deterministically, so several of them doing it at once converge on one
+        copy rather than several.
         """
         payload = await get_snapshot_store().load(snapshot_key(self.room_id))
         if payload:
@@ -181,13 +186,34 @@ class RoomRegistry:
     def __init__(self) -> None:
         self._rooms: dict[str, Room] = {}
         self._lock: asyncio.Lock | None = None
+        self._lock_loop: asyncio.AbstractEventLoop | None = None
 
     def _get_lock(self) -> asyncio.Lock:
         # Created lazily: an asyncio.Lock binds to the running loop, and this
         # registry is constructed at import time when there may not be one.
-        if self._lock is None:
+        #
+        # It is also rebuilt whenever the loop changes. A lock remembers the
+        # loop it first ran on and raises "bound to a different event loop" on
+        # any other — so this module-level singleton, holding a lock from a
+        # loop that has since closed, would refuse to open a single room. In
+        # production that is one loop for the process's life; it bites where a
+        # loop is replaced under a long-lived object, as every test that builds
+        # its own app does.
+        loop = asyncio.get_running_loop()
+        if self._lock is None or self._lock_loop is not loop:
             self._lock = asyncio.Lock()
+            self._lock_loop = loop
         return self._lock
+
+    def peer_count(self, room_id: str) -> int:
+        """How many peers are attached, without materialising the room.
+
+        Deliberately does not `acquire`: this answers a question asked before
+        joining — "is anyone already in there?" — and loading a snapshot for
+        every such question would make merely opening a document expensive.
+        """
+        room = self._rooms.get(room_id)
+        return len(room.connections) if room else 0
 
     async def acquire(self, room_id: str) -> Room:
         async with self._get_lock():

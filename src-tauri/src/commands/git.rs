@@ -501,6 +501,20 @@ pub async fn git_add_remote(path: String, name: String, url: String) -> Result<(
     Ok(())
 }
 
+/// The repository root containing `path`, or an empty string when there is none.
+///
+/// The workspace folder and the repository root are not always the same
+/// directory — opening a subfolder of a repository is ordinary. Committing
+/// through a provider's API addresses files by their path *within the
+/// repository*, so a caller that measures paths from the workspace folder
+/// instead would write `chapter.md` where the repository holds
+/// `book/chapter.md`, creating a second file rather than updating the one it
+/// was editing.
+#[tauri::command]
+pub async fn git_repo_root(path: String) -> Result<String, String> {
+    Ok(repo_root(&path).await.unwrap_or_default())
+}
+
 #[tauri::command]
 pub async fn git_get_remote_url(path: String) -> Result<String, String> {
     let Ok(root) = repo_root(&path).await else {

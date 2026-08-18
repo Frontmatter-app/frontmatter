@@ -16,6 +16,8 @@ import { useDocumentAssets } from '../../images/useDocumentAssets';
 import { getContextFromYdoc } from '../../excalidraw/excalidrawService';
 import { usePlanStore } from '../../billing/PlanProvider';
 import { useSyncStatusStore } from '../../cloud/syncStatusStore';
+import { useRoomStore } from '../../collab/roomStore';
+import { readOnlyReasonFor, type ReadOnlyReason } from '../../collab/ReadOnlyNotice';
 import { getCurrentUser } from "../../auth/session";
 import { SuggestionManager } from '../../yjs/suggestions';
 import { AnnotationManager } from '../../yjs/annotations';
@@ -62,6 +64,7 @@ export function useWriteEditor(
   const savedSel = useRef<{ from: number; to: number } | null>(null);
   const [focusMode, setFocusMode] = useState(false);
   const [isReadOnly, setIsReadOnly] = useState(false);
+  const [readOnlyReason, setReadOnlyReason] = useState<ReadOnlyReason | null>(null);
   const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [hasSelection, setHasSelection] = useState(false);
   const [selToolbar, setSelToolbar] = useState<{ from: number; to: number } | null>(null);
@@ -233,14 +236,30 @@ export function useWriteEditor(
   useEditorNavigation(handleRef);
   useEditorAppearance(handleRef, settings, spellCheckCompartmentRef.current);
 
+  // What the room granted, if this document is in one. Subscribed rather than
+  // read once: a grant renewed at a lower level must reach the editor.
+  const roomAccess = useRoomStore(
+    (state) => (documentId ? state.rooms[documentId]?.access : undefined),
+  );
+
   useEffect(() => {
-    if (!documentId) { setIsReadOnly(false); return; }
+    if (!documentId) { setIsReadOnly(false); setReadOnlyReason(null); return; }
     const doc = documents.find((d: any) => d.id === documentId);
     const filePerms = (doc as any)?.filePermissions;
-    const readOnly = !teamPerms.canWriteFile(filePerms);
-    setIsReadOnly(readOnly);
-    setEditorReadOnlyOn(handleRef.current, readOnlyCompartmentRef.current, readOnly);
-  }, [documentId, documents, teamPerms]);
+
+    // Either source can forbid writing. The room's verdict is the one the
+    // server enforces: without it a reviewer types normally and watches the
+    // server drop every keystroke, which reads as the app being broken rather
+    // than as a permission they do not have.
+    const reason = readOnlyReasonFor({
+      roomAccess,
+      canWrite: teamPerms.canWriteFile(filePerms),
+    });
+
+    setIsReadOnly(reason !== null);
+    setReadOnlyReason(reason);
+    setEditorReadOnlyOn(handleRef.current, readOnlyCompartmentRef.current, reason !== null);
+  }, [documentId, documents, teamPerms, roomAccess]);
 
   const setEditorReadOnly = useCallback((ro: boolean) => {
     setEditorReadOnlyOn(handleRef.current, readOnlyCompartmentRef.current, ro);
@@ -274,7 +293,7 @@ export function useWriteEditor(
   }, [annManager, ydoc, documentId, authorId, isTeam, teamPerms]);
 
   return {
-    containerRef, handleRef, focusMode, isReadOnly, contextMenuPos, hasSelection,
+    containerRef, handleRef, focusMode, isReadOnly, readOnlyReason, contextMenuPos, hasSelection,
     savedSel, readOnlyCompartmentRef, spellCheckCompartmentRef, setEditorReadOnly,
     teamPerms, settings, setContextMenuPos, setHasSelection, selToolbar, setSelToolbar,
     handleAddNote,

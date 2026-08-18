@@ -37,6 +37,68 @@ describe('loading', () => {
   });
 });
 
+describe('attaching to a document that is already open', () => {
+  it('leaves the working copy alone', () => {
+    // The case `load` would ruin: the text on screen came from the file on
+    // disk, and merging the branch into it against an empty base would leave
+    // the document holding two interleaved copies of itself.
+    const { text, document } = setup({ 'notes.md': 'committed\n' });
+    text.insert(0, 'committed\nand edited since\n');
+    return document.attach().then(() => {
+      expect(text.toString()).toBe('committed\nand edited since\n');
+    });
+  });
+
+  it('records the committed revision as the base, not the working copy', async () => {
+    const { text, document } = setup({ 'notes.md': 'committed\n' });
+    text.insert(0, 'committed\nand edited since\n');
+    await document.attach();
+    expect(document.base.text).toBe('committed\n');
+    expect(document.base.commit).not.toBeNull();
+  });
+
+  it('commits the working copy against the committed base', async () => {
+    const { forge, text, document } = setup({ 'notes.md': 'committed\n' });
+    text.insert(0, 'committed\nand edited since\n');
+    await document.attach();
+
+    const outcome = await document.commit({ message: 'Save the edit' });
+
+    expect(outcome.status).toBe('committed');
+    expect((await forge.getFile('acme/docs', 'notes.md'))?.text).toBe(
+      'committed\nand edited since\n',
+    );
+  });
+
+  it('still detects a branch that moved, rather than overwriting it', async () => {
+    // Without a real base the commit would carry no expected head, which the
+    // forge reads as "whatever the tip is" — a blind overwrite of the other
+    // writer's push.
+    const { forge, text, document } = setup({ 'notes.md': 'line one\n' });
+    text.insert(0, 'line one\nlocal line\n');
+    await document.attach();
+
+    forge.advanceBranch('acme/docs', 'main', { 'notes.md': 'line one\nremote line\n' });
+    const outcome = await document.commit({ message: 'Save' });
+
+    expect(outcome.status).toBe('reconciled');
+    const committed = (await forge.getFile('acme/docs', 'notes.md'))!.text;
+    expect(committed).toContain('remote line');
+    expect(committed).toContain('local line');
+  });
+
+  it('treats a file not yet in the repository as an empty base', async () => {
+    const { forge, text, document } = setup();
+    text.insert(0, 'brand new\n');
+    await document.attach();
+
+    const outcome = await document.commit({ message: 'Add it' });
+
+    expect(outcome.status).toBe('committed');
+    expect((await forge.getFile('acme/docs', 'notes.md'))?.text).toBe('brand new\n');
+  });
+});
+
 describe('committing', () => {
   it('does nothing when the text has not changed', async () => {
     const { document } = setup({ 'notes.md': 'unchanged\n' });
