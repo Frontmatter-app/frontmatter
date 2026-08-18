@@ -18,3 +18,7 @@ src-tauri/.tauri/
 # license text ships beside it in the bundle, so that one file is tracked.
 src-tauri/binaries/*
 !src-tauri/binaries/LICENSE-zola
+# Compiled Python bytecode. Architecture- and version-specific, so tracking it
+# produces conflicts nobody can resolve and diffs nobody can read.
+__pycache__/
+*.py[cod]
